@@ -4,3 +4,5 @@ instance/
 temp/
 参考资料/
 *.zip
+__pycache__/
+*.pyc
