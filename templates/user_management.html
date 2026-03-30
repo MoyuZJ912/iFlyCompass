@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户管理 - iFlyCompass</title>
+    <link rel="stylesheet" href="/assets/css/loading.css">
+    <link rel="stylesheet" href="/assets/css/material-icons.css">
+    <link rel="stylesheet" href="/assets/css/element-ui.css">
+    <link rel="stylesheet" href="/assets/css/console.css">
+    <style>
+        .user-menu-container {
+            position: relative;
+            cursor: pointer;
+            z-index: 1000;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        
+        .user-info:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .user-info .el-icon-arrow-down {
+            margin-left: 8px;
+            transition: transform 0.3s;
+        }
+        
+        .user-info .el-icon-arrow-down.rotated {
+            transform: rotate(180deg);
+        }
+        
+        .user-dropdown-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 4px;
+            background: #fff;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            min-width: 180px;
+            overflow: hidden;
+        }
+        
+        .user-dropdown-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            color: #333;
+        }
+        
+        .user-dropdown-item:hover:not(.disabled) {
+            background-color: #f5f7fa;
+        }
+        
+        .user-dropdown-item.disabled {
+            cursor: not-allowed;
+            color: #999;
+        }
+        
+        .user-dropdown-item .item-label {
+            margin-right: 8px;
+            font-size: 14px;
+        }
+        
+        .user-dropdown-item .item-value {
+            font-weight: 500;
+            flex: 1;
+        }
+        
+        .user-dropdown-divider {
+            height: 1px;
+            background-color: #e8e8e8;
+            margin: 4px 0;
+        }
+        
+        .user-dropdown-item.logout-item {
+            color: #ff4d4f;
+        }
+        
+        .user-dropdown-item.logout-item:hover {
+            background-color: #fff1f0;
+        }
+        
+        .user-dropdown-item i {
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">加载中...</div>
+    </div>
+    <div id="app">
+        <el-container class="console-container">
+            <!-- 侧边栏 -->
+            <el-aside width="64px" class="console-sidebar" :width="isCollapse ? '64px' : '200px'">
+                <div class="sidebar-header" @click="toggleCollapse">
+                    <img src="/assets/images/logo-trans-white.png" alt="Logo" class="sidebar-logo">
+                    <span v-show="!isCollapse" class="sidebar-brand">iFlyCompass</span>
+                    <i v-show="!isCollapse" class="el-icon-s-fold sidebar-toggle" :class="{ 'rotated': !isCollapse }"></i>
+                </div>
+                
+                <el-menu
+                    :default-active="activeMenu"
+                    class="el-menu-vertical-demo"
+                    background-color="#1a365d"
+                    text-color="#ffffff"
+                    active-text-color="#409EFF"
+                    :collapse="isCollapse"
+                    @select="handleMenuClick"
+                >
+                    <el-menu-item index="dashboard">
+                        <i class="el-icon-s-home"></i>
+                        <span slot="title">首页</span>
+                    </el-menu-item>
+                    <el-menu-item index="tools">
+                        <i class="el-icon-s-tools"></i>
+                        <span slot="title">小工具</span>
+                    </el-menu-item>
+                    <el-menu-item index="games">
+                        <i class="el-icon-s-marketing"></i>
+                        <span slot="title">小游戏</span>
+                    </el-menu-item>
+                    <el-menu-item index="users" class="active">
+                        <i class="el-icon-s-custom"></i>
+                        <span slot="title">用户管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="passkeys" v-if="isSuperAdmin">
+                        <i class="el-icon-key"></i>
+                        <span slot="title">Passkey 管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="chat">
+                        <i class="el-icon-chat-dot-round"></i>
+                        <span slot="title">聊天室</span>
+                    </el-menu-item>
+                </el-menu>
+            </el-aside>
+            
+            <!-- 主内容区域 -->
+            <el-container>
+                <!-- 顶部导航 -->
+                <el-header class="console-header">
+                    <div class="header-left">
+                        <h1>用户管理</h1>
+                    </div>
+                    <div class="header-right">
+                    <div class="user-menu-container" @click="toggleUserMenu">
+                        <span class="user-info">
+                            您好，[[ username ]]
+                            <i class="el-icon-arrow-down" :class="{ 'rotated': userMenuVisible }"></i>
+                        </span>
+                        <div class="user-dropdown-menu" v-show="userMenuVisible" @click.stop>
+                            <div class="user-dropdown-item disabled">
+                                <span class="item-label">用户名:</span>
+                                <span class="item-value">[[ username ]]</span>
+                            </div>
+                            <div class="user-dropdown-item disabled" v-if="passkeyUsed">
+                                <span class="item-label">Passkey:</span>
+                                <span class="item-value">[[ passkeyUsed ]]</span>
+                            </div>
+                            <div class="user-dropdown-divider"></div>
+                            <div class="user-dropdown-item logout-item" @click="confirmLogout">
+                                <i class="el-icon-switch-button"></i>
+                                <span>退出登录</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                </el-header>
+                
+                <!-- 内容区域 -->
+                <el-main class="console-content">
+                    <div class="content-wrapper">
+                        <!-- 搜索和添加按钮 -->
+                        <div class="user-actions">
+                            <el-input
+                                v-model="searchQuery"
+                                placeholder="搜索用户名"
+                                prefix-icon="el-icon-search"
+                                class="search-input"
+                            ></el-input>
+                            <el-button type="primary" @click="dialogVisible = true" icon="el-icon-plus">
+                                添加用户
+                            </el-button>
+                        </div>
+                        
+                        <!-- 用户表格 -->
+                        <el-table
+                            :data="filteredUsers"
+                            style="width: 100%"
+                            border
+                        >
+                            <el-table-column prop="id" label="ID" width="80"></el-table-column>
+                            <el-table-column prop="username" label="用户名"></el-table-column>
+                            <el-table-column prop="is_super_admin" label="超级管理员">
+                                <template slot-scope="scope">
+                                    <el-tag v-if="scope.row.is_super_admin" type="danger">是</el-tag>
+                                    <el-tag v-else type="info">否</el-tag>
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="is_admin" label="管理员">
+                                <template slot-scope="scope">
+                                    <el-tag v-if="scope.row.is_admin" type="success">是</el-tag>
+                                    <el-tag v-else type="info">否</el-tag>
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="created_at" label="创建时间"></el-table-column>
+                            <el-table-column label="操作" width="200">
+                                <template slot-scope="scope">
+                                    <el-button 
+                                        type="primary" 
+                                        size="small" 
+                                        @click="resetPassword(scope.row)"
+                                        :disabled="scope.row.is_super_admin"
+                                    >
+                                        重置密码
+                                    </el-button>
+                                    <el-button 
+                                        type="warning" 
+                                        size="small" 
+                                        @click="editUser(scope.row)"
+                                        :disabled="scope.row.is_super_admin"
+                                    >
+                                        编辑
+                                    </el-button>
+                                    <el-button 
+                                        type="danger" 
+                                        size="small" 
+                                        @click="deleteUser(scope.row)"
+                                        :disabled="scope.row.is_super_admin"
+                                    >
+                                        删除
+                                    </el-button>
+                                </template>
+                            </el-table-column>
+                        </el-table>
+                        
+                        <!-- 添加/编辑用户对话框 -->
+                        <el-dialog
+                            :title="dialogTitle"
+                            :visible.sync="dialogVisible"
+                            width="500px"
+                        >
+                            <el-form :model="form" label-width="80px">
+                                <el-form-item label="用户名">
+                                    <el-input v-model="form.username" placeholder="请输入用户名"></el-input>
+                                </el-form-item>
+                                <el-form-item label="密码">
+                                    <el-input v-model="form.password" type="password" placeholder="请输入密码"></el-input>
+                                </el-form-item>
+                                <el-form-item label="管理员" v-if="isSuperAdmin">
+                                    <el-switch v-model="form.is_admin"></el-switch>
+                                </el-form-item>
+                            </el-form>
+                            <span slot="footer" class="dialog-footer">
+                                <el-button @click="dialogVisible = false">取消</el-button>
+                                <el-button type="primary" @click="saveUser">确定</el-button>
+                            </span>
+                        </el-dialog>
+                        
+                        <!-- 重置密码对话框 -->
+                        <el-dialog
+                            title="重置密码"
+                            :visible.sync="resetDialogVisible"
+                            width="400px"
+                        >
+                            <el-form :model="resetForm" label-width="80px">
+                                <el-form-item label="新密码">
+                                    <el-input v-model="resetForm.password" type="password" placeholder="请输入新密码"></el-input>
+                                </el-form-item>
+                            </el-form>
+                            <span slot="footer" class="dialog-footer">
+                                <el-button @click="resetDialogVisible = false">取消</el-button>
+                                <el-button type="primary" @click="confirmResetPassword">确定</el-button>
+                            </span>
+                        </el-dialog>
+                    </div>
+                </el-main>
+            </el-container>
+        </el-container>
+    </div>
+
+    <script src="/assets/js/vue.min.js"></script>
+    <script src="/assets/js/element-ui.js"></script>
+    <script>
+        // 页面加载完成日志
+        console.log('=== iFlyCompass 用户管理页面加载完成 ===');
+        
+        new Vue({
+            el: '#app',
+            delimiters: ['[[', ']]'],
+            data() {
+                return {
+                    isCollapse: true,
+                    activeMenu: 'users',
+                    username: '{{ current_user.username }}',
+                    passkeyUsed: {% if current_user.passkey_used %}'{{ current_user.passkey_used }}'{% else %}null{% endif %},
+                    isSuperAdmin: {% if current_user.is_super_admin %}true{% else %}false{% endif %},
+                    users: [],
+                    searchQuery: '',
+                    dialogVisible: false,
+                    resetDialogVisible: false,
+                    dialogTitle: '添加用户',
+                    form: {
+                        id: null,
+                        username: '',
+                        password: '',
+                        is_admin: false
+                    },
+                    resetForm: {
+                        password: '',
+                        userId: null
+                    },
+                    userMenuVisible: false
+                };
+            },
+            computed: {
+                filteredUsers() {
+                    if (!this.searchQuery) {
+                        return this.users;
+                    }
+                    return this.users.filter(user => 
+                        user.username.toLowerCase().includes(this.searchQuery.toLowerCase())
+                    );
+                }
+            },
+            mounted() {
+                console.log('Vue 实例挂载完成，用户信息:', {
+                    username: this.username,
+                    isSuperAdmin: this.isSuperAdmin
+                });
+                this.loadUsers();
+            },
+            methods: {
+                toggleCollapse() {
+                    console.log('切换侧边栏折叠状态:', !this.isCollapse);
+                    this.isCollapse = !this.isCollapse;
+                },
+                toggleUserMenu() {
+                    this.userMenuVisible = !this.userMenuVisible;
+                },
+                confirmLogout() {
+                    this.$confirm('确定要退出登录吗？', '提示', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    })
+                    .then(() => {
+                        this.logout();
+                    })
+                    .catch(() => {
+                        console.log('取消退出登录');
+                    });
+                },
+                logout() {
+                    console.log('=== 退出登录操作开始 ===');
+                    console.log('当前用户:', this.username);
+                    console.log('用户类型:');
+                    console.log('- 超级管理员:', this.isSuperAdmin);
+                    console.log('正在重定向到退出登录页面...');
+                    window.location.href = '/logout';
+                    console.log('=== 退出登录操作完成 ===');
+                },
+                handleMenuClick(key) {
+                    console.log('菜单点击:', key);
+                    // 点击菜单时关闭用户菜单
+                    this.userMenuVisible = false;
+                    if (key === 'dashboard') {
+                        console.log('导航到控制台首页');
+                        window.location.href = '/board';
+                    } else if (key === 'tools') {
+                        console.log('导航到小工具');
+                        window.location.href = '/board/tools';
+                    } else if (key === 'games') {
+                        console.log('导航到小游戏');
+                        window.location.href = '/board';
+                    } else if (key === 'users') {
+                        console.log('导航到用户管理');
+                        window.location.href = '/board/users';
+                    } else if (key === 'passkeys' && this.isSuperAdmin) {
+                        console.log('导航到 Passkey 管理');
+                        window.location.href = '/board/passkeys';
+                    } else if (key === 'chat') {
+                        console.log('导航到聊天室');
+                        window.location.href = '/board/chat';
+                    }
+                },
+                loadUsers() {
+                    console.log('加载用户列表');
+                    fetch('/api/users')
+                        .then(response => response.json())
+                        .then(data => {
+                            console.log('用户列表加载完成:', data.length, '个用户');
+                            this.users = data;
+                        })
+                        .catch(error => {
+                            console.error('加载用户列表失败:', error);
+                        });
+                },
+                addUser() {
+                    console.log('打开添加用户对话框');
+                    this.dialogTitle = '添加用户';
+                    this.form = {
+                        id: null,
+                        username: '',
+                        password: '',
+                        is_admin: false
+                    };
+                    this.dialogVisible = true;
+                },
+                editUser(user) {
+                    console.log('打开编辑用户对话框:', user.username);
+                    this.dialogTitle = '编辑用户';
+                    this.form = {
+                        id: user.id,
+                        username: user.username,
+                        password: '',
+                        is_admin: user.is_admin
+                    };
+                    this.dialogVisible = true;
+                },
+                saveUser() {
+                    if (!this.form.username || !this.form.password) {
+                        console.log('保存用户失败: 用户名和密码不能为空');
+                        this.$message.error('用户名和密码不能为空');
+                        return;
+                    }
+                    
+                    console.log('保存用户:', this.form);
+                    const method = this.form.id ? 'PUT' : 'POST';
+                    const url = '/api/users';
+                    
+                    fetch(url, {
+                        method: method,
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(this.form)
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            console.error('保存用户失败:', data.error);
+                            this.$message.error(data.error);
+                        } else {
+                            console.log('保存用户成功:', data);
+                            this.$message.success(this.form.id ? '用户更新成功' : '用户添加成功');
+                            this.dialogVisible = false;
+                            this.loadUsers();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('保存用户失败:', error);
+                    });
+                },
+                resetPassword(user) {
+                    console.log('打开重置密码对话框:', user.username);
+                    this.resetForm.userId = user.id;
+                    this.resetForm.password = '';
+                    this.resetDialogVisible = true;
+                },
+                confirmResetPassword() {
+                    if (!this.resetForm.password) {
+                        console.log('重置密码失败: 密码不能为空');
+                        this.$message.error('密码不能为空');
+                        return;
+                    }
+                    
+                    console.log('重置用户密码:', this.resetForm.userId);
+                    fetch('/api/users', {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            id: this.resetForm.userId,
+                            password: this.resetForm.password
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            console.error('重置密码失败:', data.error);
+                            this.$message.error(data.error);
+                        } else {
+                            console.log('重置密码成功:', data);
+                            this.$message.success('密码重置成功');
+                            this.resetDialogVisible = false;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('重置密码失败:', error);
+                    });
+                },
+                deleteUser(user) {
+                    console.log('确认删除用户:', user.username);
+                    this.$confirm('确定要删除这个用户吗？', '提示', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    })
+                    .then(() => {
+                        console.log('执行删除用户:', user.id, user.username);
+                        fetch('/api/users', {
+                            method: 'DELETE',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ id: user.id })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.error) {
+                                console.error('删除用户失败:', data.error);
+                                this.$message.error(data.error);
+                            } else {
+                                console.log('删除用户成功');
+                                this.$message.success('用户删除成功');
+                                this.loadUsers();
+                            }
+                        })
+                        .catch(error => {
+                            console.error('删除用户失败:', error);
+                        });
+                    })
+                    .catch(() => {
+                        console.log('取消删除用户');
+                        // 取消删除
+                    });
+                }
+            }
+        });
+    </script>
+    <script src="/assets/js/loading.js"></script>
+</body>
+</html>

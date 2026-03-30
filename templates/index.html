@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iFlyCompass - 首页</title>
+    <link rel="stylesheet" href="/assets/css/loading.css">
+    <link rel="stylesheet" href="/assets/css/material-icons.css">
+    <link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body style="background-image: url('{{ wallpaper_url }}');">
+    <div id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">加载中...</div>
+    </div>
+    <!-- 玻璃 Tab 栏 -->
+    <nav class="glass-navbar">
+        <div class="nav-left">
+            <img src="/assets/images/logo-trans-white.png" alt="Logo" class="nav-logo">
+            <span class="nav-brand">iFlyCompass</span>
+        </div>
+        <div class="nav-right">
+            <a href="/" class="nav-link active">首页</a>
+            <a href="#" class="nav-link">教程</a>
+            <a href="/board" class="nav-btn">控制台</a>
+        </div>
+    </nav>
+
+    <!-- 主体内容 -->
+    <main class="hero-section">
+        <div class="hero-content">
+            <img src="/assets/images/logo-trans-white.png" alt="iFlyCompass Logo" class="hero-logo">
+            <h1 class="hero-title">iFlyCompass</h1>
+            
+            <!-- 诗词展示区域 -->
+            <div class="poetry-container">
+                <p class="poetry-content" id="poetry-content" data-content="{{ poetry.content }}"></p>
+                <p class="poetry-author" id="poetry-author" style="opacity: 0;">
+                    ——{{ poetry.author }} · {{ poetry.origin }}
+                </p>
+            </div>
+
+            <!-- 按钮组 -->
+            <div class="hero-buttons">
+                <a href="/board" class="btn-primary">
+                    <span class="material-icons">arrow_forward</span>
+                    前往控制台
+                </a>
+                <a href="/register" class="btn-link">注册</a>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // 页面加载完成日志
+        console.log('=== iFlyCompass 首页加载完成 ===');
+        
+        // 打字机效果
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM 加载完成，初始化打字机效果');
+            const poetryElement = document.getElementById('poetry-content');
+            const authorElement = document.getElementById('poetry-author');
+            const content = poetryElement.getAttribute('data-content');
+            
+            console.log('获取诗词内容:', content);
+            
+            let index = 0;
+            const typingSpeed = 150; // 每个字的间隔时间（毫秒）
+            
+            function typeWriter() {
+                if (index < content.length) {
+                    poetryElement.textContent += content.charAt(index);
+                    index++;
+                    setTimeout(typeWriter, typingSpeed);
+                } else {
+                    // 诗句显示完成后，显示作者信息
+                    console.log('诗词显示完成，显示作者信息');
+                    setTimeout(() => {
+                        authorElement.style.opacity = '1';
+                        authorElement.classList.add('fade-in');
+                    }, 300);
+                }
+            }
+            
+            // 开始打字机动画
+            poetryElement.textContent = '';
+            setTimeout(typeWriter, 500);
+        });
+        
+        // 导航链接点击日志
+        document.addEventListener('DOMContentLoaded', function() {
+            const navLinks = document.querySelectorAll('.nav-link, .nav-btn');
+            navLinks.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    console.log('导航链接点击:', this.textContent.trim(), '目标:', this.href);
+                });
+            });
+        });
+    </script>
+    <script src="/assets/js/loading.js"></script>
+</body>
+</html>

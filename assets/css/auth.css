@@ -1,0 +1,178 @@
+/* 认证页面样式 */
+.auth-section {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 100px 24px 40px;
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 440px;
+    padding: 48px;
+}
+
+.glass-card {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(30px);
+    -webkit-backdrop-filter: blur(30px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 20px;
+}
+
+.auth-header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.auth-logo {
+    width: 64px;
+    height: 64px;
+    object-fit: contain;
+    margin-bottom: 20px;
+}
+
+.auth-title {
+    color: #ffffff;
+    font-size: 28px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.auth-subtitle {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 15px;
+    font-weight: 400;
+}
+
+/* 表单样式 */
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.form-label .material-icons {
+    font-size: 18px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.form-input {
+    padding: 14px 16px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    color: #ffffff;
+    font-size: 15px;
+    transition: all 0.3s ease;
+}
+
+.form-input::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.15);
+}
+
+/* 提交按钮 */
+.btn-submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 16px 28px;
+    background: #ffffff;
+    color: #1a1a1a;
+    border: none;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.btn-submit:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 30px rgba(0, 0, 0, 0.3);
+}
+
+.btn-submit .material-icons {
+    font-size: 20px;
+}
+
+/* 底部链接 */
+.auth-footer {
+    text-align: center;
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.flash-messages {
+    margin-bottom: 24px;
+}
+
+.flash-message {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+
+.flash-message.error {
+    background: rgba(245, 108, 108, 0.2);
+    border: 1px solid rgba(245, 108, 108, 0.4);
+    color: #f56c6c;
+}
+
+.auth-footer p {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 14px;
+}
+
+.auth-link {
+    color: #ffffff;
+    text-decoration: none;
+    font-weight: 500;
+    margin-left: 4px;
+    transition: opacity 0.3s ease;
+}
+
+.auth-link:hover {
+    opacity: 0.8;
+    text-decoration: underline;
+}
+
+/* 响应式设计 */
+@media (max-width: 480px) {
+    .auth-card {
+        padding: 32px 24px;
+    }
+    
+    .auth-title {
+        font-size: 24px;
+    }
+}

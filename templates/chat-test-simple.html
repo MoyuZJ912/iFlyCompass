@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>{{ room.name }} - 聊天室</title>
+    <link rel="stylesheet" href="/assets/css/loading.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            background-color: #4CAF50;
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .back-link {
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+        
+        .back-link:hover {
+            background-color: rgba(255,255,255,0.1);
+        }
+        
+        .logout-button {
+            background-color: rgba(255,255,255,0.2);
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+        
+        .logout-button:hover {
+            background-color: rgba(255,255,255,0.3);
+        }
+        
+        .chat-room-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            display: flex;
+            gap: 20px;
+        }
+        
+        .chat-main {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .chat-room-header {
+            background: white;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            flex-shrink: 0;
+        }
+        
+        .back-button {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #667eea;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: background 0.2s;
+            margin-right: 12px;
+        }
+        
+        .back-button:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+        
+        .room-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            display: flex;
+            align-items: center;
+            flex: 1;
+        }
+        
+        .room-title .password-icon {
+            margin-left: 8px;
+            color: #ffa502;
+        }
+        
+        .header-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .leave-btn {
+            background: #ff4757;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        
+        .leave-btn:hover {
+            background: #ff3838;
+        }
+        
+        .messages-container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            height: 450px;
+            overflow-y: auto;
+            padding: 20px;
+            margin-bottom: 10px;
+        }
+        
+        .messages-container::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .messages-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .messages-container::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+        
+        .message-item {
+            margin-bottom: 16px;
+            display: flex;
+            align-items: flex-start;
+        }
+        
+        .message-item.own-message {
+            justify-content: flex-end;
+        }
+        
+        .message-item.other-message {
+            justify-content: flex-start;
+        }
+        
+        .message-content {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            word-wrap: break-word;
+            line-height: 1.5;
+            position: relative;
+        }
+        
+        .message-item.own-message .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .message-item.other-message .message-content {
+            background: white;
+            color: #333;
+            border-bottom-left-radius: 4px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            font-size: 12px;
+        }
+        
+        .message-username {
+            font-weight: 600;
+        }
+        
+        .message-item.other-message .message-username {
+            color: #667eea;
+        }
+        
+        .message-item.own-message .message-username {
+            color: rgba(255,255,255,0.9);
+        }
+        
+        .message-time {
+            opacity: 0.7;
+            font-size: 11px;
+        }
+        
+        .message-item.system {
+            justify-content: center;
+            margin: 12px 0;
+        }
+        
+        .message-item.system .message-content {
+            background: rgba(0,0,0,0.05);
+            color: #666;
+            font-size: 12px;
+            padding: 6px 16px;
+            border-radius: 12px;
+        }
+        
+        .input-container {
+            background: white;
+            padding: 12px 16px;
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+            flex-shrink: 0;
+            border-top: 1px solid #e8e8e8;
+        }
+        
+        .message-input {
+            flex: 1;
+            padding: 10px 16px;
+            border: 2px solid #e8e8e8;
+            border-radius: 24px;
+            font-size: 15px;
+            outline: none;
+            resize: none;
+            min-height: 44px;
+            max-height: 120px;
+            transition: border-color 0.2s;
+        }
+        
+        .message-input:focus {
+            border-color: #667eea;
+        }
+        
+        .send-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 24px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 500;
+            transition: transform 0.1s, box-shadow 0.2s;
+        }
+        
+        .send-btn:hover {
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .send-btn:active {
+            transform: scale(0.98);
+        }
+        
+        .chat-sidebar-wrapper {
+            position: relative;
+            width: 200px;
+            flex-shrink: 0;
+        }
+        
+        .chat-sidebar {
+            width: 200px;
+            flex-shrink: 0;
+            transition: width 0.3s ease, opacity 0.3s ease;
+            overflow: hidden;
+        }
+        
+        .chat-sidebar.collapsed {
+            width: 0;
+            opacity: 0;
+        }
+        
+        .sidebar-toggle-btn {
+            position: absolute;
+            left: -30px;
+            top: 10px;
+            width: 24px;
+            height: 24px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px 0 0 4px;
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+        
+        .sidebar-toggle-btn:hover {
+            background-color: #45a049;
+        }
+        
+        .online-users-panel {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 15px;
+        }
+        
+        .online-users-panel h3 {
+            margin: 0 0 15px 0;
+            color: #333;
+            font-size: 16px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        
+        .online-count {
+            background-color: #4CAF50;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 12px;
+            margin-left: auto;
+        }
+        
+        .online-user-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 0;
+            gap: 10px;
+        }
+        
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        .online-user-name {
+            font-size: 14px;
+            color: #333;
+        }
+        
+        .online-user-name.current-user {
+            font-weight: bold;
+        }
+        
+        .typing-indicator {
+            padding: 8px 15px;
+            color: #666;
+            font-style: italic;
+            font-size: 13px;
+            height: 20px;
+        }
+        
+        .no-messages {
+            text-align: center;
+            color: #999;
+            padding: 40px;
+        }
+        
+        @media (max-width: 768px) {
+            .chat-room-container {
+                flex-direction: column;
+                padding: 10px;
+            }
+            .chat-sidebar {
+                width: 100%;
+                order: -1;
+                max-height: 200px;
+                overflow-y: auto;
+            }
+            .chat-sidebar.collapsed {
+                max-height: 0;
+            }
+            .message-item {
+                max-width: 85%;
+            }
+            .chat-room-header {
+                flex-direction: column;
+                gap: 10px;
+                align-items: flex-start;
+                padding: 12px 15px;
+            }
+            .room-title {
+                font-size: 18px;
+            }
+            .header-actions {
+                width: 100%;
+                flex-wrap: wrap;
+            }
+            .messages-container {
+                height: 350px;
+                padding: 10px;
+            }
+            .message-input-container {
+                flex-direction: column;
+                gap: 10px;
+            }
+            .message-input-container input {
+                width: 100%;
+            }
+            .send-btn {
+                width: 100%;
+            }
+            .pagination-container {
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            .page-jump-input {
+                width: 40px;
+            }
+            .online-user-item {
+                padding: 6px 8px;
+            }
+            .typing-indicator {
+                font-size: 12px;
+            }
+        }
+        @media (max-width: 480px) {
+            .chat-room-container {
+                padding: 5px;
+            }
+            .chat-room-header {
+                padding: 10px;
+            }
+            .room-title {
+                font-size: 16px;
+            }
+            .messages-container {
+                height: 300px;
+            }
+            .message-item {
+                max-width: 90%;
+                padding: 8px 10px;
+            }
+            .message-username {
+                font-size: 12px;
+            }
+            .message-content {
+                font-size: 14px;
+            }
+            .header-actions button {
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">加载中...</div>
+    </div>
+    
+    <div class="container">
+        <header>
+            <h1>TXT服务器 - 聊天室</h1>
+            <div class="user-info">
+                <span>欢迎, {{ username }}</span>
+                <a href="/board/chat" class="back-link">返回聊天室列表</a>
+                <a href="/logout" class="logout-button" onclick="event.preventDefault(); confirmLogout();">登出</a>
+            </div>
+        </header>
+        
+        <div class="chat-room-container">
+            <div class="chat-main">
+                <div class="chat-room-header">
+                    <div style="display: flex; align-items: center;">
+                        <button class="back-button" onclick="leaveRoom()">←</button>
+                        <div class="room-title">
+                            {{ room.name }}
+                            {% if room.password %}<span class="password-icon">🔒</span>{% endif %}
+                        </div>
+                    </div>
+                    <div class="header-actions">
+                        <button class="leave-btn" onclick="leaveRoom()">退出聊天室</button>
+                    </div>
+                </div>
+                
+                <div class="messages-container" id="messages-container">
+                    <div class="no-messages" id="no-messages">暂无消息，发送第一条消息吧！</div>
+                </div>
+                
+                <div class="input-container">
+                    <input 
+                        type="text" 
+                        class="message-input" 
+                        id="message-input"
+                        placeholder="输入消息..." 
+                        onkeypress="handleKeyPress(event)"
+                    >
+                    <button class="send-btn" onclick="sendMessage()">发送</button>
+                </div>
+            </div>
+            
+            <div class="chat-sidebar-wrapper">
+                <div class="chat-sidebar" id="chat-sidebar">
+                    <button class="sidebar-toggle-btn" onclick="toggleSidebar()" title="收起侧边栏">◀</button>
+                    <div class="online-users-panel">
+                        <h3>在线用户 <span class="online-count" id="online-count">0</span></h3>
+                        <div id="online-users-list">
+                            <div style="color: #999; font-size: 13px;">加载中...</div>
+                        </div>
+                    </div>
+                </div>
+                <button class="sidebar-toggle-btn collapsed-btn" id="sidebar-expand-btn" onclick="toggleSidebar()" title="展开侧边栏" style="display: none;">▶</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/assets/js/socket.io.js"></script>
+    <script>
+        console.log('=== iFlyCompass 聊天室简化版加载完成 ===');
+        
+        const roomName = '{{ room.name }}';
+        const username = '{{ username }}';
+        const hasPassword = {{ 'true' if room.password else 'false' }};
+        
+        let socket = null;
+        let currentUsers = [];
+        let messages = [];
+        let sidebarCollapsed = false;
+        
+        const colors = [
+            '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3',
+            '#00bcd4', '#009688', '#4caf50', '#8bc34a', '#cddc39',
+            '#ffc107', '#ff9800', '#ff5722', '#795548', '#607d8b'
+        ];
+        
+        function getUserColor(username) {
+            let hash = 0;
+            for (let i = 0; i < username.length; i++) {
+                hash = username.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            return colors[Math.abs(hash) % colors.length];
+        }
+        
+        function getUserInitial(username) {
+            return username.charAt(0).toUpperCase();
+        }
+        
+        function initWebSocket() {
+            console.log('初始化WebSocket连接');
+            socket = io();
+            setupSocketListeners();
+            
+            console.log('发送加入房间事件:', roomName);
+            socket.emit('join_room', {
+                room: roomName,
+                username: username
+            });
+            
+            console.log('获取消息历史:', roomName);
+            socket.emit('get_message_history', {
+                room: roomName,
+                username: username
+            });
+        }
+        
+        function setupSocketListeners() {
+            console.log('设置WebSocket监听器');
+            
+            socket.on('new_message', (data) => {
+                console.log('收到新消息:', data);
+                data.is_self = (data.username === username);
+                appendMessage(data, true);
+            });
+            
+            socket.on('user_joined', (data) => {
+                console.log('用户加入:', data);
+                appendSystemMessage(data.message);
+            });
+            
+            socket.on('user_left', (data) => {
+                console.log('用户离开:', data);
+                appendSystemMessage(data.message);
+            });
+            
+            socket.on('user_list', (data) => {
+                console.log('用户列表更新:', data);
+                if (data.room === roomName) {
+                    currentUsers = data.users;
+                    updateOnlineUsersList();
+                }
+            });
+            
+            socket.on('message_history', (data) => {
+                console.log('收到消息历史:', data.messages.length, '条消息');
+                if (data.room === roomName) {
+                    messages = data.messages;
+                    renderMessages();
+                }
+            });
+            
+            socket.on('disconnect', () => {
+                console.log('WebSocket连接断开');
+                if (roomName) {
+                    console.log('当前在聊天室中，启动重连机制');
+                    startReconnectInterval();
+                }
+            });
+            
+            socket.on('connect', () => {
+                console.log('WebSocket连接成功');
+                stopReconnectInterval();
+                if (roomName) {
+                    console.log('重新加入聊天室:', roomName);
+                    socket.emit('join_room', {
+                        room: roomName,
+                        username: username
+                    });
+                }
+            });
+        }
+        
+        let reconnectInterval = null;
+        
+        function startReconnectInterval() {
+            if (reconnectInterval) {
+                clearInterval(reconnectInterval);
+            }
+            
+            reconnectInterval = setInterval(() => {
+                console.log('尝试重新连接WebSocket...');
+                if (!socket || !socket.connected) {
+                    reconnectSocket();
+                }
+            }, 3000);
+        }
+        
+        function stopReconnectInterval() {
+            if (reconnectInterval) {
+                clearInterval(reconnectInterval);
+                reconnectInterval = null;
+            }
+        }
+        
+        function reconnectSocket() {
+            try {
+                console.log('重新初始化WebSocket连接');
+                socket = io();
+                setupSocketListeners();
+            } catch (error) {
+                console.error('WebSocket重连失败:', error);
+            }
+        }
+        
+        function renderMessages() {
+            const container = document.getElementById('messages-container');
+            const noMessages = document.getElementById('no-messages');
+            
+            if (messages.length === 0) {
+                noMessages.style.display = 'block';
+                container.innerHTML = '';
+                container.appendChild(noMessages);
+                return;
+            }
+            
+            noMessages.style.display = 'none';
+            container.innerHTML = '';
+            
+            messages.forEach(msg => {
+                msg.is_self = (msg.username === username);
+                appendMessage(msg, false);
+            });
+            
+            scrollToBottom();
+        }
+        
+        function appendMessage(msg, isNew) {
+            const container = document.getElementById('messages-container');
+            const noMessages = document.getElementById('no-messages');
+            
+            noMessages.style.display = 'none';
+            
+            const div = document.createElement('div');
+            div.className = 'message-item ' + (msg.is_self ? 'own-message' : 'other-message');
+            
+            const content = document.createElement('div');
+            content.className = 'message-content';
+            
+            if (msg.username) {
+                const header = document.createElement('div');
+                header.className = 'message-header';
+                header.innerHTML = 
+                    '<span class="message-username">' + escapeHtml(msg.username) + '</span>' +
+                    '<span class="message-time">' + (msg.timestamp || '') + '</span>';
+                content.appendChild(header);
+            }
+            
+            const text = document.createElement('div');
+            text.textContent = msg.message;
+            content.appendChild(text);
+            
+            div.appendChild(content);
+            container.appendChild(div);
+            
+            scrollToBottom();
+        }
+        
+        function appendSystemMessage(message) {
+            const container = document.getElementById('messages-container');
+            const noMessages = document.getElementById('no-messages');
+            
+            noMessages.style.display = 'none';
+            
+            const div = document.createElement('div');
+            div.className = 'message-item system';
+            
+            const content = document.createElement('div');
+            content.className = 'message-content';
+            content.textContent = message;
+            
+            div.appendChild(content);
+            container.appendChild(div);
+            
+            scrollToBottom();
+        }
+        
+        function updateOnlineUsersList() {
+            const list = document.getElementById('online-users-list');
+            const count = document.getElementById('online-count');
+            
+            count.textContent = currentUsers.length;
+            
+            if (currentUsers.length === 0) {
+                list.innerHTML = '<div style="color: #999; font-size: 13px;">暂无在线用户</div>';
+                return;
+            }
+            
+            list.innerHTML = '';
+            
+            currentUsers.forEach(user => {
+                const div = document.createElement('div');
+                div.className = 'online-user-item';
+                
+                const color = getUserColor(user);
+                const isCurrentUser = user === username;
+                
+                div.innerHTML = 
+                    '<div class="user-avatar" style="background-color: ' + color + '">' + 
+                        getUserInitial(user) + 
+                    '</div>' +
+                    '<span class="online-user-name' + (isCurrentUser ? ' current-user' : '') + '">' + 
+                        escapeHtml(user) + (isCurrentUser ? ' (我)' : '') +
+                    '</span>';
+                
+                list.appendChild(div);
+            });
+        }
+        
+        function sendMessage() {
+            const input = document.getElementById('message-input');
+            const content = input.value.trim();
+            
+            if (!content || !roomName) {
+                console.log('发送消息失败: 消息为空或未加入聊天室');
+                return;
+            }
+            
+            console.log('发送消息:', {
+                room: roomName,
+                message: content
+            });
+            
+            socket.emit('send_message', {
+                room: roomName,
+                username: username,
+                message: content
+            });
+            
+            input.value = '';
+        }
+        
+        function handleKeyPress(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+        
+        function scrollToBottom() {
+            const container = document.getElementById('messages-container');
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        function leaveRoom() {
+            if (roomName && socket) {
+                console.log('退出当前聊天室:', roomName);
+                socket.emit('leave_room', {
+                    room: roomName,
+                    username: username
+                });
+            }
+            
+            stopReconnectInterval();
+            console.log('重定向到聊天室列表');
+            window.location.href = '/board/chat';
+        }
+        
+        function toggleSidebar() {
+            const sidebar = document.getElementById('chat-sidebar');
+            const expandBtn = document.getElementById('sidebar-expand-btn');
+            const isCollapsed = sidebar.classList.toggle('collapsed');
+            
+            if (isCollapsed) {
+                expandBtn.style.display = 'flex';
+            } else {
+                expandBtn.style.display = 'none';
+            }
+            
+            localStorage.setItem('chat_sidebar_collapsed', isCollapsed);
+        }
+        
+        function initSidebarState() {
+            const isCollapsed = localStorage.getItem('chat_sidebar_collapsed') === 'true';
+            const sidebar = document.getElementById('chat-sidebar');
+            const expandBtn = document.getElementById('sidebar-expand-btn');
+            
+            if (isCollapsed) {
+                sidebar.classList.add('collapsed');
+                expandBtn.style.display = 'flex';
+            }
+        }
+        
+
+        
+        function confirmLogout() {
+            if (confirm('确定要退出登录吗？')) {
+                logout();
+            }
+        }
+        
+        function logout() {
+            console.log('=== 退出登录操作开始 ===');
+            
+            if (roomName) {
+                console.log('当前在聊天室中:', roomName);
+                console.log('正在退出聊天室...');
+                leaveRoom();
+            }
+            
+            console.log('正在重定向到退出登录页面...');
+            window.location.href = '/logout';
+            console.log('=== 退出登录操作完成 ===');
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            initWebSocket();
+            initSidebarState();
+        });
+    </script>
+    <script src="/assets/js/loading.js"></script>
+</body>
+</html>

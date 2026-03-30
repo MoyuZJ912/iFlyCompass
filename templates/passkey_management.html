@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Passkey 管理 - iFlyCompass</title>
+    <link rel="stylesheet" href="/assets/css/loading.css">
+    <link rel="stylesheet" href="/assets/css/material-icons.css">
+    <link rel="stylesheet" href="/assets/css/element-ui.css">
+    <link rel="stylesheet" href="/assets/css/console.css">
+    <style>
+        .user-menu-container {
+            position: relative;
+            cursor: pointer;
+            z-index: 1000;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        
+        .user-info:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .user-info .el-icon-arrow-down {
+            margin-left: 8px;
+            transition: transform 0.3s;
+        }
+        
+        .user-info .el-icon-arrow-down.rotated {
+            transform: rotate(180deg);
+        }
+        
+        .user-dropdown-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 4px;
+            background: #fff;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            min-width: 180px;
+            overflow: hidden;
+        }
+        
+        .user-dropdown-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            color: #333;
+        }
+        
+        .user-dropdown-item:hover:not(.disabled) {
+            background-color: #f5f7fa;
+        }
+        
+        .user-dropdown-item.disabled {
+            cursor: not-allowed;
+            color: #999;
+        }
+        
+        .user-dropdown-item .item-label {
+            margin-right: 8px;
+            font-size: 14px;
+        }
+        
+        .user-dropdown-item .item-value {
+            font-weight: 500;
+            flex: 1;
+        }
+        
+        .user-dropdown-divider {
+            height: 1px;
+            background-color: #e8e8e8;
+            margin: 4px 0;
+        }
+        
+        .user-dropdown-item.logout-item {
+            color: #ff4d4f;
+        }
+        
+        .user-dropdown-item.logout-item:hover {
+            background-color: #fff1f0;
+        }
+        
+        .user-dropdown-item i {
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">加载中...</div>
+    </div>
+    <div id="app">
+        <el-container class="console-container">
+            <!-- 侧边栏 -->
+            <el-aside width="64px" class="console-sidebar" :width="isCollapse ? '64px' : '200px'">
+                <div class="sidebar-header" @click="toggleCollapse">
+                    <img src="/assets/images/logo-trans-white.png" alt="Logo" class="sidebar-logo">
+                    <span v-show="!isCollapse" class="sidebar-brand">iFlyCompass</span>
+                    <i v-show="!isCollapse" class="el-icon-s-fold sidebar-toggle" :class="{ 'rotated': !isCollapse }"></i>
+                </div>
+                
+                <el-menu
+                    :default-active="activeMenu"
+                    class="el-menu-vertical-demo"
+                    background-color="#1a365d"
+                    text-color="#ffffff"
+                    active-text-color="#409EFF"
+                    :collapse="isCollapse"
+                    @select="handleMenuClick"
+                >
+                    <el-menu-item index="dashboard">
+                        <i class="el-icon-s-home"></i>
+                        <span slot="title">首页</span>
+                    </el-menu-item>
+                    <el-menu-item index="tools">
+                        <i class="el-icon-s-tools"></i>
+                        <span slot="title">小工具</span>
+                    </el-menu-item>
+                    <el-menu-item index="games">
+                        <i class="el-icon-s-marketing"></i>
+                        <span slot="title">小游戏</span>
+                    </el-menu-item>
+                    <el-menu-item index="users">
+                        <i class="el-icon-s-custom"></i>
+                        <span slot="title">用户管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="passkeys" class="active">
+                        <i class="el-icon-key"></i>
+                        <span slot="title">Passkey 管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="chat">
+                        <i class="el-icon-chat-dot-round"></i>
+                        <span slot="title">聊天室</span>
+                    </el-menu-item>
+                </el-menu>
+            </el-aside>
+            
+            <!-- 主内容区域 -->
+            <el-container>
+                <!-- 顶部导航 -->
+                <el-header class="console-header">
+                    <div class="header-left">
+                        <h1>Passkey 管理</h1>
+                    </div>
+                    <div class="header-right">
+                    <div class="user-menu-container" @click="toggleUserMenu">
+                        <span class="user-info">
+                            您好，[[ username ]]
+                            <i class="el-icon-arrow-down" :class="{ 'rotated': userMenuVisible }"></i>
+                        </span>
+                        <div class="user-dropdown-menu" v-show="userMenuVisible" @click.stop>
+                            <div class="user-dropdown-item disabled">
+                                <span class="item-label">用户名:</span>
+                                <span class="item-value">[[ username ]]</span>
+                            </div>
+                            <div class="user-dropdown-item disabled" v-if="passkeyUsed">
+                                <span class="item-label">Passkey:</span>
+                                <span class="item-value">[[ passkeyUsed ]]</span>
+                            </div>
+                            <div class="user-dropdown-divider"></div>
+                            <div class="user-dropdown-item logout-item" @click="confirmLogout">
+                                <i class="el-icon-switch-button"></i>
+                                <span>退出登录</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                </el-header>
+                
+                <!-- 内容区域 -->
+                <el-main class="console-content">
+                    <div class="content-wrapper">
+                        <!-- 操作按钮 -->
+                        <div class="passkey-actions">
+                            <el-button type="primary" @click="dialogVisible = true" icon="el-icon-plus">
+                                创建 Passkey
+                            </el-button>
+                        </div>
+                        
+                        <!-- Passkey 表格 -->
+                        <el-table
+                            :data="passkeys"
+                            style="width: 100%"
+                            border
+                        >
+                            <el-table-column prop="key" label="Passkey" width="120"></el-table-column>
+                            <el-table-column prop="duration_days" label="有效期">
+                                <template slot-scope="scope">
+                                    <span v-if="scope.row.duration_days">[[ scope.row.duration_days ]] 天</span>
+                                    <span v-else>无限</span>
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="max_uses" label="使用次数">
+                                <template slot-scope="scope">
+                                    <span v-if="scope.row.max_uses">[[ scope.row.current_uses ]]/[[ scope.row.max_uses ]]</span>
+                                    <span v-else>无限</span>
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="created_at" label="创建时间"></el-table-column>
+                            <el-table-column prop="expires_at" label="过期时间">
+                                <template slot-scope="scope">
+                                    <span v-if="scope.row.expires_at">[[ scope.row.expires_at ]]</span>
+                                    <span v-else>无限</span>
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="状态" width="120">
+                                <template slot-scope="scope">
+                                    <el-tag v-if="scope.row.is_valid" type="success">有效</el-tag>
+                                    <el-tag v-else-if="!scope.row.is_active" type="danger">已耗尽</el-tag>
+                                    <el-tag v-else type="warning">已过期</el-tag>
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="操作" width="100">
+                                <template slot-scope="scope">
+                                    <el-button 
+                                        type="danger" 
+                                        size="small" 
+                                        @click="deletePasskey(scope.row)"
+                                    >
+                                        删除
+                                    </el-button>
+                                </template>
+                            </el-table-column>
+                        </el-table>
+                        
+                        <!-- 创建 Passkey 对话框 -->
+                        <el-dialog
+                            title="创建 Passkey"
+                            :visible.sync="dialogVisible"
+                            width="500px"
+                        >
+                            <el-form :model="form" label-width="120px">
+                                <el-form-item label="有效期（天）">
+                                    <el-input-number v-model="form.duration_days" :min="1" placeholder="留空表示无限"></el-input-number>
+                                </el-form-item>
+                                <el-form-item label="最大使用次数">
+                                    <el-input-number v-model="form.max_uses" :min="1" placeholder="留空表示无限"></el-input-number>
+                                </el-form-item>
+                            </el-form>
+                            <span slot="footer" class="dialog-footer">
+                                <el-button @click="dialogVisible = false">取消</el-button>
+                                <el-button type="primary" @click="createPasskey">确定</el-button>
+                            </span>
+                        </el-dialog>
+                    </div>
+                </el-main>
+            </el-container>
+        </el-container>
+    </div>
+
+    <script src="/assets/js/vue.min.js"></script>
+    <script src="/assets/js/element-ui.js"></script>
+    <script>
+        // 页面加载完成日志
+        console.log('=== iFlyCompass Passkey 管理页面加载完成 ===');
+        
+        new Vue({
+            el: '#app',
+            delimiters: ['[[', ']]'],
+            data() {
+                return {
+                    isCollapse: true,
+                    activeMenu: 'passkeys',
+                    username: '{{ current_user.username }}',
+                    passkeyUsed: {% if current_user.passkey_used %}'{{ current_user.passkey_used }}'{% else %}null{% endif %},
+                    passkeys: [],
+                    dialogVisible: false,
+                    form: {
+                        duration_days: null,
+                        max_uses: null
+                    },
+                    userMenuVisible: false
+                };
+            },
+            mounted() {
+                console.log('Vue 实例挂载完成，用户信息:', {
+                    username: this.username
+                });
+                this.loadPasskeys();
+            },
+            methods: {
+                toggleCollapse() {
+                    console.log('切换侧边栏折叠状态:', !this.isCollapse);
+                    this.isCollapse = !this.isCollapse;
+                },
+                toggleUserMenu() {
+                    this.userMenuVisible = !this.userMenuVisible;
+                },
+                confirmLogout() {
+                    this.$confirm('确定要退出登录吗？', '提示', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    })
+                    .then(() => {
+                        this.logout();
+                    })
+                    .catch(() => {
+                        console.log('取消退出登录');
+                    });
+                },
+                logout() {
+                    console.log('=== 退出登录操作开始 ===');
+                    console.log('当前用户:', this.username);
+                    console.log('正在重定向到退出登录页面...');
+                    window.location.href = '/logout';
+                    console.log('=== 退出登录操作完成 ===');
+                },
+                handleMenuClick(key) {
+                    console.log('菜单点击:', key);
+                    // 点击菜单时关闭用户菜单
+                    this.userMenuVisible = false;
+                    if (key === 'dashboard') {
+                        console.log('导航到控制台首页');
+                        window.location.href = '/board';
+                    } else if (key === 'tools') {
+                        console.log('导航到小工具');
+                        window.location.href = '/board/tools';
+                    } else if (key === 'users') {
+                        console.log('导航到用户管理');
+                        window.location.href = '/board/users';
+                    } else if (key === 'passkeys') {
+                        console.log('导航到 Passkey 管理');
+                        window.location.href = '/board/passkeys';
+                    } else if (key === 'chat') {
+                        console.log('导航到聊天室');
+                        window.location.href = '/board/chat';
+                    }
+                },
+                loadPasskeys() {
+                    console.log('加载 Passkey 列表');
+                    fetch('/api/passkeys')
+                        .then(response => response.json())
+                        .then(data => {
+                            console.log('Passkey 列表加载完成:', data.length, '个 Passkey');
+                            this.passkeys = data;
+                        })
+                        .catch(error => {
+                            console.error('加载 Passkey 列表失败:', error);
+                        });
+                },
+                createPasskey() {
+                    console.log('创建 Passkey:', this.form);
+                    fetch('/api/passkeys', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(this.form)
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            console.error('创建 Passkey 失败:', data.error);
+                            this.$message.error(data.error);
+                        } else {
+                            console.log('创建 Passkey 成功:', data);
+                            this.$message.success('Passkey 创建成功');
+                            this.dialogVisible = false;
+                            this.loadPasskeys();
+                            // 重置表单
+                            this.form = {
+                                duration_days: null,
+                                max_uses: null
+                            };
+                        }
+                    })
+                    .catch(error => {
+                        console.error('创建 Passkey 失败:', error);
+                    });
+                },
+                deletePasskey(passkey) {
+                    console.log('确认删除 Passkey:', passkey.key);
+                    this.$confirm('确定要删除这个 Passkey 吗？', '提示', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    })
+                    .then(() => {
+                        console.log('执行删除 Passkey:', passkey.id, passkey.key);
+                        fetch('/api/passkeys', {
+                            method: 'DELETE',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ id: passkey.id })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.error) {
+                                console.error('删除 Passkey 失败:', data.error);
+                                this.$message.error(data.error);
+                            } else {
+                                console.log('删除 Passkey 成功');
+                                this.$message.success('Passkey 删除成功');
+                                this.loadPasskeys();
+                            }
+                        })
+                        .catch(error => {
+                            console.error('删除 Passkey 失败:', error);
+                        });
+                    })
+                    .catch(() => {
+                        console.log('取消删除 Passkey');
+                        // 取消删除
+                    });
+                }
+            }
+        });
+    </script>
+    <script src="/assets/js/loading.js"></script>
+</body>
+</html>

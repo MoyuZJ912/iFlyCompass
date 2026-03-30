@@ -1,0 +1,1363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ room.name }} - 聊天室</title>
+    <link rel="stylesheet" href="/assets/css/loading.css">
+    <link rel="stylesheet" href="/assets/css/material-icons.css">
+    <link rel="stylesheet" href="/assets/css/element-ui.css">
+    <link rel="stylesheet" href="/assets/css/console.css">
+    <style>
+        .chat-room-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            display: flex;
+            gap: 20px;
+        }
+        .chat-main {
+            flex: 1;
+            min-width: 0;
+        }
+        .chat-sidebar {
+            width: 200px;
+            flex-shrink: 0;
+            transition: width 0.3s ease, opacity 0.3s ease;
+            overflow: hidden;
+        }
+        .chat-sidebar.collapsed {
+            width: 0;
+            opacity: 0;
+        }
+        .sidebar-toggle-btn {
+            position: absolute;
+            left: -30px;
+            top: 10px;
+            width: 24px;
+            height: 24px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px 0 0 4px;
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+        .sidebar-toggle-btn:hover {
+            background-color: #45a049;
+        }
+        .chat-sidebar-wrapper {
+            position: relative;
+        }
+        .load-more-container {
+            text-align: center;
+            padding: 10px;
+        }
+        .load-more-btn {
+            background-color: #e0e0e0;
+            color: #333;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background-color 0.2s;
+        }
+        .load-more-btn:hover {
+            background-color: #d0d0d0;
+        }
+        .load-more-btn:disabled {
+            background-color: #f0f0f0;
+            color: #999;
+            cursor: not-allowed;
+        }
+        .loading-indicator {
+            text-align: center;
+            padding: 10px;
+            color: #666;
+            font-size: 13px;
+        }
+        .pagination-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 10px;
+        }
+        .pagination-btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background-color 0.2s;
+        }
+        .pagination-btn:hover:not(:disabled) {
+            background-color: #45a049;
+        }
+        .pagination-btn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .pagination-info {
+            font-size: 13px;
+            color: #666;
+        }
+        .page-jump-input {
+            width: 50px;
+            padding: 4px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 13px;
+        }
+        .page-jump-input:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+        .page-jump-btn {
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .page-jump-btn:hover {
+            background-color: #1976D2;
+        }
+        .back-to-latest-btn {
+            background-color: #ff9800;
+            color: white;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            display: none;
+        }
+        .back-to-latest-btn:hover {
+            background-color: #f57c00;
+        }
+        .back-to-latest-btn.show {
+            display: inline-block;
+        }
+        .chat-room-header {
+            background-color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .room-title {
+            font-size: 24px;
+            color: #333;
+        }
+        .room-title .password-icon {
+            color: #FF9800;
+            margin-left: 10px;
+        }
+        .header-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .leave-btn {
+            background-color: #f44336;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .leave-btn:hover {
+            background-color: #d32f2f;
+        }
+        .messages-container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            height: 450px;
+            overflow-y: auto;
+            padding: 20px;
+            margin-bottom: 10px;
+        }
+        .messages-container::-webkit-scrollbar {
+            width: 6px;
+        }
+        .messages-container::-webkit-scrollbar-thumb {
+            background-color: #ccc;
+            border-radius: 3px;
+        }
+        .message-item {
+            margin-bottom: 12px;
+            padding: 10px 14px;
+            border-radius: 12px;
+            max-width: 70%;
+        }
+        .message-item.other-message {
+            background-color: #f0f0f0;
+            border-bottom-left-radius: 4px;
+            margin-right: auto;
+        }
+        .message-item.own-message {
+            background-color: #4CAF50;
+            color: white;
+            border-bottom-right-radius: 4px;
+            margin-left: auto;
+        }
+        .message-item.new-message {
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            font-size: 12px;
+        }
+        .message-username {
+            font-weight: bold;
+        }
+        .message-time {
+            opacity: 0.7;
+        }
+        .message-content {
+            word-wrap: break-word;
+            line-height: 1.4;
+        }
+        .typing-indicator {
+            padding: 8px 15px;
+            color: #666;
+            font-style: italic;
+            font-size: 13px;
+            height: 20px;
+        }
+        .input-container {
+            background-color: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 10px;
+        }
+        .message-input {
+            flex: 1;
+            padding: 10px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 20px;
+            font-size: 15px;
+            transition: border-color 0.2s;
+        }
+        .message-input:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+        .send-btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 15px;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        .send-btn:hover {
+            background-color: #45a049;
+        }
+        .send-btn:active {
+            transform: scale(0.95);
+        }
+        .no-messages {
+            text-align: center;
+            color: #999;
+            padding: 40px;
+        }
+        .back-link {
+            color: #4CAF50;
+            text-decoration: none;
+            margin-right: 15px;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        .online-users-panel {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 15px;
+        }
+        .online-users-panel h3 {
+            margin: 0 0 15px 0;
+            color: #333;
+            font-size: 16px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .online-user-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 0;
+            gap: 10px;
+        }
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .online-user-name {
+            font-size: 14px;
+            color: #333;
+        }
+        .online-user-name.current-user {
+            font-weight: bold;
+        }
+        .online-count {
+            background-color: #4CAF50;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 12px;
+            margin-left: auto;
+        }
+        .notification-settings {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+            color: #666;
+        }
+        .notification-settings input {
+            cursor: pointer;
+        }
+        @media (max-width: 768px) {
+            .chat-room-container {
+                flex-direction: column;
+                padding: 10px;
+            }
+            .chat-sidebar {
+                width: 100%;
+                order: -1;
+                max-height: 200px;
+                overflow-y: auto;
+            }
+            .chat-sidebar.collapsed {
+                max-height: 0;
+            }
+            .message-item {
+                max-width: 85%;
+            }
+            .chat-room-header {
+                flex-direction: column;
+                gap: 10px;
+                align-items: flex-start;
+                padding: 12px 15px;
+            }
+            .room-title {
+                font-size: 18px;
+            }
+            .header-actions {
+                width: 100%;
+                flex-wrap: wrap;
+            }
+            .messages-container {
+                height: 350px;
+                padding: 10px;
+            }
+            .message-input-container {
+                flex-direction: column;
+                gap: 10px;
+            }
+            .message-input-container input {
+                width: 100%;
+            }
+            .send-btn {
+                width: 100%;
+            }
+            .pagination-container {
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            .page-jump-input {
+                width: 40px;
+            }
+            .online-user-item {
+                padding: 6px 8px;
+            }
+            .typing-indicator {
+                font-size: 12px;
+            }
+        }
+        @media (max-width: 480px) {
+            .chat-room-container {
+                padding: 5px;
+            }
+            .chat-room-header {
+                padding: 10px;
+            }
+            .room-title {
+                font-size: 16px;
+            }
+            .messages-container {
+                height: 300px;
+            }
+            .message-item {
+                max-width: 90%;
+                padding: 8px 10px;
+            }
+            .message-username {
+                font-size: 12px;
+            }
+            .message-content {
+                font-size: 14px;
+            }
+            .header-actions button {
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+        }
+        .announcement-bar {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 12px 15px;
+            margin-bottom: 15px;
+            display: none;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .announcement-bar.has-announcement {
+            display: block;
+        }
+        .announcement-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .announcement-title {
+            font-weight: bold;
+            color: #856404;
+            font-size: 14px;
+        }
+        .announcement-list {
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .announcement-item {
+            padding: 8px 0;
+            border-bottom: 1px dashed #ffc107;
+        }
+        .announcement-item:last-child {
+            border-bottom: none;
+        }
+        .announcement-content {
+            color: #856404;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .announcement-meta {
+            font-size: 12px;
+            color: #997a00;
+            margin-top: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .announcement-close {
+            background: none;
+            border: none;
+            color: #856404;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 0 5px;
+        }
+        .announcement-close:hover {
+            color: #533f03;
+        }
+        .announcement-delete-btn {
+            background: none;
+            border: 1px solid #dc3545;
+            color: #dc3545;
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .announcement-delete-btn:hover {
+            background-color: #dc3545;
+            color: white;
+        }
+        .announcement-count {
+            background-color: #ffc107;
+            color: #333;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            margin-left: 8px;
+        }
+        .mute-indicator {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 8px;
+            padding: 10px 15px;
+            margin-bottom: 10px;
+            color: #721c24;
+            display: none;
+        }
+        .mute-indicator.show {
+            display: block;
+        }
+        .user-actions {
+            margin-left: auto;
+            display: flex;
+            gap: 5px;
+        }
+        .user-action-btn {
+            background: none;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 11px;
+            cursor: pointer;
+            color: #666;
+        }
+        .user-action-btn:hover {
+            background-color: #f0f0f0;
+        }
+        .user-action-btn.mute-btn {
+            color: #dc3545;
+            border-color: #dc3545;
+        }
+        .user-action-btn.unmute-btn {
+            color: #28a745;
+            border-color: #28a745;
+        }
+        .muted-badge {
+            background-color: #dc3545;
+            color: white;
+            font-size: 10px;
+            padding: 1px 5px;
+            border-radius: 3px;
+            margin-left: 5px;
+        }
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .toast {
+            min-width: 250px;
+            max-width: 400px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: toastSlideIn 0.3s ease;
+            font-size: 14px;
+        }
+        .toast.toast-exit {
+            animation: toastSlideOut 0.3s ease forwards;
+        }
+        @keyframes toastSlideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes toastSlideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+        .toast-success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .toast-error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .toast-warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+        }
+        .toast-info {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        .toast-icon {
+            font-size: 18px;
+        }
+        .toast-message {
+            flex: 1;
+        }
+        .toast-close {
+            background: none;
+            border: none;
+            font-size: 16px;
+            cursor: pointer;
+            opacity: 0.6;
+            padding: 0;
+            line-height: 1;
+        }
+        .toast-close:hover {
+            opacity: 1;
+        }
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-overlay.show {
+            display: flex;
+        }
+        .modal-content {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .modal-title {
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #999;
+        }
+        .modal-body {
+            margin-bottom: 15px;
+        }
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        .modal-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            resize: vertical;
+            min-height: 80px;
+        }
+        .modal-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .modal-btn.primary {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .modal-btn.secondary {
+            background-color: #e0e0e0;
+            color: #333;
+        }
+        .modal-btn.danger {
+            background-color: #dc3545;
+            color: white;
+        }
+        .admin-actions {
+            display: flex;
+            gap: 8px;
+            margin-left: 10px;
+        }
+        .admin-btn {
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .admin-btn:hover {
+            background-color: #5a6268;
+        }
+        .admin-btn.announcement-btn {
+            background-color: #ffc107;
+            color: #333;
+        }
+        .admin-btn.mute-all-btn {
+            background-color: #dc3545;
+        }
+        .admin-btn.mute-all-btn.active {
+            background-color: #28a745;
+        }
+        .mute-duration-select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">加载中...</div>
+    </div>
+    <div id="app">
+        <el-container class="console-container">
+            <el-aside width="64px" class="console-sidebar" :width="isCollapse ? '64px' : '200px'">
+                <div class="sidebar-header" @click="toggleCollapse">
+                    <img src="/assets/images/logo-trans-white.png" alt="Logo" class="sidebar-logo">
+                    <span v-show="!isCollapse" class="sidebar-brand">iFlyCompass</span>
+                    <i v-show="!isCollapse" class="el-icon-s-fold sidebar-toggle"></i>
+                </div>
+                <el-menu
+                    :default-active="activeMenu"
+                    class="el-menu-vertical-demo"
+                    background-color="#1a365d"
+                    text-color="#ffffff"
+                    active-text-color="#409EFF"
+                    :collapse="isCollapse"
+                    @select="handleMenuClick"
+                >
+                    <el-menu-item index="dashboard">
+                        <i class="el-icon-s-home"></i>
+                        <span slot="title">首页</span>
+                    </el-menu-item>
+                    <el-menu-item index="tools">
+                        <i class="el-icon-s-tools"></i>
+                        <span slot="title">小工具</span>
+                    </el-menu-item>
+                    <el-menu-item index="games">
+                        <i class="el-icon-s-marketing"></i>
+                        <span slot="title">小游戏</span>
+                    </el-menu-item>
+                    <el-menu-item index="users" v-if="isAdmin">
+                        <i class="el-icon-s-custom"></i>
+                        <span slot="title">用户管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="passkeys" v-if="isSuperAdmin">
+                        <i class="el-icon-key"></i>
+                        <span slot="title">Passkey 管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="chat" class="active">
+                        <i class="el-icon-chat-dot-round"></i>
+                        <span slot="title">聊天室</span>
+                    </el-menu-item>
+                </el-menu>
+            </el-aside>
+            
+            <el-container>
+                <el-header class="console-header">
+                    <div class="header-left">
+                        <h1>聊天室</h1>
+                    </div>
+                    <div class="header-right">
+                        <div class="user-menu-container" @click="toggleUserMenu">
+                            <span class="user-info">
+                                您好，[[ username ]]
+                                <i class="el-icon-arrow-down" :class="{ 'rotated': userMenuVisible }"></i>
+                            </span>
+                            <div class="user-dropdown-menu" v-show="userMenuVisible" @click.stop>
+                                <div class="user-dropdown-item disabled">
+                                    <span class="item-label">用户名:</span>
+                                    <span class="item-value">[[ username ]]</span>
+                                </div>
+                                <div class="user-dropdown-item disabled" v-if="passkeyUsed">
+                                    <span class="item-label">Passkey:</span>
+                                    <span class="item-value">[[ passkeyUsed ]]</span>
+                                </div>
+                                <div class="user-dropdown-divider"></div>
+                                <div class="user-dropdown-item logout-item" @click="confirmLogout">
+                                    <i class="el-icon-switch-button"></i>
+                                    <span>退出登录</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </el-header>
+                
+                <el-main class="console-content">
+                    <div class="toast-container" id="toast-container"></div>
+                    
+                    <div class="chat-room-container">
+                        <div class="chat-main">
+                            <div class="chat-room-header">
+                                <div class="room-title">
+                                    [[ currentRoom ]]
+                                    <span class="password-icon" v-if="roomPassword">🔒</span>
+                                </div>
+                                <div class="header-actions">
+                                    <div class="notification-settings">
+                                        <input type="checkbox" id="sound-toggle" checked>
+                                        <label for="sound-toggle">提示音</label>
+                                    </div>
+                                    <button class="leave-btn" @click="leaveRoom">退出聊天室</button>
+                                </div>
+                            </div>
+                            
+                            <div class="announcement-bar" id="announcement-bar">
+                                <div class="announcement-header">
+                                    <span class="announcement-title">📢 公告<span class="announcement-count" id="announcement-count">0</span></span>
+                                    <button class="announcement-close" onclick="closeAnnouncement()">×</button>
+                                </div>
+                                <div class="announcement-list" id="announcement-list"></div>
+                            </div>
+                            
+                            <div class="mute-indicator" id="mute-indicator"></div>
+                            
+                            <div class="messages-container" ref="messagesContainer" @scroll="handleScroll">
+                                <div v-if="messages.length === 0" class="no-messages">暂无消息，发送第一条消息吧！</div>
+                                <div 
+                                    v-for="(message, index) in messages" 
+                                    :key="index"
+                                    class="message-item"
+                                    :class="{
+                                        'own-message': message.is_self,
+                                        'other-message': !message.is_self && message.username,
+                                        'new-message': message.is_new
+                                    }"
+                                >
+                                    <div class="message-header" v-if="message.username">
+                                        <span class="message-username" :style="{ color: getUserColor(message.username) }">[[ message.username ]]</span>
+                                        <span class="message-time">[[ message.timestamp ]]</span>
+                                    </div>
+                                    <div class="message-content">[[ message.message ]]</div>
+                                </div>
+                            </div>
+                            
+                            <div class="typing-indicator" id="typing-indicator"></div>
+                            
+                            <div class="input-container">
+                                <input 
+                                    type="text" 
+                                    class="message-input" 
+                                    v-model="inputMessage"
+                                    placeholder="输入消息..." 
+                                    @keypress="handleKeyPress"
+                                    @input="handleInput"
+                                >
+                                <button class="send-btn" @click="sendMessage">发送</button>
+                            </div>
+                        </div>
+                        
+                        <div class="chat-sidebar-wrapper">
+                            <div class="chat-sidebar" id="chat-sidebar">
+                                <button class="sidebar-toggle-btn" onclick="toggleSidebar()" title="收起侧边栏">◀</button>
+                                <div class="online-users-panel">
+                                    <h3>在线用户 <span class="online-count" id="online-count">0</span></h3>
+                                    <div id="online-users-list">
+                                        <div v-if="currentUsers.length === 0" style="color: #999; font-size: 13px;">暂无在线用户</div>
+                                        <div 
+                                            v-for="(user, index) in currentUsers" 
+                                            :key="index"
+                                            class="online-user-item"
+                                        >
+                                            <div class="user-avatar" :style="{ backgroundColor: getUserColor(user) }">
+                                                [[ getUserInitial(user) ]]
+                                            </div>
+                                            <span class="online-user-name" :class="{ 'current-user': user === username }">
+                                                [[ user ]]
+                                                <span v-if="user === username"> (我)</span>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <button class="sidebar-toggle-btn collapsed-btn" id="sidebar-expand-btn" onclick="toggleSidebar()" title="展开侧边栏" style="display: none;">▶</button>
+                        </div>
+                    </div>
+                </el-main>
+            </el-container>
+        </el-container>
+    </div>
+    
+    <script src="/assets/js/vue.min.js"></script>
+    <script src="/assets/js/element-ui.js"></script>
+    <script src="/assets/js/socket.io.js"></script>
+    <script>
+        console.log('=== iFlyCompass 聊天室测试页面加载完成 ===');
+        
+        new Vue({
+            el: '#app',
+            delimiters: ['[[', ']]'],
+            data() {
+                return {
+                    isCollapse: true,
+                    activeMenu: 'chat',
+                    username: '{{ username }}',
+                    passkeyUsed: {% if passkey_used %}'{{ passkey_used }}'{% else %}null{% endif %},
+                    isAdmin: {{ is_admin|lower }},
+                    isSuperAdmin: {{ is_super_admin|lower }},
+                    currentRoom: '{{ room.name }}',
+                    roomPassword: {{ 'true' if room.password else 'false' }},
+                    currentUsers: [],
+                    messages: [],
+                    inputMessage: '',
+                    socket: null,
+                    userMenuVisible: false,
+                    socketReconnectInterval: null,
+                    isTyping: false,
+                    typingTimeout: null,
+                    pageVisible: true,
+                    originalTitle: document.title
+                };
+            },
+            mounted() {
+                console.log('Vue 实例挂载完成，用户信息:', {
+                    username: this.username,
+                    isAdmin: this.isAdmin,
+                    isSuperAdmin: this.isSuperAdmin
+                });
+                
+                this.initWebSocket();
+                this.initSidebarState();
+                
+                document.addEventListener('visibilitychange', () => {
+                    this.pageVisible = !document.hidden;
+                    if (this.pageVisible) {
+                        this.stopTitleFlash();
+                    }
+                });
+            },
+            methods: {
+                handleMenuClick(key) {
+                    console.log('菜单点击:', key);
+                    // 点击菜单时关闭用户菜单
+                    this.userMenuVisible = false;
+                    if (this.currentRoom) {
+                        console.log('当前在聊天室中，提示先退出');
+                        this.$message.warning('请先退出当前聊天室');
+                        return;
+                    }
+                    
+                    if (key === 'dashboard') {
+                        window.location.href = '/board';
+                    } else if (key === 'users' && this.isAdmin) {
+                        window.location.href = '/board/users';
+                    } else if (key === 'passkeys' && this.isSuperAdmin) {
+                        window.location.href = '/board/passkeys';
+                    }
+                },
+                
+                toggleUserMenu() {
+                    this.userMenuVisible = !this.userMenuVisible;
+                },
+                
+                confirmLogout() {
+                    this.$confirm('确定要退出登录吗？', '提示', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    })
+                    .then(() => {
+                        this.logout();
+                    })
+                    .catch(() => {
+                        console.log('取消退出登录');
+                    });
+                },
+                
+                logout() {
+                    console.log('=== 退出登录操作开始 ===');
+                    console.log('当前用户:', this.username);
+                    
+                    if (this.currentRoom) {
+                        console.log('当前在聊天室中:', this.currentRoom);
+                        console.log('正在退出聊天室...');
+                        this.leaveRoom();
+                    } else {
+                        console.log('当前不在聊天室中');
+                    }
+                    
+                    console.log('正在重定向到退出登录页面...');
+                    window.location.href = '/logout';
+                    console.log('=== 退出登录操作完成 ===');
+                },
+                
+                initWebSocket() {
+                    console.log('初始化WebSocket连接');
+                    this.socket = io();
+                    this.setupSocketListeners();
+                    
+                    console.log('发送加入房间事件:', this.currentRoom);
+                    this.socket.emit('join_room', {
+                        room: this.currentRoom,
+                        username: this.username
+                    });
+                    
+                    console.log('获取消息历史:', this.currentRoom);
+                    this.socket.emit('get_message_history', {
+                        room: this.currentRoom,
+                        username: this.username
+                    });
+                },
+                
+                setupSocketListeners() {
+                    console.log('设置WebSocket监听器');
+                    
+                    this.socket.on('new_message', (data) => {
+                        console.log('收到新消息:', data);
+                        data.is_self = (data.username === this.username);
+                        data.is_new = true;
+                        this.messages.push(data);
+                        this.$nextTick(() => {
+                            this.scrollToBottom();
+                        });
+                        
+                        if (!this.pageVisible) {
+                            this.startTitleFlash();
+                            this.playNotificationSound();
+                        }
+                    });
+                    
+                    this.socket.on('user_joined', (data) => {
+                        console.log('用户加入:', data);
+                        this.messages.push({
+                            username: '',
+                            message: data.message,
+                            timestamp: data.timestamp,
+                            is_self: false,
+                            is_new: true
+                        });
+                    });
+                    
+                    this.socket.on('user_left', (data) => {
+                        console.log('用户离开:', data);
+                        this.messages.push({
+                            username: '',
+                            message: data.message,
+                            timestamp: data.timestamp,
+                            is_self: false,
+                            is_new: true
+                        });
+                    });
+                    
+                    this.socket.on('user_list', (data) => {
+                        console.log('用户列表更新:', data);
+                        if (data.room === this.currentRoom) {
+                            this.currentUsers = data.users;
+                        }
+                    });
+                    
+                    this.socket.on('message_history', (data) => {
+                        console.log('收到消息历史:', data.messages.length, '条消息');
+                        if (data.room === this.currentRoom) {
+                            this.messages = data.messages.map(msg => {
+                                msg.is_self = (msg.username === this.username);
+                                return msg;
+                            });
+                            this.$nextTick(() => {
+                                this.scrollToBottom();
+                            });
+                        }
+                    });
+                    
+                    // 监听WebSocket断开连接事件
+                    this.socket.on('disconnect', () => {
+                        console.log('WebSocket连接断开');
+                        if (this.currentRoom) {
+                            console.log('当前在聊天室中，启动重连机制');
+                            this.startReconnectInterval();
+                        }
+                    });
+                    
+                    // 监听WebSocket重新连接成功事件
+                    this.socket.on('connect', () => {
+                        console.log('WebSocket连接成功');
+                        this.stopReconnectInterval();
+                        if (this.currentRoom) {
+                            console.log('重新加入聊天室:', this.currentRoom);
+                            this.socket.emit('join_room', {
+                                room: this.currentRoom,
+                                username: this.username
+                            });
+                        }
+                    });
+                },
+                
+                // 开始WebSocket重连定时器
+                startReconnectInterval() {
+                    if (this.socketReconnectInterval) {
+                        clearInterval(this.socketReconnectInterval);
+                    }
+                    
+                    this.socketReconnectInterval = setInterval(() => {
+                        console.log('尝试重新连接WebSocket...');
+                        if (!this.socket || !this.socket.connected) {
+                            this.reconnectSocket();
+                        }
+                    }, 3000); // 每3秒尝试一次重连
+                },
+                
+                // 停止WebSocket重连定时器
+                stopReconnectInterval() {
+                    if (this.socketReconnectInterval) {
+                        clearInterval(this.socketReconnectInterval);
+                        this.socketReconnectInterval = null;
+                    }
+                },
+                
+                // 重新连接WebSocket
+                reconnectSocket() {
+                    try {
+                        console.log('重新初始化WebSocket连接');
+                        this.socket = io();
+                        this.setupSocketListeners();
+                    } catch (error) {
+                        console.error('WebSocket重连失败:', error);
+                    }
+                },
+                
+                sendMessage() {
+                    if (!this.inputMessage.trim() || !this.currentRoom) {
+                        console.log('发送消息失败: 消息为空或未加入聊天室');
+                        return;
+                    }
+                    
+                    const message = this.inputMessage.trim();
+                    console.log('发送消息:', {
+                        room: this.currentRoom,
+                        message: message
+                    });
+                    
+                    this.socket.emit('send_message', {
+                        room: this.currentRoom,
+                        username: this.username,
+                        message: message
+                    });
+                    
+                    this.inputMessage = '';
+                    this.isTyping = false;
+                    this.sendTypingStatus(false);
+                },
+                
+                handleKeyPress(event) {
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                        event.preventDefault();
+                        this.sendMessage();
+                    }
+                },
+                
+                handleInput() {
+                    const hasContent = this.inputMessage.trim().length > 0;
+                    
+                    if (hasContent && !this.isTyping) {
+                        this.isTyping = true;
+                        this.sendTypingStatus(true);
+                    }
+                    
+                    clearTimeout(this.typingTimeout);
+                    this.typingTimeout = setTimeout(() => {
+                        if (this.isTyping) {
+                            this.isTyping = false;
+                            this.sendTypingStatus(false);
+                        }
+                    }, 2000);
+                },
+                
+                sendTypingStatus(typing) {
+                    // 这里可以添加 typing 状态的 WebSocket 事件
+                },
+                
+                scrollToBottom() {
+                    this.$nextTick(() => {
+                        const container = this.$refs.messagesContainer;
+                        if (container) {
+                            container.scrollTop = container.scrollHeight - container.clientHeight;
+                        }
+                    });
+                },
+                
+                handleScroll() {
+                    // 可以添加滚动相关的逻辑
+                },
+                
+                toggleCollapse() {
+                    console.log('切换侧边栏折叠状态:', !this.isCollapse);
+                    this.isCollapse = !this.isCollapse;
+                },
+                
+                leaveRoom() {
+                    if (this.currentRoom && this.socket) {
+                        console.log('退出当前聊天室:', this.currentRoom);
+                        this.socket.emit('leave_room', {
+                            room: this.currentRoom,
+                            username: this.username
+                        });
+                    }
+                    
+                    // 停止WebSocket重连定时器
+                    this.stopReconnectInterval();
+                    
+                    console.log('重定向到聊天室列表');
+                    window.location.href = '/chat';
+                },
+                
+                getUserColor(username) {
+                    const colors = [
+                        '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3',
+                        '#00bcd4', '#009688', '#4caf50', '#8bc34a', '#cddc39',
+                        '#ffc107', '#ff9800', '#ff5722', '#795548', '#607d8b'
+                    ];
+                    let hash = 0;
+                    for (let i = 0; i < username.length; i++) {
+                        hash = username.charCodeAt(i) + ((hash << 5) - hash);
+                    }
+                    return colors[Math.abs(hash) % colors.length];
+                },
+                
+                getUserInitial(username) {
+                    return username.charAt(0).toUpperCase();
+                },
+                
+                playNotificationSound() {
+                    if (!document.getElementById('sound-toggle').checked) return;
+                    try {
+                        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                        const oscillator = audioContext.createOscillator();
+                        const gainNode = audioContext.createGain();
+                        oscillator.connect(gainNode);
+                        gainNode.connect(audioContext.destination);
+                        oscillator.frequency.value = 800;
+                        oscillator.type = 'sine';
+                        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+                        oscillator.start(audioContext.currentTime);
+                        oscillator.stop(audioContext.currentTime + 0.2);
+                    } catch (error) {
+                        console.error('播放提示音失败:', error);
+                    }
+                },
+                
+                startTitleFlash() {
+                    if (this.titleInterval) return;
+                    this.titleInterval = setInterval(() => {
+                        document.title = document.title === this.originalTitle ? '【新消息】' + this.originalTitle : this.originalTitle;
+                    }, 500);
+                },
+                
+                stopTitleFlash() {
+                    if (this.titleInterval) {
+                        clearInterval(this.titleInterval);
+                        this.titleInterval = null;
+                        document.title = this.originalTitle;
+                    }
+                },
+                
+                showToast(message, type) {
+                    const container = document.getElementById('toast-container');
+                    const toast = document.createElement('div');
+                    toast.className = 'toast toast-' + (type || 'info');
+                    
+                    const icons = {
+                        success: '✓',
+                        error: '✕',
+                        warning: '⚠',
+                        info: 'ℹ'
+                    };
+                    
+                    toast.innerHTML = 
+                        '<span class="toast-icon">' + (icons[type] || icons.info) + '</span>' +
+                        '<span class="toast-message">' + this.escapeHtml(message) + '</span>' +
+                        '<button class="toast-close" onclick="this.parentElement.remove()">×</button>';
+                    
+                    container.appendChild(toast);
+                    
+                    setTimeout(() => {
+                        toast.classList.add('toast-exit');
+                        setTimeout(() => {
+                            toast.remove();
+                        }, 300);
+                    }, 3000);
+                },
+                
+                escapeHtml(text) {
+                    const div = document.createElement('div');
+                    div.textContent = text;
+                    return div.innerHTML;
+                }
+            }
+        });
+        
+        function toggleSidebar() {
+            const sidebar = document.getElementById('chat-sidebar');
+            const expandBtn = document.getElementById('sidebar-expand-btn');
+            const isCollapsed = sidebar.classList.toggle('collapsed');
+            
+            if (isCollapsed) {
+                expandBtn.style.display = 'flex';
+            } else {
+                expandBtn.style.display = 'none';
+            }
+            
+            localStorage.setItem('chat_sidebar_collapsed', isCollapsed);
+        }
+        
+        function initSidebarState() {
+            const isCollapsed = localStorage.getItem('chat_sidebar_collapsed') === 'true';
+            const sidebar = document.getElementById('chat-sidebar');
+            const expandBtn = document.getElementById('sidebar-expand-btn');
+            
+            if (isCollapsed) {
+                sidebar.classList.add('collapsed');
+                expandBtn.style.display = 'flex';
+            }
+        }
+        
+        function closeAnnouncement() {
+            document.getElementById('announcement-bar').classList.remove('has-announcement');
+        }
+    </script>
+    <script src="/assets/js/loading.js"></script>
+</body>
+</html>

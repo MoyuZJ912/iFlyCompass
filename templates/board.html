@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>控制台 - iFlyCompass</title>
+    <link rel="stylesheet" href="/assets/css/loading.css">
+    <link rel="stylesheet" href="/assets/css/material-icons.css">
+    <link rel="stylesheet" href="/assets/css/element-ui.css">
+    <link rel="stylesheet" href="/assets/css/console.css">
+    <style>
+        .user-menu-container {
+            position: relative;
+            cursor: pointer;
+            z-index: 1000;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        
+        .user-info:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .user-info .el-icon-arrow-down {
+            margin-left: 8px;
+            transition: transform 0.3s;
+        }
+        
+        .user-info .el-icon-arrow-down.rotated {
+            transform: rotate(180deg);
+        }
+        
+        .user-dropdown-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 4px;
+            background: #fff;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            min-width: 180px;
+            overflow: hidden;
+        }
+        
+        .user-dropdown-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            color: #333;
+        }
+        
+        .user-dropdown-item:hover:not(.disabled) {
+            background-color: #f5f7fa;
+        }
+        
+        .user-dropdown-item.disabled {
+            cursor: not-allowed;
+            color: #999;
+        }
+        
+        .user-dropdown-item .item-label {
+            margin-right: 8px;
+            font-size: 14px;
+        }
+        
+        .user-dropdown-item .item-value {
+            font-weight: 500;
+            flex: 1;
+        }
+        
+        .user-dropdown-divider {
+            height: 1px;
+            background-color: #e8e8e8;
+            margin: 4px 0;
+        }
+        
+        .user-dropdown-item.logout-item {
+            color: #ff4d4f;
+        }
+        
+        .user-dropdown-item.logout-item:hover {
+            background-color: #fff1f0;
+        }
+        
+        .user-dropdown-item i {
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">加载中...</div>
+    </div>
+    <div id="app">
+        <el-container class="console-container">
+            <!-- 侧边栏 -->
+            <el-aside width="64px" class="console-sidebar" :width="isCollapse ? '64px' : '200px'">
+                <div class="sidebar-header" @click="toggleCollapse">
+                    <img src="/assets/images/logo-trans-white.png" alt="Logo" class="sidebar-logo">
+                    <span v-show="!isCollapse" class="sidebar-brand">iFlyCompass</span>
+                    <i v-show="!isCollapse" class="el-icon-s-fold sidebar-toggle" :class="{ 'rotated': !isCollapse }"></i>
+                </div>
+                
+                <el-menu
+                    :default-active="activeMenu"
+                    class="el-menu-vertical-demo"
+                    background-color="#1a365d"
+                    text-color="#ffffff"
+                    active-text-color="#409EFF"
+                    :collapse="isCollapse"
+                    @select="handleMenuClick"
+                >
+                    <el-menu-item index="dashboard">
+                        <i class="el-icon-s-home"></i>
+                        <span slot="title">首页</span>
+                    </el-menu-item>
+                    <el-menu-item index="tools">
+                        <i class="el-icon-s-tools"></i>
+                        <span slot="title">小工具</span>
+                    </el-menu-item>
+                    <el-menu-item index="games">
+                        <i class="el-icon-s-marketing"></i>
+                        <span slot="title">小游戏</span>
+                    </el-menu-item>
+                    <el-menu-item index="users" v-if="isAdmin">
+                        <i class="el-icon-s-custom"></i>
+                        <span slot="title">用户管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="passkeys" v-if="isSuperAdmin">
+                        <i class="el-icon-key"></i>
+                        <span slot="title">Passkey 管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="chat">
+                        <i class="el-icon-chat-dot-round"></i>
+                        <span slot="title">聊天室</span>
+                    </el-menu-item>
+                </el-menu>
+            </el-aside>
+            
+            <!-- 主内容区域 -->
+            <el-container>
+                <!-- 顶部导航 -->
+                <el-header class="console-header">
+                    <div class="header-left">
+                        <h1>控制台</h1>
+                    </div>
+                    <div class="header-right">
+                    <div class="user-menu-container" @click="toggleUserMenu">
+                        <span class="user-info">
+                            您好，[[ username ]]
+                            <i class="el-icon-arrow-down" :class="{ 'rotated': userMenuVisible }"></i>
+                        </span>
+                        <div class="user-dropdown-menu" v-show="userMenuVisible" @click.stop>
+                            <div class="user-dropdown-item disabled">
+                                <span class="item-label">用户名:</span>
+                                <span class="item-value">[[ username ]]</span>
+                            </div>
+                            <div class="user-dropdown-item disabled" v-if="passkeyUsed">
+                                <span class="item-label">Passkey:</span>
+                                <span class="item-value">[[ passkeyUsed ]]</span>
+                            </div>
+                            <div class="user-dropdown-divider"></div>
+                            <div class="user-dropdown-item logout-item" @click="confirmLogout">
+                                <i class="el-icon-switch-button"></i>
+                                <span>退出登录</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                </el-header>
+                
+                <!-- 内容区域 -->
+                <el-main class="console-content">
+                    <div class="content-wrapper">
+                        <el-card class="welcome-card">
+                            <div slot="header" class="card-header">
+                                <span>欢迎回来</span>
+                            </div>
+                            <div class="welcome-content">
+                                <h2>{{ username }}</h2>
+                                <p class="welcome-text">
+                                    {% if current_user.is_super_admin %}
+                                        您是超级管理员，拥有所有权限
+                                    {% elif current_user.is_admin %}
+                                        您是管理员，拥有用户管理权限
+                                    {% else %}
+                                        您是普通用户
+                                    {% endif %}
+                                </p>
+                                <div class="feature-grid">
+                                    <el-card class="feature-card">
+                                        <i class="el-icon-s-home feature-icon"></i>
+                                        <p>首页</p>
+                                    </el-card>
+                                    <el-card class="feature-card">
+                                        <i class="el-icon-s-tools feature-icon"></i>
+                                        <p>小工具</p>
+                                    </el-card>
+                                    <el-card class="feature-card">
+                                        <i class="el-icon-s-marketing feature-icon"></i>
+                                        <p>小游戏</p>
+                                    </el-card>
+                                    {% if current_user.is_admin or current_user.is_super_admin %}
+                                    <el-card class="feature-card">
+                                        <i class="el-icon-s-custom feature-icon"></i>
+                                        <p>用户管理</p>
+                                    </el-card>
+                                    {% endif %}
+                                </div>
+                                <div class="status-info">
+                                    <p>当前版本：v1.2.1_EVALUATION</p>
+                                    <p>上次登录：刚刚</p>
+                                </div>
+                            </div>
+                        </el-card>
+                    </div>
+                </el-main>
+            </el-container>
+        </el-container>
+    </div>
+
+    <script src="/assets/js/vue.min.js"></script>
+    <script src="/assets/js/element-ui.js"></script>
+    <script>
+        // 页面加载完成日志
+        console.log('=== iFlyCompass 控制台页面加载完成 ===');
+        
+        new Vue({
+            el: '#app',
+            delimiters: ['[[', ']]'],
+            data() {
+                return {
+                    isCollapse: true,
+                    activeMenu: 'dashboard',
+                    username: '{{ current_user.username }}',
+                    passkeyUsed: {% if current_user.passkey_used %}'{{ current_user.passkey_used }}'{% else %}null{% endif %},
+                    isAdmin: {% if current_user.is_admin or current_user.is_super_admin %}true{% else %}false{% endif %},
+                    isSuperAdmin: {% if current_user.is_super_admin %}true{% else %}false{% endif %},
+                    userMenuVisible: false
+                };
+            },
+            mounted() {
+                console.log('Vue 实例挂载完成，用户信息:', {
+                    username: this.username,
+                    isAdmin: this.isAdmin,
+                    isSuperAdmin: this.isSuperAdmin
+                });
+            },
+            methods: {
+                toggleCollapse() {
+                    console.log('切换侧边栏折叠状态:', !this.isCollapse);
+                    this.isCollapse = !this.isCollapse;
+                },
+                toggleUserMenu() {
+                    this.userMenuVisible = !this.userMenuVisible;
+                },
+                confirmLogout() {
+                    this.$confirm('确定要退出登录吗？', '提示', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    })
+                    .then(() => {
+                        this.logout();
+                    })
+                    .catch(() => {
+                        console.log('取消退出登录');
+                    });
+                },
+                logout() {
+                    console.log('=== 退出登录操作开始 ===');
+                    console.log('当前用户:', this.username);
+                    console.log('用户类型:');
+                    console.log('- 超级管理员:', this.isSuperAdmin);
+                    console.log('- 管理员:', this.isAdmin);
+                    console.log('正在重定向到退出登录页面...');
+                    window.location.href = '/logout';
+                    console.log('=== 退出登录操作完成 ===');
+                },
+                handleMenuClick(key) {
+                    console.log('菜单点击:', key);
+                    // 点击菜单时关闭用户菜单
+                    this.userMenuVisible = false;
+                    if (key === 'dashboard') {
+                        console.log('导航到控制台首页');
+                        window.location.href = '/board';
+                    } else if (key === 'tools') {
+                        console.log('导航到小工具');
+                        window.location.href = '/board/tools';
+                    } else if (key === 'users') {
+                        console.log('导航到用户管理');
+                        window.location.href = '/board/users';
+                    } else if (key === 'passkeys') {
+                        console.log('导航到 Passkey 管理');
+                        window.location.href = '/board/passkeys';
+                    } else if (key === 'chat') {
+                        console.log('导航到聊天室');
+                        window.location.href = '/board/chat';
+                    }
+                }
+            }
+        });
+    </script>
+    <script src="/assets/js/loading.js"></script>
+</body>
+</html>

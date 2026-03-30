@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>注册 - iFlyCompass</title>
+    <link rel="stylesheet" href="/assets/css/loading.css">
+    <link rel="stylesheet" href="/assets/css/material-icons.css">
+    <link rel="stylesheet" href="/assets/css/style.css">
+    <link rel="stylesheet" href="/assets/css/auth.css">
+</head>
+<body style="background-image: url('/temp/bing_wallpaper.jpg');">
+    <div id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">加载中...</div>
+    </div>
+    <!-- 玻璃 Tab 栏 -->
+    <nav class="glass-navbar">
+        <div class="nav-left">
+            <img src="/assets/images/logo-trans-white.png" alt="Logo" class="nav-logo">
+            <span class="nav-brand">iFlyCompass</span>
+        </div>
+        <div class="nav-right">
+            <a href="/" class="nav-link">首页</a>
+            <a href="#" class="nav-link">教程</a>
+            <a href="/board" class="nav-btn">控制台</a>
+        </div>
+    </nav>
+
+    <!-- 注册表单区域 -->
+    <main class="auth-section">
+        <div class="auth-card glass-card">
+            <div class="auth-header">
+                <img src="/assets/images/logo-trans-white.png" alt="Logo" class="auth-logo">
+                <h2 class="auth-title">创建账号</h2>
+                <p class="auth-subtitle">加入 iFlyCompass，开启您的旅程</p>
+            </div>
+            
+            <form class="auth-form" action="/register" method="POST">
+                <div class="form-group">
+                    <label class="form-label">
+                        <span class="material-icons">person</span>
+                        用户名
+                    </label>
+                    <input type="text" name="username" class="form-input" placeholder="请输入用户名" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">
+                        <span class="material-icons">lock</span>
+                        密码
+                    </label>
+                    <input type="password" name="password" class="form-input" placeholder="请输入密码" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">
+                        <span class="material-icons">lock_reset</span>
+                        确认密码
+                    </label>
+                    <input type="password" name="confirm_password" class="form-input" placeholder="请再次输入密码" required>
+                </div>
+                
+                <div class="form-group" id="passkey-group">
+                    <label class="form-label">
+                        <span class="material-icons">key</span>
+                        Passkey
+                    </label>
+                    <input type="text" name="passkey" class="form-input" placeholder="请输入管理员提供的Passkey（首个用户无需填写）">
+                </div>
+                
+                <button type="submit" class="btn-submit">
+                    <span class="material-icons">arrow_forward</span>
+                    注册
+                </button>
+            </form>
+            
+            <div class="auth-footer">
+                <p>已有账号？<a href="/login" class="auth-link">立即登录</a></p>
+            </div>
+        </div>
+    </main>
+    <script>
+        // 页面加载完成日志
+        console.log('=== iFlyCompass 注册页面加载完成 ===');
+        
+        // 注册表单提交日志
+        document.addEventListener('DOMContentLoaded', function() {
+            const registerForm = document.querySelector('.auth-form');
+            if (registerForm) {
+                registerForm.addEventListener('submit', function(e) {
+                    const username = this.querySelector('input[name="username"]').value;
+                    const passkey = this.querySelector('input[name="passkey"]').value;
+                    console.log('注册表单提交:', { 
+                        username: username, 
+                        passkey: passkey ? '****' : '未提供' 
+                    });
+                });
+            }
+            
+            // 导航链接点击日志
+            const navLinks = document.querySelectorAll('.nav-link, .nav-btn');
+            navLinks.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    console.log('导航链接点击:', this.textContent.trim(), '目标:', this.href);
+                });
+            });
+            
+            // 登录链接点击日志
+            const loginLink = document.querySelector('.auth-link');
+            if (loginLink) {
+                loginLink.addEventListener('click', function(e) {
+                    console.log('登录链接点击:', this.textContent.trim(), '目标:', this.href);
+                });
+            }
+        });
+    </script>
+    <script src="/assets/js/loading.js"></script>
+</body>
+</html>

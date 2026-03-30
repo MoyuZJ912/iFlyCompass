@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小工具 - iFlyCompass</title>
+    <link rel="stylesheet" href="/assets/css/loading.css">
+    <link rel="stylesheet" href="/assets/css/material-icons.css">
+    <link rel="stylesheet" href="/assets/css/element-ui.css">
+    <link rel="stylesheet" href="/assets/css/console.css">
+    <style>
+        .user-menu-container {
+            position: relative;
+            cursor: pointer;
+            z-index: 1000;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        
+        .user-info:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .user-info .el-icon-arrow-down {
+            margin-left: 8px;
+            transition: transform 0.3s;
+        }
+        
+        .user-info .el-icon-arrow-down.rotated {
+            transform: rotate(180deg);
+        }
+        
+        .user-dropdown-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 4px;
+            background: #fff;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            min-width: 180px;
+            overflow: hidden;
+        }
+        
+        .user-dropdown-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            color: #333;
+        }
+        
+        .user-dropdown-item:hover:not(.disabled) {
+            background-color: #f5f7fa;
+        }
+        
+        .user-dropdown-item.disabled {
+            cursor: not-allowed;
+            color: #999;
+        }
+        
+        .user-dropdown-item .item-label {
+            margin-right: 8px;
+            font-size: 14px;
+        }
+        
+        .user-dropdown-item .item-value {
+            font-weight: 500;
+            flex: 1;
+        }
+        
+        .user-dropdown-divider {
+            height: 1px;
+            background-color: #e8e8e8;
+            margin: 4px 0;
+        }
+        
+        .user-dropdown-item.logout-item {
+            color: #ff4d4f;
+        }
+        
+        .user-dropdown-item.logout-item:hover {
+            background-color: #fff1f0;
+        }
+        
+        .user-dropdown-item i {
+            margin-right: 8px;
+        }
+        
+        /* 工具选择界面 */
+        .tools-select-container {
+            height: calc(100vh - 60px);
+            display: flex;
+            flex-direction: column;
+            background: #f5f7fa;
+            overflow: hidden;
+        }
+        
+        .tools-select-header {
+            padding: 16px;
+            background: #fff;
+            border-bottom: 1px solid #e6e6e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        
+        .pagination-container {
+            display: flex;
+            align-items: center;
+        }
+        
+        .pagination-container .el-button {
+            border-radius: 4px;
+            border: 1px solid #dcdfe6;
+            background-color: #fff;
+            color: #606266;
+            transition: all 0.3s;
+        }
+        
+        .pagination-container .el-button:hover:not(:disabled) {
+            border-color: #409eff;
+            color: #409eff;
+        }
+        
+        .pagination-container .el-button:disabled {
+            color: #c0c4cc;
+            border-color: #ebeef5;
+            cursor: not-allowed;
+        }
+        
+        .tools-select-body {
+            flex: 1;
+            padding: 20px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .tools-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            flex: 1;
+            height: 100%;
+        }
+        
+        .tool-card {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            cursor: pointer;
+        }
+        
+        .tool-card:hover {
+            box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.15);
+            transform: translateY(-2px);
+        }
+        
+        .tool-card-body {
+            padding: 16px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            text-align: left;
+        }
+        
+        .tool-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            color: #409eff !important;
+            align-self: flex-start;
+        }
+
+        .tool-icon i {
+            color: #409eff !important;
+        }
+        
+        .tool-name {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            text-align: left;
+        }
+        
+        .tool-provider {
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 12px;
+            text-align: left;
+        }
+        
+        .tool-description {
+            font-size: 14px;
+            color: #666;
+            flex: 1;
+            text-align: left;
+        }
+        
+        .tool-card-footer {
+            padding: 12px 16px;
+            border-top: 1px solid #e6e6e6;
+            background: #f9f9f9;
+            display: flex;
+            justify-content: center;
+        }
+        
+        .empty-state {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 0;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 1200px) {
+            .tools-grid {
+                gap: 15px;
+            }
+            
+            .tools-select-body {
+                padding: 15px;
+            }
+        }
+        
+        @media (max-width: 992px) {
+            .tools-grid {
+                grid-template-columns: repeat(3, 1fr);
+                gap: 10px;
+            }
+            
+            .tools-select-body {
+                padding: 10px;
+            }
+            
+            .tool-card-body {
+                padding: 12px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .tools-select-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+            
+            .pagination-container {
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .tools-select-body {
+                padding: 8px;
+            }
+            
+            .tools-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+            }
+            
+            .tool-card-body {
+                padding: 10px;
+            }
+            
+            .tool-name {
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">加载中...</div>
+    </div>
+    <div id="app">
+        <el-container class="console-container">
+            <el-aside width="64px" class="console-sidebar" :width="isCollapse ? '64px' : '200px'">
+                <div class="sidebar-header" @click="toggleCollapse">
+                    <img src="/assets/images/logo-trans-white.png" alt="Logo" class="sidebar-logo">
+                    <span v-show="!isCollapse" class="sidebar-brand">iFlyCompass</span>
+                    <i v-show="!isCollapse" class="el-icon-s-fold sidebar-toggle"></i>
+                </div>
+                <el-menu
+                    :default-active="activeMenu"
+                    class="el-menu-vertical-demo"
+                    background-color="#1a365d"
+                    text-color="#ffffff"
+                    active-text-color="#409EFF"
+                    :collapse="isCollapse"
+                    @select="handleMenuClick"
+                >
+                    <el-menu-item index="dashboard">
+                        <i class="el-icon-s-home"></i>
+                        <span slot="title">首页</span>
+                    </el-menu-item>
+                    <el-menu-item index="tools" class="active">
+                        <i class="el-icon-s-tools"></i>
+                        <span slot="title">小工具</span>
+                    </el-menu-item>
+                    <el-menu-item index="games">
+                        <i class="el-icon-s-marketing"></i>
+                        <span slot="title">小游戏</span>
+                    </el-menu-item>
+                    <el-menu-item index="users" v-if="isAdmin">
+                        <i class="el-icon-s-custom"></i>
+                        <span slot="title">用户管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="passkeys" v-if="isSuperAdmin">
+                        <i class="el-icon-key"></i>
+                        <span slot="title">Passkey 管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="chat">
+                        <i class="el-icon-chat-dot-round"></i>
+                        <span slot="title">聊天室</span>
+                    </el-menu-item>
+                </el-menu>
+            </el-aside>
+            
+            <el-container>
+                <el-header class="console-header">
+                    <div class="header-left">
+                        <h1>小工具</h1>
+                    </div>
+                    <div class="header-right">
+                        <div class="user-menu-container" @click="toggleUserMenu">
+                            <span class="user-info">
+                                您好，[[ username ]]
+                                <i class="el-icon-arrow-down" :class="{ 'rotated': userMenuVisible }"></i>
+                            </span>
+                            <div class="user-dropdown-menu" v-show="userMenuVisible" @click.stop>
+                                <div class="user-dropdown-item disabled">
+                                    <span class="item-label">用户名:</span>
+                                    <span class="item-value">[[ username ]]</span>
+                                </div>
+                                <div class="user-dropdown-item disabled" v-if="passkeyUsed">
+                                    <span class="item-label">Passkey:</span>
+                                    <span class="item-value">[[ passkeyUsed ]]</span>
+                                </div>
+                                <div class="user-dropdown-divider"></div>
+                                <div class="user-dropdown-item logout-item" @click="confirmLogout">
+                                    <i class="el-icon-switch-button"></i>
+                                    <span>退出登录</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </el-header>
+                
+                <el-main class="console-content">
+                    <!-- 工具选择界面 -->
+                    <div class="tools-select-container">
+                        <div class="tools-select-header">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <el-input
+                                    v-model="searchKeyword"
+                                    placeholder="搜索小工具"
+                                    style="width: 300px"
+                                    prefix-icon="el-icon-search"
+                                    @input="handleSearch"
+                                ></el-input>
+                                <el-button type="primary" @click="handleSearch">查询</el-button>
+                            </div>
+                            <div class="pagination-container">
+                                <el-button 
+                                    type="text" 
+                                    @click="prevPage"
+                                    :disabled="currentPage === 1"
+                                >
+                                    [<]
+                                </el-button>
+                                <span style="margin: 0 10px;">
+                                    [[ currentPage ]]/[[ Math.ceil(filteredTools.length / 4) || 1 ]]
+                                </span>
+                                <el-button 
+                                    type="text" 
+                                    @click="nextPage"
+                                    :disabled="currentPage >= Math.ceil(filteredTools.length / 4)"
+                                >
+                                    [>]
+                                </el-button>
+                            </div>
+                        </div>
+                        <div class="tools-select-body">
+                            <div class="tools-grid">
+                                <div 
+                                    v-for="tool in paginatedTools" 
+                                    :key="tool.id"
+                                    class="tool-card"
+                                    @click="navigateToTool(tool.path)"
+                                >
+                                    <div class="tool-card-body">
+                                        <div class="tool-icon">
+                                            <i class="material-icons">menu_book</i>
+                                        </div>
+                                        <div class="tool-name">[[ tool.name ]]</div>
+                                        <div class="tool-provider">提供者: [[ tool.provider ]]</div>
+                                        <div class="tool-description">[[ tool.description ]]</div>
+                                    </div>
+                                    <div class="tool-card-footer">
+                                        <el-button type="primary" size="small">使用</el-button>
+                                    </div>
+                                </div>
+                                <div v-if="paginatedTools.length === 0" class="empty-state">
+                                    <el-empty description="暂无小工具"></el-empty>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </el-main>
+            </el-container>
+        </el-container>
+    </div>
+
+    <script src="/assets/js/vue.min.js"></script>
+    <script src="/assets/js/element-ui.js"></script>
+    <script>
+        // 页面加载完成日志
+        console.log('=== iFlyCompass 小工具页面加载完成 ===');
+        
+        new Vue({
+            el: '#app',
+            delimiters: ['[[', ']]'],
+            data() {
+                return {
+                    isCollapse: true,
+                    activeMenu: 'tools',
+                    username: '{{ current_user.username }}',
+                    passkeyUsed: {% if current_user.passkey_used %}'{{ current_user.passkey_used }}'{% else %}null{% endif %},
+                    isAdmin: {% if current_user.is_admin or current_user.is_super_admin %}true{% else %}false{% endif %},
+                    isSuperAdmin: {% if current_user.is_super_admin %}true{% else %}false{% endif %},
+                    userMenuVisible: false,
+                    searchKeyword: '',
+                    currentPage: 1,
+                    tools: [
+                        {
+                            id: 1,
+                            name: '小说阅读器',
+                            provider: 'Built-in',
+                            description: '随时阅读TXT小说！',
+                            path: '/tools/novelreader',
+                            icon: 'material-icons'
+                        }
+                    ]
+                };
+            },
+            computed: {
+                filteredTools() {
+                    if (!this.searchKeyword) {
+                        return this.tools;
+                    }
+                    return this.tools.filter(tool => 
+                        tool.name.toLowerCase().includes(this.searchKeyword.toLowerCase()) ||
+                        tool.description.toLowerCase().includes(this.searchKeyword.toLowerCase())
+                    );
+                },
+                paginatedTools() {
+                    const start = (this.currentPage - 1) * 4;
+                    const end = start + 4;
+                    return this.filteredTools.slice(start, end);
+                }
+            },
+            mounted() {
+                console.log('Vue 实例挂载完成，用户信息:', {
+                    username: this.username,
+                    isAdmin: this.isAdmin,
+                    isSuperAdmin: this.isSuperAdmin
+                });
+                console.log('工具列表:', this.tools);
+            },
+            methods: {
+                toggleCollapse() {
+                    console.log('切换侧边栏折叠状态:', !this.isCollapse);
+                    this.isCollapse = !this.isCollapse;
+                },
+                toggleUserMenu() {
+                    this.userMenuVisible = !this.userMenuVisible;
+                },
+                confirmLogout() {
+                    this.$confirm('确定要退出登录吗？', '提示', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    })
+                    .then(() => {
+                        this.logout();
+                    })
+                    .catch(() => {
+                        console.log('取消退出登录');
+                    });
+                },
+                logout() {
+                    console.log('=== 退出登录操作开始 ===');
+                    console.log('当前用户:', this.username);
+                    console.log('用户类型:');
+                    console.log('- 超级管理员:', this.isSuperAdmin);
+                    console.log('- 管理员:', this.isAdmin);
+                    console.log('正在重定向到退出登录页面...');
+                    window.location.href = '/logout';
+                    console.log('=== 退出登录操作完成 ===');
+                },
+                handleMenuClick(key) {
+                    console.log('菜单点击:', key);
+                    // 点击菜单时关闭用户菜单
+                    this.userMenuVisible = false;
+                    if (key === 'dashboard') {
+                        console.log('导航到控制台首页');
+                        window.location.href = '/board';
+                    } else if (key === 'users') {
+                        console.log('导航到用户管理');
+                        window.location.href = '/board/users';
+                    } else if (key === 'passkeys') {
+                        console.log('导航到 Passkey 管理');
+                        window.location.href = '/board/passkeys';
+                    } else if (key === 'chat') {
+                        console.log('导航到聊天室');
+                        window.location.href = '/board/chat';
+                    } else if (key === 'tools') {
+                        console.log('导航到小工具');
+                        window.location.href = '/board/tools';
+                    } else if (key === 'games') {
+                        console.log('导航到小游戏');
+                        window.location.href = '/board/games';
+                    }
+                },
+                handleSearch() {
+                    console.log('搜索工具:', this.searchKeyword);
+                    this.currentPage = 1;
+                },
+                prevPage() {
+                    if (this.currentPage > 1) {
+                        this.currentPage--;
+                    }
+                },
+                nextPage() {
+                    if (this.currentPage < Math.ceil(this.filteredTools.length / 4)) {
+                        this.currentPage++;
+                    }
+                },
+                navigateToTool(path) {
+                    console.log('导航到工具:', path);
+                    window.location.href = path;
+                }
+            }
+        });
+    </script>
+    <script src="/assets/js/loading.js"></script>
+</body>
+</html>

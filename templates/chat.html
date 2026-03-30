@@ -1,0 +1,2302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聊天室 - iFlyCompass</title>
+    <link rel="stylesheet" href="/assets/css/loading.css">
+    <link rel="stylesheet" href="/assets/css/material-icons.css">
+    <link rel="stylesheet" href="/assets/css/element-ui.css">
+    <link rel="stylesheet" href="/assets/css/console.css">
+    <style>
+        .user-menu-container {
+            position: relative;
+            cursor: pointer;
+            z-index: 1000;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        
+        .user-info:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .user-info .el-icon-arrow-down {
+            margin-left: 8px;
+            transition: transform 0.3s;
+        }
+        
+        .user-info .el-icon-arrow-down.rotated {
+            transform: rotate(180deg);
+        }
+        
+        .user-dropdown-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 4px;
+            background: #fff;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            min-width: 180px;
+            overflow: hidden;
+        }
+        
+        .user-dropdown-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            color: #333;
+        }
+        
+        .user-dropdown-item:hover:not(.disabled) {
+            background-color: #f5f7fa;
+        }
+        
+        .user-dropdown-item.disabled {
+            cursor: not-allowed;
+            color: #999;
+        }
+        
+        .user-dropdown-item .item-label {
+            margin-right: 8px;
+            font-size: 14px;
+        }
+        
+        .user-dropdown-item .item-value {
+            font-weight: 500;
+            flex: 1;
+        }
+        
+        .user-dropdown-divider {
+            height: 1px;
+            background-color: #e8e8e8;
+            margin: 4px 0;
+        }
+        
+        .user-dropdown-item.logout-item {
+            color: #ff4d4f;
+        }
+        
+        .user-dropdown-item.logout-item:hover {
+            background-color: #fff1f0;
+        }
+        
+        .user-dropdown-item i {
+            margin-right: 8px;
+        }
+        
+        /* 聊天选择界面 */
+        .chat-select-container {
+            height: calc(100vh - 60px);
+            display: flex;
+            flex-direction: column;
+            background: #f5f7fa;
+            overflow: hidden;
+        }
+        
+        .chat-select-header {
+            padding: 16px;
+            background: #fff;
+            border-bottom: 1px solid #e6e6e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        
+        .pagination-container {
+            display: flex;
+            align-items: center;
+        }
+        
+        .pagination-container .el-button {
+            border-radius: 4px;
+            border: 1px solid #dcdfe6;
+            background-color: #fff;
+            color: #606266;
+            transition: all 0.3s;
+        }
+        
+        .pagination-container .el-button:hover:not(:disabled) {
+            border-color: #409eff;
+            color: #409eff;
+        }
+        
+        .pagination-container .el-button:disabled {
+            color: #c0c4cc;
+            border-color: #ebeef5;
+            cursor: not-allowed;
+        }
+        
+        .chat-room-card {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        
+        .chat-room-card-body {
+            padding: 16px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .chat-room-meta {
+            font-size: 12px;
+            color: #999;
+            margin-top: auto;
+        }
+        
+        .chat-select-body {
+            flex: 1;
+            padding: 20px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .chat-room-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            flex: 1;
+            height: 100%;
+        }
+        
+        .chat-room-card {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        
+        .chat-room-card:hover {
+            box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.15);
+            transform: translateY(-2px);
+        }
+        
+        .chat-room-card-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid #e6e6e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f9f9f9;
+        }
+        
+        .chat-room-id {
+            font-size: 12px;
+            color: #999;
+        }
+        
+        .chat-room-actions {
+            display: flex;
+            align-items: center;
+        }
+        
+        .chat-room-card-body {
+            padding: 16px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .chat-room-name {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .chat-room-has-password {
+            font-size: 14px;
+            color: #999;
+        }
+        
+        .chat-room-meta {
+            font-size: 12px;
+            color: #999;
+            margin-top: auto;
+        }
+        
+        .chat-room-meta div {
+            margin-bottom: 4px;
+        }
+        
+        .chat-room-card-footer {
+            padding: 12px 16px;
+            border-top: 1px solid #e6e6e6;
+            background: #f9f9f9;
+            display: flex;
+            justify-content: flex-end;
+        }
+        
+        .empty-state {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 0;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 1200px) {
+            .chat-room-grid {
+                gap: 15px;
+            }
+            
+            .chat-select-body {
+                padding: 15px;
+            }
+        }
+        
+        @media (max-width: 992px) {
+            .chat-room-grid {
+                gap: 10px;
+            }
+            
+            .chat-select-body {
+                padding: 10px;
+            }
+            
+            .chat-room-card-body {
+                padding: 12px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .chat-select-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+            
+            .pagination-container {
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .chat-select-body {
+                padding: 8px;
+            }
+            
+            .chat-room-grid {
+                gap: 8px;
+            }
+            
+            .chat-room-card-body {
+                padding: 10px;
+            }
+            
+            .chat-room-name {
+                font-size: 14px;
+            }
+        }
+        
+        /* 确保始终保持3列布局 */
+        .chat-room-grid {
+            grid-template-columns: repeat(3, 1fr) !important;
+        }
+        
+        /* 聊天界面 */
+        .chat-view-container {
+            height: calc(100vh - 60px);
+            display: flex;
+            position: relative;
+        }
+        
+        .chat-view-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #fff;
+        }
+        
+        .chat-view-header {
+            padding: 16px;
+            border-bottom: 1px solid #e6e6e6;
+            display: flex;
+            align-items: center;
+            background: #fff;
+            height: 60px;
+            box-sizing: border-box;
+        }
+        
+        .back-button {
+            margin-right: 16px;
+            cursor: pointer;
+            font-size: 18px;
+            color: #409EFF;
+            transition: color 0.3s;
+        }
+        
+        .back-button:hover {
+            color: #66b1ff;
+        }
+        
+        .chat-view-title {
+            font-size: 18px;
+            font-weight: bold;
+            flex: 1;
+        }
+        
+        .chat-body {
+            flex: 1;
+            background: #f0f2f5;
+            min-height: 400px;
+        }
+        
+        .messages-container {
+            height: 100%;
+            overflow-y: scroll;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        
+        .messages-container::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .messages-container::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 3px;
+        }
+        
+        .messages-container::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 3px;
+            transition: background 0.3s;
+        }
+        
+        .messages-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.5);
+        }
+        
+        .message-list {
+            min-height: 100%;
+        }
+        
+        .message-item {
+            margin-bottom: 16px;
+            display: flex;
+            align-items: flex-start;
+        }
+        
+        .message-item.self {
+            justify-content: flex-end;
+        }
+        
+        .message-content {
+            max-width: 70%;
+            padding: 10px 14px;
+            border-radius: 18px;
+            word-wrap: break-word;
+        }
+        
+        .message-item.self .message-content {
+            background: #409EFF;
+            color: #fff;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .message-item.other .message-content {
+            background: #fff;
+            color: #333;
+            border-bottom-left-radius: 4px;
+        }
+        
+        .message-info {
+            display: flex;
+            align-items: center;
+            margin-bottom: 4px;
+            font-size: 12px;
+        }
+        
+        .message-username {
+            color: #409EFF;
+            margin-right: 8px;
+        }
+        
+        .message-time {
+            color: #999;
+        }
+        
+        .message-item.self .message-info {
+            justify-content: flex-end;
+        }
+        
+        .message-item.self .message-username {
+            color: #fff;
+        }
+        
+        .message-item.system {
+            justify-content: center;
+            margin: 16px 0;
+        }
+        
+        .message-item.system .message-content {
+            background: rgba(0, 0, 0, 0.05);
+            color: #666;
+            font-size: 12px;
+            padding: 4px 12px;
+            border-radius: 10px;
+        }
+        
+        .chat-footer {
+            padding: 16px;
+            border-top: 1px solid #e6e6e6;
+            background: #fff;
+            height: 100px;
+            box-sizing: border-box;
+        }
+        
+        .chat-input-container {
+            display: flex;
+            align-items: flex-end;
+            height: 100%;
+            box-sizing: border-box;
+        }
+        
+        .chat-input {
+            flex: 1;
+            margin-right: 12px;
+            min-width: 0;
+        }
+        
+        .user-list {
+            width: 250px;
+            border-left: 1px solid #e6e6e6;
+            background: #f5f7fa;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s ease;
+            position: relative;
+        }
+        
+        .user-list-toggle {
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+            position: absolute;
+            top: 50%;
+            right: 0;
+            transform: translateY(-50%);
+            background: #fff;
+            border: 1px solid #e6e6e6;
+            border-right: none;
+            z-index: 10;
+        }
+        
+        .user-list-toggle:hover {
+            background-color: #f5f7fa;
+        }
+        
+        .user-list.collapsed {
+            transform: translateX(100%);
+        }
+        
+        .user-list-header {
+            padding: 16px;
+            border-bottom: 1px solid #e6e6e6;
+            background: #fff;
+            font-weight: bold;
+        }
+        
+        .user-list-body {
+            flex: 1;
+            padding: 8px;
+            overflow-y: auto;
+        }
+        
+        .user-item {
+            padding: 10px;
+            margin-bottom: 4px;
+            background: #fff;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #409EFF;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 10px;
+            font-size: 14px;
+        }
+        
+        .back-to-bottom {
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #409EFF;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+            transition: all 0.3s;
+            z-index: 999;
+        }
+        
+        .back-to-bottom:hover {
+            background: #66b1ff;
+        }
+        
+        .chat-sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid #e6e6e6;
+            background: #fff;
+        }
+        
+        .chat-sidebar-body {
+            flex: 1;
+            padding: 8px;
+            overflow-y: auto;
+        }
+        
+        .scroll-native {
+            height: 100%;
+            overflow-y: auto;
+        }
+        
+        .scroll-native::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .scroll-native::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 3px;
+        }
+        
+        .scroll-native::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 3px;
+            transition: background 0.3s;
+        }
+        
+        .scroll-native::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.5);
+        }
+        
+        .chat-room-item {
+            padding: 12px;
+            margin-bottom: 8px;
+            background: #fff;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .chat-room-item:hover {
+            background: #ecf5ff;
+        }
+        
+        .chat-room-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .chat-room-name {
+            font-weight: bold;
+        }
+        
+        .chat-room-has-password {
+            font-size: 12px;
+            color: #999;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .chat-select-container {
+                flex-direction: column;
+            }
+            
+            .chat-select-sidebar {
+                width: 100%;
+                height: 40%;
+                border-right: none;
+                border-bottom: 1px solid #e6e6e6;
+                overflow: hidden;
+            }
+            
+            .chat-select-content {
+                height: 60%;
+                overflow: hidden;
+            }
+            
+            .chat-view-container {
+                flex-direction: column;
+            }
+            
+            .user-list {
+                position: absolute;
+                top: 0;
+                right: 0;
+                height: 100%;
+                z-index: 100;
+                overflow: hidden;
+            }
+            
+            .message-content {
+                max-width: 85%;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .chat-sidebar-header {
+                padding: 12px;
+            }
+            
+            .chat-sidebar-body {
+                padding: 4px;
+            }
+            
+            .chat-room-item {
+                padding: 10px;
+            }
+            
+            .chat-view-header {
+                padding: 12px;
+            }
+            
+            .chat-footer {
+                padding: 12px;
+            }
+            
+            .chat-input-container {
+                flex-direction: column;
+                gap: 8px;
+            }
+            
+            .chat-input {
+                margin-right: 0;
+            }
+            
+            .el-button {
+                width: 100%;
+            }
+            
+            .messages-container {
+                padding: 12px;
+            }
+        }
+        
+        /* 表情包管理样式 */
+        .sticker-management-container {
+            height: calc(100vh - 60px);
+            display: flex;
+            flex-direction: column;
+            background: #f5f7fa;
+            overflow: hidden;
+        }
+        
+        .sticker-header {
+            padding: 16px;
+            background: #fff;
+            border-bottom: 1px solid #e6e6e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        
+        .sticker-type-tabs {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .sticker-tab {
+            padding: 8px 16px;
+            border: 1px solid #dcdfe6;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #fff;
+        }
+        
+        .sticker-tab:hover {
+            border-color: #409eff;
+            color: #409eff;
+        }
+        
+        .sticker-tab.active {
+            background: #409eff;
+            color: #fff;
+            border-color: #409eff;
+        }
+        
+        .sticker-body {
+            flex: 1;
+            padding: 20px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* 单个表情网格 - 每行5个 */
+        .single-sticker-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 20px;
+            flex: 1;
+            height: 100%;
+        }
+        
+        /* 表情合集网格 - 每行3个 */
+        .pack-sticker-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            flex: 1;
+            height: 100%;
+        }
+        
+        .sticker-card {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            cursor: pointer;
+        }
+        
+        .sticker-card:hover {
+            box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.15);
+            transform: translateY(-2px);
+        }
+        
+        .sticker-card.added {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .sticker-image-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            background: #f9f9f9;
+            min-height: 120px;
+        }
+        
+        .sticker-image {
+            max-width: 100%;
+            max-height: 150px;
+            object-fit: contain;
+        }
+        
+        .sticker-info {
+            padding: 12px 16px;
+            border-top: 1px solid #e6e6e6;
+        }
+        
+        .sticker-name {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .sticker-description {
+            font-size: 12px;
+            color: #999;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .sticker-count {
+            font-size: 12px;
+            color: #409eff;
+            margin-top: 4px;
+        }
+        
+        .sticker-actions {
+            padding: 12px 16px;
+            border-top: 1px solid #e6e6e6;
+            display: flex;
+            justify-content: center;
+        }
+        
+        .add-sticker-btn {
+            width: 100%;
+        }
+        
+        .add-sticker-btn.added {
+            background: #67c23a;
+            border-color: #67c23a;
+        }
+        
+        .empty-sticker-state {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 0;
+        }
+        
+        /* 我的表情包列表样式 */
+        .my-stickers-list {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 20px;
+            flex: 1;
+            height: 100%;
+        }
+        
+        .my-sticker-item {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        
+        .remove-sticker-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #ff4d4f;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            z-index: 10;
+        }
+        
+        .remove-sticker-btn:hover {
+            background: #ff7875;
+        }
+        
+        /* 表情合集在我的表情中的样式 */
+        .my-pack-item {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .my-pack-item .sticker-name {
+            color: #fff;
+        }
+        
+        .my-pack-item .sticker-description {
+            color: rgba(255, 255, 255, 0.8);
+        }
+        
+        .pack-cover-container {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px 8px 0 0;
+        }
+        
+        .pack-cover {
+            object-fit: cover;
+            width: 100%;
+            height: 120px;
+        }
+        
+        @media (max-width: 1200px) {
+            .single-sticker-grid,
+            .my-stickers-list {
+                grid-template-columns: repeat(4, 1fr);
+            }
+            .pack-sticker-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .single-sticker-grid,
+            .my-stickers-list {
+                grid-template-columns: repeat(3, 1fr);
+            }
+            .pack-sticker-grid {
+                grid-template-columns: repeat(1, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">加载中...</div>
+    </div>
+    <div id="app">
+        <el-container class="console-container">
+            <el-aside width="64px" class="console-sidebar" :width="isCollapse ? '64px' : '200px'">
+                <div class="sidebar-header" @click="toggleCollapse">
+                    <img src="/assets/images/logo-trans-white.png" alt="Logo" class="sidebar-logo">
+                    <span v-show="!isCollapse" class="sidebar-brand">iFlyCompass</span>
+                    <i v-show="!isCollapse" class="el-icon-s-fold sidebar-toggle"></i>
+                </div>
+                <el-menu
+                    :default-active="activeMenu"
+                    class="el-menu-vertical-demo"
+                    background-color="#1a365d"
+                    text-color="#ffffff"
+                    active-text-color="#409EFF"
+                    :collapse="isCollapse"
+                    @select="handleMenuClick"
+                >
+                    <el-menu-item index="dashboard">
+                        <i class="el-icon-s-home"></i>
+                        <span slot="title">首页</span>
+                    </el-menu-item>
+                    <el-menu-item index="tools">
+                        <i class="el-icon-s-tools"></i>
+                        <span slot="title">小工具</span>
+                    </el-menu-item>
+                    <el-menu-item index="games">
+                        <i class="el-icon-s-marketing"></i>
+                        <span slot="title">小游戏</span>
+                    </el-menu-item>
+                    <el-menu-item index="users" v-if="isAdmin">
+                        <i class="el-icon-s-custom"></i>
+                        <span slot="title">用户管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="passkeys" v-if="isSuperAdmin">
+                        <i class="el-icon-key"></i>
+                        <span slot="title">Passkey 管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="chat" class="active">
+                        <i class="el-icon-chat-dot-round"></i>
+                        <span slot="title">聊天室</span>
+                    </el-menu-item>
+                </el-menu>
+            </el-aside>
+            
+            <el-container>
+                <el-header class="console-header">
+                    <div class="header-left">
+                        <h1>聊天室</h1>
+                    </div>
+                    <div class="header-right">
+                        <div class="user-menu-container" @click="toggleUserMenu">
+                            <span class="user-info">
+                                您好，[[ username ]]
+                                <i class="el-icon-arrow-down" :class="{ 'rotated': userMenuVisible }"></i>
+                            </span>
+                            <div class="user-dropdown-menu" v-show="userMenuVisible" @click.stop>
+                                <div class="user-dropdown-item disabled">
+                                    <span class="item-label">用户名:</span>
+                                    <span class="item-value">[[ username ]]</span>
+                                </div>
+                                <div class="user-dropdown-item disabled" v-if="passkeyUsed">
+                                    <span class="item-label">Passkey:</span>
+                                    <span class="item-value">[[ passkeyUsed ]]</span>
+                                </div>
+                                <div class="user-dropdown-divider"></div>
+                                <div class="user-dropdown-item logout-item" @click="confirmLogout">
+                                    <i class="el-icon-switch-button"></i>
+                                    <span>退出登录</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </el-header>
+                
+                <el-main class="console-content">
+                    <!-- 聊天室选择界面 -->
+                    <div class="chat-select-container" v-if="!currentRoom && !showStickerManagement">
+                        <div class="chat-select-header">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <el-button type="primary" @click="showCreateRoomDialog">创建聊天室</el-button>
+                                <el-input
+                                    v-model="searchKeyword"
+                                    placeholder="搜索聊天室"
+                                    style="width: 300px"
+                                    prefix-icon="el-icon-search"
+                                    @input="handleSearch"
+                                ></el-input>
+                                <el-button type="success" @click="openStickerManagement">
+                                    <i class="el-icon-picture"></i> 表情包管理
+                                </el-button>
+                            </div>
+                            <div class="pagination-container">
+                                <el-button 
+                                    type="text" 
+                                    @click="prevPage"
+                                    :disabled="currentPage === 1"
+                                >
+                                    [<]
+                                </el-button>
+                                <span style="margin: 0 10px;">
+                                    [[ currentPage ]]/[[ Math.ceil(totalRooms / 3) || 1 ]]
+                                </span>
+                                <el-button 
+                                    type="text" 
+                                    @click="nextPage"
+                                    :disabled="currentPage >= Math.ceil(totalRooms / 3)"
+                                >
+                                    [>]
+                                </el-button>
+                            </div>
+                        </div>
+                        <div class="chat-select-body">
+                            <div class="chat-room-grid">
+                                <div 
+                                    v-for="room in paginatedRooms" 
+                                    :key="room.id"
+                                    class="chat-room-card"
+                                >
+                                    <div class="chat-room-card-header">
+                                        <div class="chat-room-id">ID: [[ formatRoomId(room.id) ]]</div>
+                                        <div class="chat-room-actions">
+                                            <el-button 
+                                                v-if="room.is_owner" 
+                                                type="text" 
+                                                size="small" 
+                                                @click="showEditRoomDialog(room)"
+                                                style="color: #409EFF; margin-right: 8px;"
+                                            >
+                                                <i class="el-icon-edit"></i>
+                                            </el-button>
+                                            <el-button 
+                                                v-if="room.is_owner" 
+                                                type="text" 
+                                                size="small" 
+                                                @click="confirmDeleteRoom(room)"
+                                                style="color: #ff4d4f;"
+                                            >
+                                                <i class="el-icon-delete"></i>
+                                            </el-button>
+                                        </div>
+                                    </div>
+                                    <div class="chat-room-card-body">
+                                        <div class="chat-room-name" @click="showJoinRoomDialog(room)">
+                                            [[ room.name ]]
+                                            <span class="chat-room-has-password" v-if="room.has_password">
+                                                <i class="el-icon-lock"></i>
+                                            </span>
+                                        </div>
+                                        <div class="chat-room-meta">
+                                            <div>创建者: [[ room.creator || '未知' ]]</div>
+                                            <div>创建时间: [[ room.created_at ]]</div>
+                                        </div>
+                                    </div>
+                                    <div class="chat-room-card-footer">
+                                        <el-button 
+                                            type="primary" 
+                                            size="small" 
+                                            @click="showJoinRoomDialog(room)"
+                                        >
+                                            加入
+                                        </el-button>
+                                    </div>
+                                </div>
+                                <div v-if="paginatedRooms.length === 0" class="empty-state">
+                                    <el-empty description="暂无聊天室"></el-empty>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 聊天界面 -->
+                    <div class="chat-view-container" v-else-if="currentRoom">
+                        <div class="chat-view-main">
+                            <div class="chat-view-header">
+                                <div class="back-button" @click="leaveCurrentRoom">
+                                    <i class="el-icon-arrow-left"></i>
+                                </div>
+                                <div class="chat-view-title">[[ currentRoom ]]</div>
+                                <div style="margin-right: 20px;">
+                                    <span>在线用户: [[ currentUsers.length ]]</span>
+                                </div>
+                            </div>
+                            
+                            <div class="chat-body">
+                                <div style="height: 400px; overflow-y: scroll; padding: 20px; background: #f0f2f5; box-sizing: border-box;" ref="messagesContainer" @scroll="handleScroll">
+                                    <div 
+                                        v-for="(message, index) in messages" 
+                                        :key="index"
+                                        class="message-item"
+                                        :class="{
+                                            'self': message.is_self,
+                                            'other': !message.is_self && message.username,
+                                            'system': !message.username
+                                        }"
+                                    >
+                                        <div class="message-content">
+                                            <div class="message-info" v-if="message.username">
+                                                <span class="message-username">[[ message.username ]]</span>
+                                                <span class="message-time">[[ message.timestamp ]]</span>
+                                            </div>
+                                            <div>[[ message.message ]]</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="chat-footer">
+                                <div class="chat-input-container">
+                                    <el-input
+                                        v-model="inputMessage"
+                                        type="textarea"
+                                        :rows="2"
+                                        placeholder="输入消息..."
+                                        class="chat-input"
+                                        @keyup.enter.exact="sendMessage"
+                                    ></el-input>
+                                    <el-button type="primary" @click="sendMessage">发送</el-button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="user-list-toggle" @click="toggleUserList">
+                            <i :class="userListCollapsed ? 'el-icon-arrow-right' : 'el-icon-arrow-left'"></i>
+                        </div>
+                        
+                        <div class="user-list" :class="{ collapsed: userListCollapsed }">
+                            <div class="user-list-header">
+                                在线用户
+                            </div>
+                            <div class="user-list-body">
+                                <div 
+                                    v-for="(user, index) in currentUsers" 
+                                    :key="index"
+                                    class="user-item"
+                                >
+                                    <div class="user-avatar">
+                                        [[ user.charAt(0).toUpperCase() ]]
+                                    </div>
+                                    <span>[[ user ]]</span>
+                                </div>
+                                <div v-if="currentUsers.length === 0" style="text-align: center; color: #999; padding: 40px 0;">
+                                    暂无在线用户
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 表情包管理界面 -->
+                    <div class="sticker-management-container" v-if="showStickerManagement">
+                        <div class="sticker-header">
+                            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                                <el-button @click="closeStickerManagement">
+                                    <i class="el-icon-arrow-left"></i> 返回聊天室
+                                </el-button>
+                                <div class="sticker-type-tabs">
+                                    <div 
+                                        class="sticker-tab" 
+                                        :class="{ active: stickerView === 'hub' }"
+                                        @click="switchStickerView('hub')"
+                                    >
+                                        表情商城
+                                    </div>
+                                    <div 
+                                        class="sticker-tab" 
+                                        :class="{ active: stickerView === 'mine' }"
+                                        @click="switchStickerView('mine')"
+                                    >
+                                        我的表情
+                                    </div>
+                                </div>
+                                <div class="sticker-type-tabs" style="margin-left: 20px;">
+                                    <div 
+                                        class="sticker-tab" 
+                                        :class="{ active: stickerType === 'single' }"
+                                        @click="switchStickerType('single')"
+                                    >
+                                        单个表情
+                                    </div>
+                                    <div 
+                                        class="sticker-tab" 
+                                        :class="{ active: stickerType === 'pack' }"
+                                        @click="switchStickerType('pack')"
+                                    >
+                                        表情合集
+                                    </div>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px; margin-left: auto;">
+                                    <el-input
+                                        v-model="stickerCodeInput"
+                                        placeholder="输入表情码（单个: 6位字母数字，合集: C+6位数字）"
+                                        style="width: 250px"
+                                        @keyup.enter.exact="addStickerByCode"
+                                    ></el-input>
+                                    <el-button type="primary" @click="addStickerByCode" :loading="addingByCode">
+                                        添加
+                                    </el-button>
+                                </div>
+                            </div>
+                            <div class="pagination-container" v-if="stickerView === 'hub'">
+                                <el-button 
+                                    type="text" 
+                                    @click="prevStickerPage"
+                                    :disabled="stickerCurrentPage === 1"
+                                >
+                                    [<]
+                                </el-button>
+                                <span style="margin: 0 10px;">
+                                    [[ stickerCurrentPage ]]/[[ Math.ceil(stickerTotal / (stickerType === 'single' ? 5 : 3)) || 1 ]]
+                                </span>
+                                <el-button 
+                                    type="text" 
+                                    @click="nextStickerPage"
+                                    :disabled="stickerCurrentPage >= Math.ceil(stickerTotal / (stickerType === 'single' ? 5 : 3))"
+                                >
+                                    [>]
+                                </el-button>
+                            </div>
+                        </div>
+                        
+                        <div class="sticker-body">
+                            <!-- 表情商城 - 单个表情 -->
+                            <div v-if="stickerView === 'hub' && stickerType === 'single'" class="single-sticker-grid">
+                                <div 
+                                    v-for="sticker in paginatedStickers" 
+                                    :key="sticker.code"
+                                    class="sticker-card"
+                                    :class="{ added: isStickerAdded(sticker.code) }"
+                                >
+                                    <div class="sticker-image-container">
+                                        <img :src="getStickerImageUrl(sticker.url)" class="sticker-image" :alt="sticker.description">
+                                    </div>
+                                    <div class="sticker-info">
+                                        <div class="sticker-name">[[ sticker.description || '未命名表情' ]]</div>
+                                        <div class="sticker-description">[[ sticker.code ]]</div>
+                                    </div>
+                                    <div class="sticker-actions">
+                                        <el-button 
+                                            v-if="!isStickerAdded(sticker.code)"
+                                            type="primary" 
+                                            size="small"
+                                            class="add-sticker-btn"
+                                            @click="addSticker(sticker, 'single')"
+                                            :loading="addingSticker === sticker.code"
+                                        >
+                                            添加
+                                        </el-button>
+                                        <el-button 
+                                            v-else
+                                            type="success" 
+                                            size="small"
+                                            class="add-sticker-btn added"
+                                            disabled
+                                        >
+                                            已添加
+                                        </el-button>
+                                    </div>
+                                </div>
+                                <div v-if="paginatedStickers.length === 0" class="empty-sticker-state">
+                                    <el-empty description="暂无表情包"></el-empty>
+                                </div>
+                            </div>
+                            
+                            <!-- 表情商城 - 表情合集 -->
+                            <div v-if="stickerView === 'hub' && stickerType === 'pack'" class="pack-sticker-grid">
+                                <div 
+                                    v-for="pack in paginatedStickers" 
+                                    :key="pack.code"
+                                    class="sticker-card"
+                                    :class="{ added: isStickerAdded(pack.code) }"
+                                >
+                                    <div class="sticker-image-container">
+                                        <img :src="getStickerImageUrl(pack.cover_url)" class="sticker-image" :alt="pack.name">
+                                    </div>
+                                    <div class="sticker-info">
+                                        <div class="sticker-name">[[ pack.name || '未命名合集' ]]</div>
+                                        <div class="sticker-description">[[ pack.description || '暂无描述' ]]</div>
+                                        <div class="sticker-count">包含 [[ pack.sticker_count || (pack.stickers ? pack.stickers.length : 0) ]] 个表情</div>
+                                    </div>
+                                    <div class="sticker-actions">
+                                        <el-button 
+                                            v-if="!isStickerAdded(pack.code)"
+                                            type="primary" 
+                                            size="small"
+                                            class="add-sticker-btn"
+                                            @click="addSticker(pack, 'pack')"
+                                            :loading="addingSticker === pack.code"
+                                        >
+                                            添加
+                                        </el-button>
+                                        <el-button 
+                                            v-else
+                                            type="success" 
+                                            size="small"
+                                            class="add-sticker-btn added"
+                                            disabled
+                                        >
+                                            已添加
+                                        </el-button>
+                                    </div>
+                                </div>
+                                <div v-if="paginatedStickers.length === 0" class="empty-sticker-state">
+                                    <el-empty description="暂无表情合集"></el-empty>
+                                </div>
+                            </div>
+                            
+                            <!-- 我的表情 -->
+                            <div v-if="stickerView === 'mine'" class="my-stickers-list">
+                                <!-- 单个表情显示 -->
+                                <template v-if="stickerType === 'single'">
+                                    <div 
+                                        v-for="sticker in myStickers" 
+                                        :key="sticker.id"
+                                        class="my-sticker-item"
+                                    >
+                                        <button class="remove-sticker-btn" @click="removeSticker(sticker)" title="移除">×</button>
+                                        <div class="sticker-image-container">
+                                            <img :src="sticker.local_path" class="sticker-image" :alt="sticker.name">
+                                        </div>
+                                        <div class="sticker-info">
+                                            <div class="sticker-name">[[ sticker.name || '未命名' ]]</div>
+                                            <div class="sticker-description">[[ sticker.code ]]</div>
+                                        </div>
+                                    </div>
+                                </template>
+                                <!-- 表情合集显示 -->
+                                <template v-if="stickerType === 'pack'">
+                                    <div 
+                                        v-for="sticker in myStickers" 
+                                        :key="sticker.id"
+                                        class="my-sticker-item my-pack-item"
+                                    >
+                                        <button class="remove-sticker-btn" @click="removeSticker(sticker)" title="移除">×</button>
+                                        <div class="sticker-image-container pack-cover-container">
+                                            <img :src="sticker.local_path" class="sticker-image pack-cover" :alt="sticker.name">
+                                        </div>
+                                        <div class="sticker-info">
+                                            <div class="sticker-name">[[ sticker.name || '未命名合集' ]]</div>
+                                            <div class="sticker-description">[[ sticker.code ]]</div>
+                                        </div>
+                                    </div>
+                                </template>
+                                <div v-if="myStickers.length === 0" class="empty-sticker-state">
+                                    <el-empty :description="stickerType === 'single' ? '您还没有添加任何单个表情' : '您还没有添加任何表情合集'"></el-empty>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="back-to-bottom" v-if="showBackToBottom" @click="scrollToBottom">
+                        <i class="el-icon-bottom"></i>
+                    </div>
+                    
+                    <el-dialog
+                        title="创建聊天室"
+                        :visible.sync="createRoomDialogVisible"
+                        width="400px"
+                    >
+                        <el-form>
+                            <el-form-item label="聊天室名称">
+                                <el-input v-model="newRoomName" placeholder="请输入聊天室名称（中文、英文或数字）"></el-input>
+                            </el-form-item>
+                            <el-form-item label="密码（可选）">
+                                <el-input v-model="newRoomPassword" type="password" placeholder="设置密码（可选）"></el-input>
+                            </el-form-item>
+                        </el-form>
+                        <span slot="footer" class="dialog-footer">
+                            <el-button @click="createRoomDialogVisible = false">取消</el-button>
+                            <el-button type="primary" @click="createRoom">创建</el-button>
+                        </span>
+                    </el-dialog>
+                    
+                    <el-dialog
+                        title="加入聊天室"
+                        :visible.sync="joinRoomDialogVisible"
+                        width="400px"
+                    >
+                        <el-form>
+                            <el-form-item label="聊天室名称">
+                                <el-input v-model="joinRoomName" disabled></el-input>
+                            </el-form-item>
+                            <el-form-item label="密码" v-if="joinRoomHasPassword">
+                                <el-input v-model="joinRoomPassword" type="password" placeholder="请输入密码"></el-input>
+                            </el-form-item>
+                        </el-form>
+                        <span slot="footer" class="dialog-footer">
+                            <el-button @click="joinRoomDialogVisible = false">取消</el-button>
+                            <el-button type="primary" @click="joinRoomConfirm">加入</el-button>
+                        </span>
+                    </el-dialog>
+                    
+                    <el-dialog
+                        title="编辑聊天室"
+                        :visible.sync="editRoomDialogVisible"
+                        width="400px"
+                    >
+                        <el-form>
+                            <el-form-item label="聊天室ID">
+                                <el-input v-model="editRoomId" disabled></el-input>
+                            </el-form-item>
+                            <el-form-item label="聊天室名称">
+                                <el-input v-model="editRoomName" placeholder="请输入聊天室名称"></el-input>
+                            </el-form-item>
+                            <el-form-item label="密码（可选）">
+                                <el-input v-model="editRoomPassword" type="password" placeholder="设置密码（可选）"></el-input>
+                            </el-form-item>
+                        </el-form>
+                        <span slot="footer" class="dialog-footer">
+                            <el-button type="danger" @click="confirmDeleteRoomInEdit">删除聊天室</el-button>
+                            <el-button @click="editRoomDialogVisible = false">取消</el-button>
+                            <el-button type="primary" @click="editRoom">确定</el-button>
+                        </span>
+                    </el-dialog>
+                </el-main>
+            </el-container>
+        </el-container>
+    </div>
+    
+    <script src="/assets/js/vue.min.js"></script>
+    <script src="/assets/js/element-ui.js"></script>
+    <script src="/assets/js/socket.io.js"></script>
+    <script>
+        console.log('=== iFlyCompass 聊天室页面加载完成 ===');
+        
+        new Vue({
+            el: '#app',
+            delimiters: ['[[', ']]'],
+            data() {
+                return {
+                    isCollapse: true,
+                    activeMenu: 'chat',
+                    username: '{{ username }}',
+                    passkeyUsed: {% if passkey_used %}'{{ passkey_used }}'{% else %}null{% endif %},
+                    isAdmin: {{ is_admin|lower }},
+                    isSuperAdmin: {{ is_super_admin|lower }},
+                    chatRooms: [],
+                    filteredRooms: [],
+                    paginatedRooms: [],
+                    currentPage: 1,
+                    totalRooms: 0,
+                    searchKeyword: '',
+                    currentRoom: null,
+                    currentUsers: [],
+                    messages: [],
+                    inputMessage: '',
+                    socket: null,
+                    createRoomDialogVisible: false,
+                    newRoomName: '',
+                    newRoomPassword: '',
+                    joinRoomDialogVisible: false,
+                    joinRoomId: null,
+                    joinRoomName: '',
+                    joinRoomHasPassword: false,
+                    joinRoomPassword: '',
+                    editRoomDialogVisible: false,
+                    editRoomId: null,
+                    editRoomName: '',
+                    editRoomPassword: '',
+                    showBackToBottom: false,
+                    userMenuVisible: false,
+                    userListCollapsed: false,
+                    socketReconnectInterval: null,
+                    // 表情包管理相关数据
+                    showStickerManagement: false,
+                    stickerView: 'hub', // 'hub' 或 'mine'
+                    stickerType: 'single', // 'single' 或 'pack'
+                    stickerHubData: [],
+                    myStickers: [],
+                    stickerCurrentPage: 1,
+                    stickerTotal: 0,
+                    addingSticker: null,
+                    stickerCodeInput: '',
+                    addingByCode: false
+                };
+            },
+            mounted() {
+                console.log('Vue 实例挂载完成，用户信息:', {
+                    username: this.username,
+                    isAdmin: this.isAdmin,
+                    isSuperAdmin: this.isSuperAdmin
+                });
+                
+                this.loadChatRooms();
+            },
+            methods: {
+                handleMenuClick(key) {
+                    console.log('菜单点击:', key);
+                    // 点击菜单时关闭用户菜单
+                    this.userMenuVisible = false;
+                    if (this.currentRoom) {
+                        console.log('当前在聊天室中，提示先退出');
+                        this.$message.warning('请先退出当前聊天室');
+                        return;
+                    }
+                    
+                    if (key === 'dashboard') {
+                        window.location.href = '/board';
+                    } else if (key === 'tools') {
+                        window.location.href = '/board/tools';
+                    } else if (key === 'users' && this.isAdmin) {
+                        window.location.href = '/board/users';
+                    } else if (key === 'passkeys' && this.isSuperAdmin) {
+                        window.location.href = '/board/passkeys';
+                    }
+                },
+                
+                toggleUserMenu() {
+                    this.userMenuVisible = !this.userMenuVisible;
+                },
+                
+                confirmLogout() {
+                    this.$confirm('确定要退出登录吗？', '提示', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    })
+                    .then(() => {
+                        this.logout();
+                    })
+                    .catch(() => {
+                        console.log('取消退出登录');
+                    });
+                },
+                
+                logout() {
+                    console.log('=== 退出登录操作开始 ===');
+                    console.log('当前用户:', this.username);
+                    console.log('用户类型:');
+                    console.log('- 超级管理员:', this.isSuperAdmin);
+                    console.log('- 管理员:', this.isAdmin);
+                    
+                    if (this.currentRoom) {
+                        console.log('当前在聊天室中:', this.currentRoom);
+                        console.log('正在退出聊天室...');
+                        this.leaveCurrentRoom();
+                        console.log('已成功退出聊天室');
+                    } else {
+                        console.log('当前不在聊天室中');
+                    }
+                    
+                    console.log('正在重定向到退出登录页面...');
+                    window.location.href = '/logout';
+                    console.log('=== 退出登录操作完成 ===');
+                },
+                
+                loadChatRooms() {
+                    console.log('加载聊天室列表');
+                    fetch('/api/chatrooms')
+                        .then(response => response.json())
+                        .then(data => {
+                            console.log('聊天室列表加载完成:', data.length, '个聊天室');
+                            this.chatRooms = data;
+                            this.handleSearch();
+                        })
+                        .catch(error => {
+                            console.error('加载聊天室列表失败:', error);
+                        });
+                },
+                
+                handleSearch() {
+                    console.log('搜索聊天室:', this.searchKeyword);
+                    if (this.searchKeyword) {
+                        this.filteredRooms = this.chatRooms.filter(room => 
+                            room.name.toLowerCase().includes(this.searchKeyword.toLowerCase())
+                        );
+                    } else {
+                        this.filteredRooms = this.chatRooms;
+                    }
+                    this.totalRooms = this.filteredRooms.length;
+                    this.currentPage = 1;
+                    this.updatePagination();
+                },
+                
+                handlePageChange(page) {
+                    console.log('页码变化:', page);
+                    this.currentPage = page;
+                    this.updatePagination();
+                },
+                
+                prevPage() {
+                    if (this.currentPage > 1) {
+                        this.currentPage--;
+                        this.updatePagination();
+                    }
+                },
+                
+                nextPage() {
+                    const totalPages = Math.ceil(this.totalRooms / 3);
+                    if (this.currentPage < totalPages) {
+                        this.currentPage++;
+                        this.updatePagination();
+                    }
+                },
+                
+                updatePagination() {
+                    const start = (this.currentPage - 1) * 3;
+                    const end = start + 3;
+                    this.paginatedRooms = this.filteredRooms.slice(start, end);
+                },
+                
+                formatRoomId(id) {
+                    return String(id).padStart(6, '0');
+                },
+                
+                showCreateRoomDialog() {
+                    console.log('打开创建聊天室对话框');
+                    this.newRoomName = '';
+                    this.newRoomPassword = '';
+                    this.createRoomDialogVisible = true;
+                },
+                
+                showEditRoomDialog(room) {
+                    console.log('打开编辑聊天室对话框:', room.name);
+                    this.editRoomId = room.id;
+                    this.editRoomName = room.name;
+                    this.editRoomPassword = ''; // 不显示现有密码
+                    this.editRoomDialogVisible = true;
+                },
+                
+                createRoom() {
+                    if (!this.newRoomName) {
+                        console.log('创建聊天室失败: 请输入聊天室名称');
+                        this.$message.error('请输入聊天室名称');
+                        return;
+                    }
+                    
+                    console.log('创建聊天室:', {
+                        name: this.newRoomName,
+                        hasPassword: !!this.newRoomPassword
+                    });
+                    
+                    fetch('/api/chatrooms', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            name: this.newRoomName,
+                            password: this.newRoomPassword
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            console.error('创建聊天室失败:', data.error);
+                            this.$message.error(data.error);
+                        } else {
+                            console.log('创建聊天室成功:', data);
+                            this.$message.success('聊天室创建成功');
+                            this.createRoomDialogVisible = false;
+                            this.loadChatRooms();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('创建聊天室失败:', error);
+                    });
+                },
+                
+                editRoom() {
+                    if (!this.editRoomName) {
+                        console.log('编辑聊天室失败: 请输入聊天室名称');
+                        this.$message.error('请输入聊天室名称');
+                        return;
+                    }
+                    
+                    console.log('编辑聊天室:', {
+                        id: this.editRoomId,
+                        name: this.editRoomName,
+                        hasPassword: !!this.editRoomPassword
+                    });
+                    
+                    fetch('/api/chatrooms', {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            id: this.editRoomId,
+                            name: this.editRoomName,
+                            password: this.editRoomPassword
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            console.error('编辑聊天室失败:', data.error);
+                            this.$message.error(data.error);
+                        } else {
+                            console.log('编辑聊天室成功:', data);
+                            this.$message.success('聊天室编辑成功');
+                            this.editRoomDialogVisible = false;
+                            this.loadChatRooms();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('编辑聊天室失败:', error);
+                    });
+                },
+                
+                showJoinRoomDialog(room) {
+                    console.log('打开加入聊天室对话框:', room.name);
+                    this.joinRoomId = room.id;
+                    this.joinRoomName = room.name;
+                    this.joinRoomHasPassword = room.has_password;
+                    this.joinRoomPassword = '';
+                    this.joinRoomDialogVisible = true;
+                },
+                
+                joinRoomConfirm() {
+                    console.log('确认加入聊天室:', {
+                        roomId: this.joinRoomId,
+                        roomName: this.joinRoomName,
+                        hasPassword: this.joinRoomHasPassword
+                    });
+                    
+                    fetch('/api/chatroom/join', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            room_id: this.joinRoomId,
+                            password: this.joinRoomPassword
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            console.error('加入聊天室失败:', data.error);
+                            this.$message.error(data.error);
+                        } else {
+                            console.log('加入聊天室成功:', data);
+                            this.joinRoomDialogVisible = false;
+                            this.joinRoom({ name: data.room_name });
+                        }
+                    })
+                    .catch(error => {
+                        console.error('加入聊天室失败:', error);
+                    });
+                },
+                
+                joinRoom(room) {
+                    console.log('加入聊天室:', room.name);
+                    // 跳转到 chat-test 页面
+                    window.location.href = '/board/chat-test/' + room.name;
+                },
+                
+                leaveCurrentRoom() {
+                    if (this.currentRoom && this.socket) {
+                        console.log('退出当前聊天室:', this.currentRoom);
+                        this.socket.emit('leave_room', {
+                            room: this.currentRoom,
+                            username: this.username
+                        });
+                    }
+                    
+                    // 停止WebSocket重连定时器
+                    this.stopReconnectInterval();
+                    
+                    this.currentRoom = null;
+                    this.currentUsers = [];
+                    this.messages = [];
+                    console.log('已退出聊天室');
+                },
+                
+                setupSocketListeners() {
+                    console.log('设置WebSocket监听器');
+                    
+                    this.socket.on('new_message', (data) => {
+                        console.log('收到新消息:', data);
+                        data.is_self = (data.username === this.username);
+                        this.messages.push(data);
+                        this.$nextTick(() => {
+                            this.scrollToBottom();
+                        });
+                    });
+                    
+                    this.socket.on('user_joined', (data) => {
+                        console.log('用户加入:', data);
+                        this.messages.push({
+                            username: '',
+                            message: data.message,
+                            timestamp: data.timestamp,
+                            is_self: false
+                        });
+                    });
+                    
+                    this.socket.on('user_left', (data) => {
+                        console.log('用户离开:', data);
+                        this.messages.push({
+                            username: '',
+                            message: data.message,
+                            timestamp: data.timestamp,
+                            is_self: false
+                        });
+                    });
+                    
+                    this.socket.on('user_list', (data) => {
+                        console.log('用户列表更新:', data);
+                        if (data.room === this.currentRoom) {
+                            this.currentUsers = data.users;
+                        }
+                    });
+                    
+                    this.socket.on('message_history', (data) => {
+                        console.log('收到消息历史:', data.messages.length, '条消息');
+                        if (data.room === this.currentRoom) {
+                            this.messages = data.messages;
+                            this.$nextTick(() => {
+                                this.scrollToBottom();
+                            });
+                        }
+                    });
+                    
+                    // 监听WebSocket断开连接事件
+                    this.socket.on('disconnect', () => {
+                        console.log('WebSocket连接断开');
+                        if (this.currentRoom) {
+                            console.log('当前在聊天室中，启动重连机制');
+                            this.startReconnectInterval();
+                        }
+                    });
+                    
+                    // 监听WebSocket重新连接成功事件
+                    this.socket.on('connect', () => {
+                        console.log('WebSocket连接成功');
+                        this.stopReconnectInterval();
+                        if (this.currentRoom) {
+                            console.log('重新加入聊天室:', this.currentRoom);
+                            this.socket.emit('join_room', {
+                                room: this.currentRoom,
+                                username: this.username
+                            });
+                        }
+                    });
+                },
+                
+                // 开始WebSocket重连定时器
+                startReconnectInterval() {
+                    if (this.socketReconnectInterval) {
+                        clearInterval(this.socketReconnectInterval);
+                    }
+                    
+                    this.socketReconnectInterval = setInterval(() => {
+                        console.log('尝试重新连接WebSocket...');
+                        if (!this.socket || !this.socket.connected) {
+                            this.reconnectSocket();
+                        }
+                    }, 3000); // 每3秒尝试一次重连
+                },
+                
+                // 停止WebSocket重连定时器
+                stopReconnectInterval() {
+                    if (this.socketReconnectInterval) {
+                        clearInterval(this.socketReconnectInterval);
+                        this.socketReconnectInterval = null;
+                    }
+                },
+                
+                // 重新连接WebSocket
+                reconnectSocket() {
+                    try {
+                        console.log('重新初始化WebSocket连接');
+                        this.socket = io();
+                        this.setupSocketListeners();
+                    } catch (error) {
+                        console.error('WebSocket重连失败:', error);
+                    }
+                },
+                
+                sendMessage() {
+                    if (!this.inputMessage.trim() || !this.currentRoom) {
+                        console.log('发送消息失败: 消息为空或未加入聊天室');
+                        return;
+                    }
+                    
+                    const message = this.inputMessage.trim();
+                    console.log('发送消息:', {
+                        room: this.currentRoom,
+                        message: message
+                    });
+                    
+                    this.socket.emit('send_message', {
+                        room: this.currentRoom,
+                        username: this.username,
+                        message: message
+                    });
+                    
+                    this.inputMessage = '';
+                },
+                
+                scrollToBottom() {
+                    this.$nextTick(() => {
+                        const container = this.$refs.messagesContainer;
+                        if (container) {
+                            container.scrollTop = container.scrollHeight - container.clientHeight;
+                        }
+                    });
+                },
+                
+                handleScroll() {
+                    const container = this.$refs.messagesContainer;
+                    if (container) {
+                        const scrollTop = container.scrollTop;
+                        const maxScroll = container.scrollHeight - container.clientHeight;
+                        this.showBackToBottom = scrollTop < maxScroll - 100;
+                    }
+                },
+                
+                toggleCollapse() {
+                    console.log('切换侧边栏折叠状态:', !this.isCollapse);
+                    this.isCollapse = !this.isCollapse;
+                },
+                
+                // 切换用户列表面板
+                toggleUserList() {
+                    this.userListCollapsed = !this.userListCollapsed;
+                },
+                
+                // 确认删除聊天室
+                confirmDeleteRoom(room) {
+                    this.$confirm(`确定要删除聊天室 "${room.name}" 吗？此操作不可恢复。`, '警告', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    })
+                    .then(() => {
+                        this.deleteRoom(room.id);
+                    })
+                    .catch(() => {
+                        console.log('取消删除聊天室');
+                    });
+                },
+                
+                // 编辑对话框中的删除确认
+                confirmDeleteRoomInEdit() {
+                    this.$confirm('确定要删除聊天室吗？此操作不可恢复。', '警告', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    })
+                    .then(() => {
+                        this.deleteRoom(this.editRoomId);
+                        this.editRoomDialogVisible = false;
+                    })
+                    .catch(() => {
+                        console.log('取消删除聊天室');
+                    });
+                },
+                
+                // 删除聊天室
+                deleteRoom(roomId) {
+                    console.log('删除聊天室:', roomId);
+                    fetch(`/api/chatrooms/${roomId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            console.error('删除聊天室失败:', data.error);
+                            this.$message.error(data.error);
+                        } else {
+                            console.log('删除聊天室成功');
+                            this.$message.success('聊天室删除成功');
+                            this.loadChatRooms();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('删除聊天室失败:', error);
+                        this.$message.error('删除聊天室失败');
+                    });
+                },
+                
+                // 表情包管理方法
+                openStickerManagement() {
+                    console.log('打开表情包管理');
+                    this.showStickerManagement = true;
+                    this.loadStickerHub();
+                    this.loadMyStickers();
+                },
+                
+                closeStickerManagement() {
+                    console.log('关闭表情包管理');
+                    this.showStickerManagement = false;
+                    this.stickerView = 'hub';
+                    this.stickerType = 'single';
+                    this.stickerCurrentPage = 1;
+                },
+                
+                switchStickerView(view) {
+                    console.log('切换表情包视图:', view);
+                    this.stickerView = view;
+                    if (view === 'mine') {
+                        this.loadMyStickers();
+                    } else if (view === 'hub') {
+                        this.loadStickerHub();
+                    }
+                },
+                
+                switchStickerType(type) {
+                    console.log('切换表情包类型:', type);
+                    this.stickerType = type;
+                    this.stickerCurrentPage = 1;
+                    if (this.stickerView === 'hub') {
+                        this.loadStickerHub();
+                    } else if (this.stickerView === 'mine') {
+                        this.loadMyStickers();
+                    }
+                },
+                
+                loadStickerHub() {
+                    console.log('加载表情包商城:', this.stickerType);
+                    fetch(`/api/stickers/hub?type=${this.stickerType}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                // 确保stickerHubData是数组
+                                if (Array.isArray(data.data)) {
+                                    this.stickerHubData = data.data;
+                                } else if (data.data && data.data.pack) {
+                                    // 处理单个表情合集的情况
+                                    this.stickerHubData = [data.data.pack];
+                                } else {
+                                    this.stickerHubData = [];
+                                }
+                                this.stickerTotal = this.stickerHubData.length;
+                                console.log('表情包商城加载完成:', this.stickerHubData.length, '个表情');
+                                console.log('表情数据:', this.stickerHubData);
+                            } else {
+                                console.error('加载表情包商城失败:', data.error);
+                                this.$message.error('加载表情包商城失败');
+                                this.stickerHubData = [];
+                                this.stickerTotal = 0;
+                            }
+                        })
+                        .catch(error => {
+                            console.error('加载表情包商城失败:', error);
+                            this.$message.error('加载表情包商城失败');
+                            this.stickerHubData = [];
+                            this.stickerTotal = 0;
+                        });
+                },
+                
+                loadMyStickers() {
+                    console.log('加载我的表情包');
+                    fetch(`/api/stickers/mine?type=${this.stickerType}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                this.myStickers = data.data || [];
+                                console.log('我的表情包加载完成:', this.myStickers.length, '个表情');
+                            } else {
+                                console.error('加载我的表情包失败:', data.error);
+                                this.$message.error('加载我的表情包失败');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('加载我的表情包失败:', error);
+                            this.$message.error('加载我的表情包失败');
+                        });
+                },
+                
+                get paginatedStickers() {
+                    const itemsPerPage = this.stickerType === 'single' ? 5 : 3;
+                    const start = (this.stickerCurrentPage - 1) * itemsPerPage;
+                    const end = start + itemsPerPage;
+                    return (this.stickerHubData || []).slice(start, end);
+                },
+                
+                prevStickerPage() {
+                    if (this.stickerCurrentPage > 1) {
+                        this.stickerCurrentPage--;
+                    }
+                },
+                
+                nextStickerPage() {
+                    const itemsPerPage = this.stickerType === 'single' ? 5 : 3;
+                    const totalPages = Math.ceil(this.stickerTotal / itemsPerPage);
+                    if (this.stickerCurrentPage < totalPages) {
+                        this.stickerCurrentPage++;
+                    }
+                },
+                
+                isStickerAdded(code) {
+                    return this.myStickers.some(s => s.code === code);
+                },
+                
+                getStickerImageUrl(url) {
+                    if (!url) return '';
+                    if (url.startsWith('/')) {
+                        return `http://45.207.204.145:5003${url}`;
+                    }
+                    return url;
+                },
+                
+                addSticker(sticker, type) {
+                    console.log('添加表情包:', sticker.code, type);
+                    this.addingSticker = sticker.code;
+                    
+                    fetch('/api/stickers/add', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            code: sticker.code,
+                            type: type
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        this.addingSticker = null;
+                        if (data.success) {
+                            this.$message.success('添加成功');
+                            this.loadMyStickers();
+                        } else {
+                            console.error('添加表情包失败:', data.error);
+                            this.$message.error(data.error || '添加失败');
+                        }
+                    })
+                    .catch(error => {
+                        this.addingSticker = null;
+                        console.error('添加表情包失败:', error);
+                        this.$message.error('添加失败');
+                    });
+                },
+                
+                removeSticker(sticker) {
+                    console.log('移除表情包:', sticker.id);
+                    
+                    this.$confirm('确定要移除这个表情包吗？', '提示', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    })
+                    .then(() => {
+                        fetch('/api/stickers/remove', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                id: sticker.id
+                            })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                this.$message.success('移除成功');
+                                this.loadMyStickers();
+                            } else {
+                                console.error('移除表情包失败:', data.error);
+                                this.$message.error(data.error || '移除失败');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('移除表情包失败:', error);
+                            this.$message.error('移除失败');
+                        });
+                    })
+                    .catch(() => {
+                        console.log('取消移除表情包');
+                    });
+                },
+                
+                addStickerByCode() {
+                    const code = this.stickerCodeInput.trim();
+                    if (!code) {
+                        this.$message.warning('请输入表情码');
+                        return;
+                    }
+                    
+                    let stickerType = 'single';
+                    // 验证表情码格式
+                    if (code.length === 6 && /^[A-Z0-9]+$/.test(code)) {
+                        // 6位字母数字 - 单个表情
+                        stickerType = 'single';
+                    } else if (code.length === 7 && code.startsWith('C') && /^C\d{6}$/.test(code)) {
+                        // C+6位数字 - 表情合集
+                        stickerType = 'pack';
+                    } else {
+                        this.$message.error('表情码格式错误！单个表情: 6位字母数字，合集: C+6位数字');
+                        return;
+                    }
+                    
+                    console.log('通过表情码添加表情:', code, stickerType);
+                    this.addingByCode = true;
+                    
+                    // 检查是否已添加
+                    if (this.isStickerAdded(code)) {
+                        this.addingByCode = false;
+                        this.$message.warning('您已经添加过这个表情了');
+                        return;
+                    }
+                    
+                    fetch('/api/stickers/add', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            code: code,
+                            type: stickerType
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        this.addingByCode = false;
+                        if (data.success) {
+                            this.$message.success('添加成功');
+                            this.stickerCodeInput = '';
+                            this.loadMyStickers();
+                        } else {
+                            console.error('添加表情包失败:', data.error);
+                            this.$message.error(data.error || '添加失败');
+                        }
+                    })
+                    .catch(error => {
+                        this.addingByCode = false;
+                        console.error('添加表情包失败:', error);
+                        this.$message.error('添加失败');
+                    });
+                }
+            }
+        });
+    </script>
+    <script src="/assets/js/loading.js"></script>
+</body>
+</html>
