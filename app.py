@@ -127,6 +127,18 @@ class PackSticker(db.Model):
     # 联合唯一约束：一个合集中不能有重复的表情码
     __table_args__ = (db.UniqueConstraint('user_id', 'pack_code', 'sticker_code', name='unique_pack_sticker'),)
 
+# 用户阅读进度模型
+class ReadingProgress(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    novel_name = db.Column(db.String(255), nullable=False)  # 小说名称
+    chapter_index = db.Column(db.Integer, nullable=False)  # 章节索引
+    chapter_name = db.Column(db.String(255), nullable=False)  # 章节名称
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    
+    # 联合唯一约束：一个用户对一本小说只能有一条阅读进度记录
+    __table_args__ = (db.UniqueConstraint('user_id', 'novel_name', name='unique_user_novel_progress'),)
+
 # 登录管理
 @login_manager.user_loader
 def load_user(user_id):
@@ -468,13 +480,36 @@ def handle_join_room(data):
         if username not in room_users[room]:
             room_users[room].append(username)
         
+        # 检查是否需要广播用户加入消息
+        should_broadcast_join = True
+        
+        # 检查上一条消息是否也是该用户加入的消息
+        if room in message_history and message_history[room]:
+            last_message = message_history[room][-1]
+            # 检查是否是用户加入消息且用户名相同
+            if last_message.get('message') == f'{username} 加入了聊天室':
+                should_broadcast_join = False
+        
         # 广播用户加入消息
-        current_time = get_utc_plus_8_time()
-        emit('user_joined', {
-            'username': username,
-            'message': f'{username} 加入了聊天室',
-            'timestamp': current_time.strftime('%H:%M:%S')
-        }, room=room)
+        if should_broadcast_join:
+            current_time = get_utc_plus_8_time()
+            join_message = {
+                'username': username,
+                'message': f'{username} 加入了聊天室',
+                'timestamp': current_time.strftime('%H:%M:%S'),
+                'is_self': False
+            }
+            
+            # 记录到消息历史
+            if room not in message_history:
+                message_history[room] = []
+            message_history[room].append(join_message)
+            
+            # 只保留最近20条消息
+            if len(message_history[room]) > MAX_MESSAGE_HISTORY:
+                message_history[room] = message_history[room][-MAX_MESSAGE_HISTORY:]
+            
+            emit('user_joined', join_message, room=room)
         
         # 更新用户列表
         emit('user_list', {
@@ -625,9 +660,24 @@ def get_novels():
             for filename in os.listdir(NOVELS_DIR):
                 if filename.endswith('.txt'):
                     novel_name = filename[:-4]  # 去掉.txt后缀
+                    
+                    # 获取用户的阅读进度
+                    reading_progress = ReadingProgress.query.filter_by(
+                        user_id=current_user.id,
+                        novel_name=novel_name
+                    ).first()
+                    
+                    progress_info = None
+                    if reading_progress:
+                        progress_info = {
+                            'chapter_index': reading_progress.chapter_index,
+                            'chapter_name': reading_progress.chapter_name
+                        }
+                    
                     novels.append({
                         'name': novel_name,
-                        'filename': filename
+                        'filename': filename,
+                        'progress': progress_info
                     })
         return jsonify({
             'success': True,
@@ -644,50 +694,85 @@ def parse_chapters(content):
     """解析小说章节
     
     章节格式：
-    - 以 "第 [数字] 章" 开头的独立一行
-    - 其上方一行为单独换行符（空行）
-    - 这样的行即为新一章的开始
+    - 筛选所有空行，将其下方标记为新的一段
+    - 开头到第一个空行也是一段
+    - 最后一个空行到结尾也是一段
+    - 例外：如果前10行同时包含"作者："和"简介："，则忽略开头到第一空行，从第一空行下方开始计算为第一章
     """
     chapters = []
     lines = content.split('\n')
     
-    chapter_pattern = re.compile(r'^第\s*\d+\s*章.*$')
+    # 检查前10行是否同时包含"作者："和"简介："
+    has_author_intro = False
+    if len(lines) >= 10:
+        first_10_lines = '\n'.join(lines[:10])
+        if '作者：' in first_10_lines and '简介：' in first_10_lines:
+            has_author_intro = True
     
+    # 找到第一个空行的位置
+    first_empty_line = -1
+    for i, line in enumerate(lines):
+        if line.strip() == '':
+            first_empty_line = i
+            break
+    
+    # 确定开始解析的位置
+    start_index = 0
+    if has_author_intro and first_empty_line != -1:
+        # 从第一空行下方开始解析
+        start_index = first_empty_line + 1
+    
+    # 跳过开始位置后的空行
+    while start_index < len(lines) and lines[start_index].strip() == '':
+        start_index += 1
+    
+    if start_index >= len(lines):
+        # 内容为空
+        return []
+    
+    # 开始解析章节
     current_chapter = None
     current_content = []
     
-    for i, line in enumerate(lines):
+    # 处理第一个章节
+    if start_index < len(lines):
+        # 如果是例外情况，第一行作为章节名
+        if has_author_intro:
+            current_chapter = lines[start_index].strip()
+            start_index += 1
+        else:
+            current_chapter = '第1章'
+    
+    # 遍历剩余行
+    for i in range(start_index, len(lines)):
+        line = lines[i]
         line_stripped = line.strip()
         
-        # 检查是否是章节标题行
-        if chapter_pattern.match(line_stripped):
-            # 检查上方一行是否是空行（或者是文件开头）
-            is_new_chapter = False
-            if i == 0:
-                # 文件第一行
-                is_new_chapter = True
-            elif i > 0 and lines[i-1].strip() == '':
-                # 上方一行是空行
-                is_new_chapter = True
-            
-            if is_new_chapter:
-                # 保存之前的章节
-                if current_chapter is not None:
-                    chapters.append({
-                        'name': current_chapter,
-                        'content': '\n'.join(current_content).strip()
-                    })
-                
-                # 开始新章节
-                current_chapter = line_stripped
+        # 检查是否是空行
+        if line_stripped == '':
+            # 保存当前章节
+            if current_chapter is not None and current_content:
+                chapters.append({
+                    'name': current_chapter,
+                    'content': '\n'.join(current_content).strip()
+                })
                 current_content = []
+            
+            # 找到下一个非空行作为章节名
+            next_index = i + 1
+            while next_index < len(lines) and lines[next_index].strip() == '':
+                next_index += 1
+            
+            if next_index < len(lines):
+                # 新章节名
+                current_chapter = lines[next_index].strip()
+                i = next_index  # 跳过下一行，因为已经作为章节名处理
         else:
-            # 不是章节标题，添加到当前章节内容
-            if current_chapter is not None:
-                current_content.append(line)
+            # 非空行，添加到当前章节内容
+            current_content.append(line)
     
     # 保存最后一个章节
-    if current_chapter is not None:
+    if current_chapter is not None and current_content:
         chapters.append({
             'name': current_chapter,
             'content': '\n'.join(current_content).strip()
@@ -777,6 +862,55 @@ def get_chapter_content(novel_name, chapter_index):
         })
     except Exception as e:
         print(f"获取章节内容失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/novels/progress', methods=['POST'])
+@login_required
+def save_reading_progress():
+    """保存用户的阅读进度"""
+    try:
+        data = request.json
+        novel_name = data.get('novel_name')
+        chapter_index = data.get('chapter_index')
+        chapter_name = data.get('chapter_name')
+        
+        if not novel_name or chapter_index is None or not chapter_name:
+            return jsonify({
+                'success': False,
+                'error': '缺少必要参数'
+            }), 400
+        
+        # 查找现有的阅读进度记录
+        reading_progress = ReadingProgress.query.filter_by(
+            user_id=current_user.id,
+            novel_name=novel_name
+        ).first()
+        
+        if reading_progress:
+            # 更新现有记录
+            reading_progress.chapter_index = chapter_index
+            reading_progress.chapter_name = chapter_name
+        else:
+            # 创建新记录
+            reading_progress = ReadingProgress(
+                user_id=current_user.id,
+                novel_name=novel_name,
+                chapter_index=chapter_index,
+                chapter_name=chapter_name
+            )
+            db.session.add(reading_progress)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '阅读进度保存成功'
+        })
+    except Exception as e:
+        print(f"保存阅读进度失败: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
