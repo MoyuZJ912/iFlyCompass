@@ -571,21 +571,12 @@
                 return;
             }
             
-            listContainer.innerHTML = novels.map(novel => {
-                let progressText = '';
-                if (novel.progress) {
-                    progressText = `<div style="font-size: 12px; color: #909399; margin-top: 4px;">上次读到：${novel.progress.chapter_name}</div>`;
-                }
-                return `
-                    <div class="novel-item" data-novel="${novel.name}" onclick="selectNovel('${novel.name}')">
-                        <span class="material-icons">book</span>
-                        <div style="flex: 1;">
-                            <span class="novel-name">${novel.name}</span>
-                            ${progressText}
-                        </div>
-                    </div>
-                `;
-            }).join('');
+            listContainer.innerHTML = novels.map(novel => `
+                <div class="novel-item" data-novel="${novel.name}" onclick="selectNovel('${novel.name}')">
+                    <span class="material-icons">book</span>
+                    <span class="novel-name">${novel.name}</span>
+                </div>
+            `).join('');
         }
         
         // 选择小说
@@ -616,14 +607,7 @@
                     console.log('获取到章节列表:', chapters);
                     
                     if (chapters.length > 0) {
-                        // 检查是否有阅读进度
-                        const novel = novels.find(n => n.name === novelName);
-                        let chapterIndex = 0;
-                        if (novel && novel.progress) {
-                            chapterIndex = novel.progress.chapter_index;
-                            console.log('找到阅读进度，自动跳转到章节:', chapterIndex, novel.progress.chapter_name);
-                        }
-                        await loadChapter(chapterIndex);
+                        await loadChapter(0);
                     } else {
                         showError('该小说没有章节');
                     }
@@ -660,9 +644,6 @@
                     console.log('获取到章节内容');
                     showReadingState();
                     updateReaderUI(data);
-                    
-                    // 保存阅读进度
-                    saveReadingProgress(currentNovel, chapterIndex, chapter.name);
                 } else {
                     console.error('获取章节内容失败:', data.error);
                     showError('获取章节内容失败');
@@ -670,32 +651,6 @@
             } catch (error) {
                 console.error('加载章节内容失败:', error);
                 showError('加载章节内容失败');
-            }
-        }
-        
-        // 保存阅读进度
-        async function saveReadingProgress(novelName, chapterIndex, chapterName) {
-            try {
-                const response = await fetch('/api/novels/progress', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        novel_name: novelName,
-                        chapter_index: chapterIndex,
-                        chapter_name: chapterName
-                    })
-                });
-                const data = await response.json();
-                
-                if (data.success) {
-                    console.log('阅读进度保存成功');
-                } else {
-                    console.error('保存阅读进度失败:', data.error);
-                }
-            } catch (error) {
-                console.error('保存阅读进度失败:', error);
             }
         }
         
