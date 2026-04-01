@@ -2,6 +2,7 @@ import os
 import requests
 import re
 import secrets
+import chardet
 from flask import Flask, render_template, redirect, url_for, request, flash, jsonify, send_from_directory, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
@@ -10,6 +11,16 @@ from datetime import datetime, timedelta, timezone
 import random
 import string
 from flask_socketio import SocketIO, join_room, leave_room, emit
+
+# 章节检测正则表达式（当前项目的模式）
+CHAPTER_PATTERNS = [
+    r'^第\s*[0-9]+\s*章',           # 第 1 章、第1章、第 1章...
+    r'^第[一二三四五六七八九十百千]+章',  # 第一章、第二章...
+    r'^[0-9]+\.',                    # 1.、2.、3....
+    r'^Chapter\s+[0-9]+',            # Chapter 1、Chapter 2...
+    r'^CHAPTER\s+[0-9]+',            # CHAPTER 1、CHAPTER 2...
+    r'^第\s*[0-9]+\s*章.*$',          # 第 X 章...（整行匹配）
+]
 
 # 配置常量
 TEMP_DIR = './temp'
@@ -609,31 +620,62 @@ NOVELS_DIR = './instance/novels'
 if not os.path.exists(NOVELS_DIR):
     os.makedirs(NOVELS_DIR)
 
-def read_file_with_encoding(file_path):
-    """读取文件并自动检测编码"""
-    encodings = ['utf-8', 'gbk', 'gb2312', 'utf-16', 'utf-8-sig']
-    
-    for encoding in encodings:
-        try:
-            with open(file_path, 'r', encoding=encoding) as f:
-                content = f.read()
-            return content
-        except UnicodeDecodeError:
-            continue
-    
-    # 如果所有编码都失败，尝试使用errors='replace'模式
-    try:
-        with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
-            content = f.read()
-        return content
-    except:
-        return ''
-
 @app.route('/tools/novelreader')
 @login_required
 def novel_reader():
     return render_template('novel_reader.html', 
                          username=current_user.username)
+
+def get_novel_author(filename):
+    """获取小说作者，先尝试从文件名解析，再尝试从文件内容解析"""
+    # 尝试从文件名解析作者：[name]_作者：[author].txt
+    match = re.search(r'_作者：([^.]+)\.txt$', filename)
+    if match:
+        return match.group(1)
+    
+    # 尝试从文件内容解析作者：文件开头的"作者：[author]"
+    file_path = os.path.join(NOVELS_DIR, filename)
+    try:
+        # 使用自动编码检测读取文件
+        encoding = detect_file_encoding(file_path)
+        with open(file_path, 'r', encoding=encoding, errors='ignore') as f:
+            # 读取前10行，查找作者信息
+            for i in range(10):
+                line = f.readline()
+                if not line:
+                    break
+                author_match = re.search(r'作者：(.+)', line)
+                if author_match:
+                    return author_match.group(1).strip()
+    except Exception as e:
+        print(f"读取文件失败: {e}")
+    
+    return "未知作者"
+
+def get_novel_latest_chapter(filename):
+    """获取小说最新章节"""
+    file_path = os.path.join(NOVELS_DIR, filename)
+    try:
+        # 使用自动编码检测读取文件
+        content = read_novel_content(file_path)
+        if content is None:
+            return "未知章节"
+        chapters = parse_chapters(content)
+        if chapters:
+            return chapters[-1]['name']
+    except Exception as e:
+        print(f"获取最新章节失败: {e}")
+    return "未知章节"
+
+def extract_novel_name(filename):
+    """从文件名中提取小说名称，去掉作者信息部分"""
+    # 去掉.txt后缀
+    name = filename[:-4]
+    # 如果包含作者信息，提取前面的部分
+    author_match = re.search(r'^(.*?)_作者：', name)
+    if author_match:
+        return author_match.group(1)
+    return name
 
 @app.route('/api/novels', methods=['GET'])
 @login_required
@@ -644,10 +686,14 @@ def get_novels():
         if os.path.exists(NOVELS_DIR):
             for filename in os.listdir(NOVELS_DIR):
                 if filename.endswith('.txt'):
-                    novel_name = filename[:-4]  # 去掉.txt后缀
+                    novel_name = extract_novel_name(filename)  # 提取小说名称
+                    author = get_novel_author(filename)
+                    latest_chapter = get_novel_latest_chapter(filename)
                     novels.append({
                         'name': novel_name,
-                        'filename': filename
+                        'filename': filename,
+                        'author': author,
+                        'latest_chapter': latest_chapter
                     })
         return jsonify({
             'success': True,
@@ -663,102 +709,78 @@ def get_novels():
 def parse_chapters(content):
     """解析小说章节
     
+    整合参考资料中的多种章节模式 + 当前项目的空行检测和正文特殊处理规则
+    
     章节格式：
-    - 筛选所有空行，将其下方标记为新的一段
-    - 开头到第一个空行也是一段
-    - 最后一个空行到结尾也是一段
-    - 例外1：如果前10行同时包含"作者："和"简介："，则忽略开头到第一空行，从第一空行下方开始计算为第一章
-    - 例外2：如果前20行包含单独一行的"正文"二字，则从它下方第一个有文字的非空行开始计算章节id1
+    - 支持多种章节标题格式（第X章、第一章、Chapter X、X. 等）
+    - 优先检测空行分隔的章节标题
+    - 特殊处理：如果前20行包含单独一行的"正文"二字，则从它下方第一个有文字的非空行开始计算
     """
     chapters = []
     lines = content.split('\n')
     
-    # 检查前10行是否同时包含"作者："和"简介："
-    has_author_intro = False
-    if len(lines) >= 10:
-        first_10_lines = '\n'.join(lines[:10])
-        if '作者：' in first_10_lines and '简介：' in first_10_lines:
-            has_author_intro = True
+    # 编译所有章节模式
+    chapter_patterns = [re.compile(pattern) for pattern in CHAPTER_PATTERNS]
     
-    # 检查前20行是否包含单独一行的"正文"二字
-    has_body_marker = False
-    body_marker_index = -1
-    if len(lines) >= 20:
-        for i, line in enumerate(lines[:20]):
-            if line.strip() == '正文':
-                has_body_marker = True
-                body_marker_index = i
-                break
+    # 检查是否需要特殊处理（前20行是否有单独的"正文"行）
+    start_line = 0
+    for i in range(min(20, len(lines))):
+        if lines[i].strip() == '正文':
+            # 找到"正文"行，从它下方第一个非空行开始
+            for j in range(i + 1, len(lines)):
+                if lines[j].strip():
+                    start_line = j
+                    break
+            break
     
-    # 确定开始解析的位置
-    start_index = 0
-    if has_body_marker:
-        # 从"正文"下方第一个非空行开始解析
-        start_index = body_marker_index + 1
-        # 跳过空行
-        while start_index < len(lines) and lines[start_index].strip() == '':
-            start_index += 1
-    elif has_author_intro:
-        # 找到第一个空行的位置
-        first_empty_line = -1
-        for i, line in enumerate(lines):
-            if line.strip() == '':
-                first_empty_line = i
-                break
-        if first_empty_line != -1:
-            # 从第一空行下方开始解析
-            start_index = first_empty_line + 1
-            # 跳过空行
-            while start_index < len(lines) and lines[start_index].strip() == '':
-                start_index += 1
-    
-    if start_index >= len(lines):
-        # 内容为空
-        return []
-    
-    # 开始解析章节
     current_chapter = None
     current_content = []
     
-    # 处理第一个章节
-    if start_index < len(lines):
-        # 如果是例外情况，第一行作为章节名
-        if has_body_marker or has_author_intro:
-            current_chapter = lines[start_index].strip()
-            start_index += 1
-        else:
-            current_chapter = '第1章'
-    
-    # 遍历剩余行
-    for i in range(start_index, len(lines)):
+    for i in range(start_line, len(lines)):
         line = lines[i]
         line_stripped = line.strip()
         
-        # 检查是否是空行
-        if line_stripped == '':
-            # 保存当前章节
-            if current_chapter is not None and current_content:
-                chapters.append({
-                    'name': current_chapter,
-                    'content': '\n'.join(current_content).strip()
-                })
+        # 检查是否是章节标题行（使用多种模式匹配）
+        is_chapter_title = False
+        for pattern in chapter_patterns:
+            if pattern.match(line_stripped):
+                is_chapter_title = True
+                break
+        
+        if is_chapter_title:
+            # 检查上方一行是否是空行（或者是文件开头/start_line）
+            is_new_chapter = False
+            if i == start_line:
+                # 文件第一行或正文开始行
+                is_new_chapter = True
+            elif i > 0 and lines[i-1].strip() == '':
+                # 上方一行是空行
+                is_new_chapter = True
+            
+            # 如果没有空行限制（参考资料模式），也认为是新章节
+            # 但优先使用空行检测（当前项目模式）
+            if not is_new_chapter:
+                # 如果没有空行，但符合章节模式，也认为是新章节
+                is_new_chapter = True
+            
+            if is_new_chapter:
+                # 保存之前的章节
+                if current_chapter is not None:
+                    chapters.append({
+                        'name': current_chapter,
+                        'content': '\n'.join(current_content).strip()
+                    })
+                
+                # 开始新章节
+                current_chapter = line_stripped
                 current_content = []
-            
-            # 找到下一个非空行作为章节名
-            next_index = i + 1
-            while next_index < len(lines) and lines[next_index].strip() == '':
-                next_index += 1
-            
-            if next_index < len(lines):
-                # 新章节名
-                current_chapter = lines[next_index].strip()
-                i = next_index  # 跳过下一行，因为已经作为章节名处理
         else:
-            # 非空行，添加到当前章节内容
-            current_content.append(line)
+            # 不是章节标题，添加到当前章节内容
+            if current_chapter is not None:
+                current_content.append(line)
     
     # 保存最后一个章节
-    if current_chapter is not None and current_content:
+    if current_chapter is not None:
         chapters.append({
             'name': current_chapter,
             'content': '\n'.join(current_content).strip()
@@ -773,23 +795,81 @@ def parse_chapters(content):
     
     return chapters
 
+def find_novel_file_by_name(novel_name):
+    """根据提取后的小说名称找到对应的原始文件路径"""
+    if not os.path.exists(NOVELS_DIR):
+        return None
+    
+    for filename in os.listdir(NOVELS_DIR):
+        if filename.endswith('.txt'):
+            # 提取小说名称
+            extracted_name = extract_novel_name(filename)
+            if extracted_name == novel_name:
+                return os.path.join(NOVELS_DIR, filename)
+    return None
+
+def detect_file_encoding(file_path):
+    """检测文件编码（参考资料中的方法）"""
+    try:
+        # 检查文件大小
+        file_size = os.path.getsize(file_path)
+        
+        # 限制编码检测时读取的文件大小（最多100KB）
+        with open(file_path, 'rb') as f:
+            raw_data = f.read(min(100 * 1024, file_size))
+        
+        # 使用chardet检测编码
+        result = chardet.detect(raw_data)
+        encoding = result['encoding'] or 'utf-8'  # 如果检测失败，使用utf-8
+        return encoding
+    except Exception as e:
+        print(f"检测编码失败: {e}")
+        return 'utf-8'
+
+def read_novel_content(file_path):
+    """读取小说内容，自动检测编码"""
+    # 检测文件编码
+    encoding = detect_file_encoding(file_path)
+    
+    try:
+        # 尝试使用检测到的编码读取
+        with open(file_path, 'r', encoding=encoding, errors='ignore') as f:
+            content = f.read()
+        return content
+    except UnicodeDecodeError:
+        # 如果使用检测到的编码读取失败，尝试使用utf-8
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+            return content
+        except Exception as e:
+            print(f"读取文件失败: {e}")
+            return None
+    except Exception as e:
+        print(f"读取文件失败: {e}")
+        return None
+
 @app.route('/api/novels/<novel_name>/chapters', methods=['GET'])
 @login_required
 def get_novel_chapters(novel_name):
     """获取小说的章节列表"""
     try:
-        # 安全检查：防止目录遍历攻击
-        safe_name = os.path.basename(novel_name)
-        file_path = os.path.join(NOVELS_DIR, f"{safe_name}.txt")
+        # 根据小说名称查找文件（支持提取后的名称）
+        file_path = find_novel_file_by_name(novel_name)
         
-        if not os.path.exists(file_path):
+        if not file_path:
             return jsonify({
                 'success': False,
                 'error': '小说不存在'
             }), 404
         
-        # 读取小说内容
-        content = read_file_with_encoding(file_path)
+        # 读取小说内容（使用自动编码检测）
+        content = read_novel_content(file_path)
+        if content is None:
+            return jsonify({
+                'success': False,
+                'error': '读取小说内容失败'
+            }), 500
         
         # 解析章节
         chapters = parse_chapters(content)
@@ -813,18 +893,22 @@ def get_novel_chapters(novel_name):
 def get_chapter_content(novel_name, chapter_index):
     """获取指定章节的内容"""
     try:
-        # 安全检查：防止目录遍历攻击
-        safe_name = os.path.basename(novel_name)
-        file_path = os.path.join(NOVELS_DIR, f"{safe_name}.txt")
+        # 根据小说名称查找文件（支持提取后的名称）
+        file_path = find_novel_file_by_name(novel_name)
         
-        if not os.path.exists(file_path):
+        if not file_path:
             return jsonify({
                 'success': False,
                 'error': '小说不存在'
             }), 404
         
-        # 读取小说内容
-        content = read_file_with_encoding(file_path)
+        # 读取小说内容（使用自动编码检测）
+        content = read_novel_content(file_path)
+        if content is None:
+            return jsonify({
+                'success': False,
+                'error': '读取小说内容失败'
+            }), 500
         
         # 解析章节
         chapters = parse_chapters(content)

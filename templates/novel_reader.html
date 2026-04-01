@@ -6,11 +6,36 @@
     <title>小说阅读器 - iFlyCompass</title>
     <link rel="stylesheet" href="/assets/css/loading.css">
     <link rel="stylesheet" href="/assets/css/material-icons.css">
+    <link rel="stylesheet" href="/assets/css/element-ui.css">
+    <script src="/assets/js/vue.min.js"></script>
+    <script src="/assets/js/element-ui.js"></script>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+        }
+        
+        .novel-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        
+        .novel-author {
+            font-size: 12px;
+            color: #909399;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .novel-latest-chapter {
+            font-size: 12px;
+            color: #909399;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
         
         html, body {
@@ -288,8 +313,9 @@
             color: #606266;
         }
         
-        .chapter-nav {
+        .nav-buttons {
             display: flex;
+            align-items: center;
             gap: 12px;
         }
         
@@ -319,6 +345,121 @@
         
         .nav-btn .material-icons {
             font-size: 18px;
+        }
+        
+
+        
+        .chapter-jump-container {
+            padding: 15px 20px;
+            border-bottom: 1px solid #e0e0e0;
+            background: #f5f7fa;
+        }
+        
+        /* 章节列表面板 */
+        .toc-panel {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+        
+        .toc-panel.open {
+            display: block;
+        }
+        
+        .toc-content {
+            position: absolute;
+            right: 0;
+            top: 0;
+            width: 320px;
+            height: 100%;
+            background: white;
+            box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+            overflow-y: auto;
+        }
+        
+        .toc-header {
+            padding: 20px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            background: white;
+            z-index: 10;
+        }
+        
+        .toc-header h3 {
+            margin: 0;
+            font-size: 16px;
+            color: #333;
+        }
+        
+        .toc-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #909399;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .toc-list {
+            padding: 0;
+            margin: 0;
+            list-style: none;
+        }
+        
+        .toc-item {
+            padding: 12px 20px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background-color 0.2s;
+        }
+        
+        .toc-item:hover {
+            background: #f5f7fa;
+        }
+        
+        .toc-item.active {
+            background: #ecf5ff;
+            color: #409EFF;
+        }
+        
+        .toc-item .chapter-index {
+            font-size: 12px;
+            color: #909399;
+            margin-right: 8px;
+        }
+        
+        .chapter-jump {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .chapter-jump input {
+            width: 70px;
+            padding: 8px 10px;
+            border: 1px solid #dcdfe6;
+            border-radius: 4px;
+            font-size: 14px;
+            text-align: center;
+        }
+        
+        .chapter-jump input:focus {
+            outline: none;
+            border-color: #409EFF;
         }
         
         /* 阅读内容区 */
@@ -498,7 +639,7 @@
                             <div class="novel-title" id="reader-novel-title">小说名称</div>
                             <div class="chapter-name" id="reader-chapter-name">章节名称</div>
                         </div>
-                        <div class="chapter-nav">
+                        <div class="nav-buttons">
                             <button class="nav-btn" id="prev-chapter-btn" onclick="loadPrevChapter()">
                                 <span class="material-icons">navigate_before</span>
                                 上一章
@@ -507,14 +648,33 @@
                                 下一章
                                 <span class="material-icons">navigate_next</span>
                             </button>
-                            <div class="chapter-jump">
-                                <input type="number" id="chapter-input" placeholder="章节号" min="1" style="width: 60px; padding: 6px; border: 1px solid #dcdfe6; border-radius: 4px; margin-right: 8px;">
-                                <button class="nav-btn" onclick="jumpToChapter()">跳转</button>
-                            </div>
+                            <button class="nav-btn toc-toggle" onclick="toggleToc()">
+                                <span class="material-icons">menu_book</span>
+                                章节导航
+                            </button>
                         </div>
                     </div>
                     <div class="reader-content">
                         <div class="chapter-text" id="chapter-content"></div>
+                    </div>
+                    
+                    <!-- 章节列表面板 -->
+                    <div class="toc-panel" id="toc-panel">
+                        <div class="toc-content">
+                            <div class="toc-header">
+                                <h3>章节列表</h3>
+                                <button class="toc-close" onclick="toggleToc()">×</button>
+                            </div>
+                            <div class="chapter-jump-container">
+                                <div class="chapter-jump">
+                                    <input type="number" id="chapter-input" placeholder="章节号" min="1">
+                                    <button class="nav-btn" onclick="jumpToChapter()">跳转</button>
+                                </div>
+                            </div>
+                            <ul class="toc-list" id="toc-list">
+                                <!-- 章节列表将通过JavaScript动态生成 -->
+                            </ul>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -574,7 +734,11 @@
             listContainer.innerHTML = novels.map(novel => `
                 <div class="novel-item" data-novel="${novel.name}" onclick="selectNovel('${novel.name}')">
                     <span class="material-icons">book</span>
-                    <span class="novel-name">${novel.name}</span>
+                    <div class="novel-info">
+                        <span class="novel-name">${novel.name}</span>
+                        <span class="novel-author">作者：${novel.author || '未知作者'}</span>
+                        <span class="novel-latest-chapter">最新章节：${novel.latest_chapter || '未知章节'}</span>
+                    </div>
                 </div>
             `).join('');
         }
@@ -688,7 +852,13 @@
             const chapterNumber = parseInt(chapterInput.value);
             
             if (isNaN(chapterNumber)) {
-                alert('请输入有效的章节号');
+                if (window.ELEMENT && window.ELEMENT.Message) {
+                    window.ELEMENT.Message.warning({
+                        message: '请输入有效的章节号',
+                        duration: 3000,
+                        showClose: true
+                    });
+                }
                 return;
             }
             
@@ -696,7 +866,13 @@
             const chapterIndex = chapterNumber - 1;
             
             if (chapterIndex < 0 || chapterIndex >= chapters.length) {
-                alert(`章节号超出范围，请输入1-${chapters.length}之间的章节号`);
+                if (window.ELEMENT && window.ELEMENT.Message) {
+                    window.ELEMENT.Message.warning({
+                        message: `章节号超出范围，请输入1-${chapters.length}之间的章节号`,
+                        duration: 3000,
+                        showClose: true
+                    });
+                }
                 return;
             }
             
@@ -729,7 +905,17 @@
         
         // 显示错误
         function showError(message) {
-            alert(message);
+            // 使用 Element UI 的消息提示
+            if (window.ELEMENT && window.ELEMENT.Message) {
+                window.ELEMENT.Message.error({
+                    message: message,
+                    duration: 3000,
+                    showClose: true
+                });
+            } else {
+                // 降级方案，如果 Element UI 未加载
+                console.error(message);
+            }
             showPlaceholderState();
         }
         
@@ -744,6 +930,65 @@
             console.log('退出登录');
             window.location.href = '/logout';
         }
+        
+        // 键盘导航（左右箭头键）
+        document.addEventListener('keydown', function(e) {
+            // 如果正在输入，不处理键盘事件
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                return;
+            }
+            
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                loadPrevChapter();
+            } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                loadNextChapter();
+            }
+        });
+        
+        // 章节导航面板
+        function toggleToc() {
+            const tocPanel = document.getElementById('toc-panel');
+            tocPanel.classList.toggle('open');
+            
+            // 如果打开面板且有章节数据，生成章节列表
+            if (tocPanel.classList.contains('open') && chapters && chapters.length > 0) {
+                generateTocList();
+            }
+        }
+        
+        // 生成章节列表
+        function generateTocList() {
+            const tocList = document.getElementById('toc-list');
+            tocList.innerHTML = '';
+            
+            if (!chapters || chapters.length === 0) {
+                tocList.innerHTML = '<li class="toc-item">暂无章节</li>';
+                return;
+            }
+            
+            chapters.forEach((chapter, index) => {
+                const li = document.createElement('li');
+                li.className = `toc-item ${index === currentChapter ? 'active' : ''}`;
+                li.innerHTML = `
+                    <span class="chapter-index">${index + 1}.</span>
+                    ${chapter.name}
+                `;
+                li.onclick = () => {
+                    loadChapter(index);
+                    toggleToc();
+                };
+                tocList.appendChild(li);
+            });
+        }
+        
+        // 点击面板外部关闭
+        document.getElementById('toc-panel').addEventListener('click', function(e) {
+            if (e.target === this) {
+                toggleToc();
+            }
+        });
     </script>
     <script src="/assets/js/loading.js"></script>
 </body>
