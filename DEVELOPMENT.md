@@ -2,6 +2,12 @@
 
 ## 版本更新
 
+### REL1.3.2_fix1
+- **修复**：小说阅读器功能
+  - 修复阅读进度记忆功能：添加数据库表存储阅读进度
+  - 优化小说列表加载：只在选择小说后加载章节列表
+  - 增强用户体验：在小说列表中显示上次读到的章节信息
+
 ### REL1.3.2
 - **增强**：小说阅读器功能
   - 添加作者显示功能：支持从文件名和文件内容中提取作者信息
@@ -105,6 +111,16 @@
 | description | String(255) | 表情描述 |
 | local_path | String(255) | 本地缓存路径 |
 | created_at | DateTime | 创建时间 |
+
+### 2.6 小说阅读进度表 (NovelReadingProgress)
+
+| 字段名 | 类型 | 描述 |
+|-------|------|------|
+| id | Integer | 进度 ID，主键 |
+| user_id | Integer | 用户 ID，外键关联 User.id |
+| novel_filename | String(255) | 小说文件名 |
+| last_chapter_index | Integer | 最后阅读的章节索引 |
+| last_read_at | DateTime | 最后阅读时间 |
 
 ## 3. API 接口
 
