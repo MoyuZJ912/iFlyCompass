@@ -654,6 +654,9 @@
                                 <span class="material-icons">menu_book</span>
                                 章节导航
                             </button>
+                            <button class="nav-btn immersive-btn" id="immersive-btn" onclick="openImmersiveReader()">
+                                <span class="material-icons">fullscreen</span>
+                            </button>
                         </div>
                     </div>
                     <div class="reader-content">
@@ -689,6 +692,7 @@
         const username = '{{ username }}';
         let novels = [];
         let currentNovel = null;
+        let currentNovelAuthor = '';
         let currentChapter = 0;
         let chapters = [];
         
@@ -759,6 +763,8 @@
             });
             
             currentNovel = novelName;
+            const novelData = novels.find(n => n.name === novelName);
+            currentNovelAuthor = novelData ? (novelData.author || '未知作者') : '未知作者';
             
             // 显示加载状态
             showLoadingState();
@@ -1020,6 +1026,23 @@
                 toggleToc();
             }
         });
+        
+        // 打开沉浸式阅读器
+        function openImmersiveReader() {
+            if (!currentNovel) {
+                if (window.ELEMENT && window.ELEMENT.Message) {
+                    window.ELEMENT.Message.warning({
+                        message: '请先选择一本小说',
+                        duration: 3000,
+                        showClose: true
+                    });
+                }
+                return;
+            }
+            
+            const url = `/tools/immersive-reader?novel=${encodeURIComponent(currentNovel)}&chapter=${currentChapter}&author=${encodeURIComponent(currentNovelAuthor)}`;
+            window.location.href = url;
+        }
     </script>
     <script src="/assets/js/loading.js"></script>
 </body>

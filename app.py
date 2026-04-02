@@ -640,6 +640,12 @@ def novel_reader():
     return render_template('novel_reader.html', 
                          username=current_user.username)
 
+@app.route('/tools/immersive-reader')
+@login_required
+def immersive_reader():
+    return render_template('immersive_reader.html',
+                         username=current_user.username)
+
 def get_novel_author(filename):
     """获取小说作者，先尝试从文件名解析，再尝试从文件内容解析"""
     # 尝试从文件名解析作者：[name]_作者：[author].txt
