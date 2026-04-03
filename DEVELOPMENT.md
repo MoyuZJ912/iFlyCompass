@@ -2,7 +2,45 @@
 
 ## 版本更新
 
-### REL1.3.4\_fix1
+### REL2.0.0
+
+**重大架构重构**
+
+- **模块化重构**：将 1680 行的 app.py 拆分为清晰的模块化结构
+  - 创建 models/ 目录，按业务领域组织数据库模型
+  - 创建 utils/ 目录，统一管理工具函数
+  - 创建 modules/ 目录，按业务领域组织功能模块
+  - app.py 从 1680 行减少到 43 行（减少 97.4%）
+
+- **架构改进**：
+  - 采用 Flask Blueprint 进行模块化设计
+  - 遵循单一职责原则，每个模块专注于单一业务领域
+  - 提高代码的可维护性、可测试性和可扩展性
+  - 改善多人协作，减少合并冲突
+
+- **新增模块**：
+  - **models/** - 数据库模型层
+    - user.py：User, Passkey 模型
+    - chat.py：ChatRoom 模型
+    - sticker.py：UserSticker, PackSticker 模型
+    - novel.py：NovelReadingProgress 模型
+  - **utils/** - 工具函数层
+    - common.py：通用工具函数（壁纸、诗词、Passkey 生成等）
+    - file.py：文件处理工具（编码检测、文件读取、图片下载等）
+  - **modules/** - 业务模块层
+    - auth/：用户认证模块（登录、注册、用户管理、Passkey 管理）
+    - chat/：聊天室模块（聊天室管理、WebSocket 事件处理）
+    - novel/：小说阅读器模块（小说列表、章节解析、阅读进度）
+    - sticker/：表情包管理模块（表情商城、个人收藏、表情包合集）
+    - main/：主页面模块（首页、控制面板、工具页面）
+
+- **代码质量提升**：
+  - 配置集中管理（config.py）
+  - 扩展统一初始化（extensions.py）
+  - 清晰的模块边界和职责划分
+  - 更好的代码复用性
+
+### REL1.3.4_fix1
 
 - **修复**：沉浸式阅读器章节切换bug
   - 修复章节结尾快速点击导致跳过多章的问题
@@ -33,133 +71,228 @@
   - chardet 5.2.0 → 7.4.0.post2
   - 新增 flask-cors 6.0.2
 
-### REL1.3.2\_fix1
-
-- **修复**：小说阅读器功能
-  - 修复阅读进度记忆功能：添加数据库表存储阅读进度
-  - 优化小说列表加载：只在选择小说后加载章节列表
-  - 增强用户体验：在小说列表中显示上次读到的章节信息
-
-### REL1.3.2
-
-- **增强**：小说阅读器功能
-  - 添加作者显示功能：支持从文件名和文件内容中提取作者信息
-  - 添加最新章节显示功能：在小说列表中显示最新章节
-  - 改进章节导航功能：添加右侧滑出的章节列表面板
-  - 调整布局：将章节导航和切换按钮移到顶部，与小说信息合并
-  - 改进错误处理：使用 Element UI 顶部弹出提示替代 alert
-  - 整合参考资料中的章节模式：支持多种章节标题格式
-  - 添加编码检测功能：自动检测文件编码，支持多种编码格式
-
-### REL1.3.1\_fix1
-
-- **增强**：小说阅读器功能
-  - 支持多种编码格式：GBK、GB2312、UTF-16、UTF-8-BOM
-  - 增加章节切分规则：如果前20行包含单独一行的"正文"二字，则从它下方第一个有文字的非空行开始计算章节id1
-
-### REL1.3.1
-
-- **修复**：WebSocket重连时产生重复加入消息的问题
-- **增强**：小说阅读器功能
-  - 修改章节判断规则，支持空行分段和特殊情况处理
-  - 添加阅读进度保存功能
-  - 实现自动跳转到上次阅读章节
-  - 在小说列表中显示阅读进度
-
 ## 1. 项目架构
 
-### 1.1 前端架构
+### 1.1 架构概览
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Flask Application                     │
+│                         (app.py - 43行)                      │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                ┌─────────────┼─────────────┐
+                │             │             │
+                ▼             ▼             ▼
+        ┌───────────┐  ┌───────────┐  ┌───────────┐
+        │  Config   │  │Extensions │  │  Models   │
+        │ (config.py)│  │(extensions)│  │ (models/) │
+        └───────────┘  └───────────┘  └───────────┘
+                                           │
+                              ┌────────────┼────────────┐
+                              │            │            │
+                              ▼            ▼            ▼
+                        ┌─────────┐  ┌─────────┐  ┌─────────┐
+                        │  User   │  │  Chat   │  │ Sticker │
+                        │ Passkey │  │  Room   │  │  Models │
+                        └─────────┘  └─────────┘  └─────────┘
+                
+                ┌─────────────────────────────────────┐
+                │         Business Modules            │
+                │           (modules/)                │
+                └─────────────────────────────────────┘
+                              │
+        ┌─────────────────────┼─────────────────────┐
+        │                     │                     │
+        ▼                     ▼                     ▼
+┌───────────────┐    ┌───────────────┐    ┌───────────────┐
+│  Auth Module  │    │  Chat Module  │    │ Novel Module  │
+│   (auth/)     │    │   (chat/)     │    │  (novel/)     │
+│               │    │               │    │               │
+│ - routes.py   │    │ - routes.py   │    │ - routes.py   │
+│ - api.py      │    │ - api.py      │    │ - api.py      │
+│               │    │ - websocket.py│    │ - parser.py   │
+└───────────────┘    └───────────────┘    └───────────────┘
+        │                     │                     │
+        └─────────────────────┼─────────────────────┘
+                              │
+                              ▼
+                    ┌───────────────┐
+                    │Sticker Module │
+                    │  (sticker/)   │
+                    │               │
+                    │ - routes.py   │
+                    │ - api.py      │
+                    └───────────────┘
+```
+
+### 1.2 前端架构
 
 - **框架**：Vue.js 2.x
 - **UI 库**：Element UI
 - **通信**：Socket.IO 客户端
 - **构建**：原生 HTML/CSS/JavaScript，无构建工具
 
-### 1.2 后端架构
+### 1.3 后端架构
 
-- **框架**：Flask 2.x
-- **数据库**：SQLAlchemy ORM + SQLite
-- **认证**：Flask-Login
-- **实时通信**：Flask-SocketIO
-- **部署**：支持本地开发和 PyInstaller 打包
+#### 1.3.1 核心组件
+
+- **app.py**：应用入口，负责创建和配置 Flask 应用
+- **config.py**：配置管理，集中管理所有配置项
+- **extensions.py**：扩展初始化，统一初始化 Flask 扩展
+
+#### 1.3.2 模块化设计
+
+采用 Flask Blueprint 进行模块化设计，每个模块独立管理路由和业务逻辑：
+
+- **auth 模块**：用户认证和管理
+  - routes.py：登录、注册、用户管理页面
+  - api.py：用户和 Passkey 管理 API
+
+- **chat 模块**：聊天室功能
+  - routes.py：聊天室页面路由
+  - api.py：聊天室管理 API
+  - websocket.py：WebSocket 事件处理
+
+- **novel 模块**：小说阅读器
+  - routes.py：小说阅读器页面路由
+  - api.py：小说和章节 API
+  - parser.py：章节解析器
+
+- **sticker 模块**：表情包管理
+  - routes.py：表情包文件服务
+  - api.py：表情包管理 API
+
+- **main 模块**：主页面
+  - routes.py：首页、控制面板、工具页面
+
+#### 1.3.3 数据模型层
+
+独立的数据模型层，按业务领域组织：
+
+- **user.py**：User, Passkey
+- **chat.py**：ChatRoom
+- **sticker.py**：UserSticker, PackSticker
+- **novel.py**：NovelReadingProgress
+
+#### 1.3.4 工具函数层
+
+统一的工具函数层，提供通用功能：
+
+- **common.py**：
+  - get_bing_wallpaper()：获取必应壁纸
+  - get_poetry()：获取今日诗词
+  - generate_passkey()：生成 Passkey
+  - get_utc_plus_8_time()：获取 UTC+8 时间
+
+- **file.py**：
+  - detect_file_encoding()：检测文件编码
+  - read_novel_content()：读取小说内容
+  - download_sticker_image()：下载表情包图片
+
+### 1.4 架构优势
+
+#### 1.4.1 可维护性
+
+- 每个模块职责单一，代码量适中（200-400行）
+- 清晰的模块边界，易于定位和修改代码
+- 配置集中管理，便于调整
+
+#### 1.4.2 可测试性
+
+- 模块独立，便于编写单元测试
+- 依赖注入，便于模拟和测试
+- 清晰的接口定义
+
+#### 1.4.3 可扩展性
+
+- 新增功能只需添加新模块
+- 模块之间松耦合，便于替换和升级
+- 支持水平扩展
+
+#### 1.4.4 团队协作
+
+- 不同开发者可以同时修改不同模块
+- 减少合并冲突
+- 清晰的代码结构，便于新成员上手
 
 ## 2. 数据库设计
 
 ### 2.1 用户表 (User)
 
 | 字段名              | 类型          | 描述             |
-| ---------------- | ----------- | -------------- |
-| id               | Integer     | 用户 ID，主键       |
-| username         | String(50)  | 用户名，唯一         |
-| password\_hash   | String(128) | 密码哈希值          |
-| is\_super\_admin | Boolean     | 是否为超级管理员       |
-| is\_admin        | Boolean     | 是否为管理员         |
-| passkey\_used    | String(6)   | 注册时使用的 Passkey |
-| created\_at      | DateTime    | 创建时间           |
+| ------------------- | ------------- | ---------------- |
+| id                  | Integer       | 用户 ID，主键     |
+| username            | String(50)    | 用户名，唯一      |
+| password_hash       | String(128)   | 密码哈希值        |
+| is_super_admin      | Boolean       | 是否为超级管理员  |
+| is_admin            | Boolean       | 是否为管理员      |
+| passkey_used        | String(6)     | 注册时使用的 Passkey |
+| created_at          | DateTime      | 创建时间          |
 
 ### 2.2 Passkey 表 (Passkey)
 
 | 字段名            | 类型        | 描述                |
-| -------------- | --------- | ----------------- |
-| id             | Integer   | Passkey ID，主键     |
-| key            | String(6) | Passkey 值，唯一      |
-| duration\_days | Integer   | 有效期（天数），None 表示无限 |
-| max\_uses      | Integer   | 最大使用次数，None 表示无限  |
-| current\_uses  | Integer   | 当前使用次数            |
-| is\_active     | Boolean   | 是否激活              |
-| expires\_at    | DateTime  | 过期时间              |
-| created\_at    | DateTime  | 创建时间              |
+| ----------------- | ----------- | ------------------- |
+| id                | Integer     | Passkey ID，主键     |
+| key               | String(6)   | Passkey 值，唯一     |
+| duration_days     | Integer     | 有效期（天数），None 表示无限 |
+| max_uses          | Integer     | 最大使用次数，None 表示无限  |
+| current_uses      | Integer     | 当前使用次数         |
+| is_active         | Boolean     | 是否激活             |
+| expires_at        | DateTime    | 过期时间             |
+| created_at        | DateTime    | 创建时间             |
 
 ### 2.3 聊天室表 (ChatRoom)
 
 | 字段名         | 类型          | 描述                  |
-| ----------- | ----------- | ------------------- |
-| id          | Integer     | 聊天室 ID，主键           |
-| name        | String(50)  | 聊天室名称，唯一            |
-| password    | String(128) | 密码哈希值，None 表示无密码    |
-| created\_by | Integer     | 创建者 ID，外键关联 User.id |
-| created\_at | DateTime    | 创建时间                |
-| is\_active  | Boolean     | 是否激活                |
+| -------------- | ------------- | --------------------- |
+| id             | Integer       | 聊天室 ID，主键        |
+| name           | String(50)    | 聊天室名称，唯一       |
+| password       | String(128)   | 密码哈希值，None 表示无密码 |
+| created_by     | Integer       | 创建者 ID，外键关联 User.id |
+| created_at     | DateTime      | 创建时间              |
+| is_active      | Boolean       | 是否激活              |
 
 ### 2.4 用户表情包表 (UserSticker)
 
 | 字段名           | 类型          | 描述                       |
-| ------------- | ----------- | ------------------------ |
-| id            | Integer     | 表情包 ID，主键                |
-| user\_id      | Integer     | 用户 ID，外键关联 User.id       |
-| sticker\_code | String(20)  | 表情码                      |
-| sticker\_type | String(20)  | 表情类型 ('single' 或 'pack') |
-| sticker\_name | String(100) | 表情名称                     |
-| description   | String(255) | 表情描述                     |
-| local\_path   | String(255) | 本地缓存路径                   |
-| created\_at   | DateTime    | 创建时间                     |
+| ---------------- | ------------- | -------------------------- |
+| id               | Integer       | 表情包 ID，主键             |
+| user_id          | Integer       | 用户 ID，外键关联 User.id   |
+| sticker_code     | String(20)    | 表情码                     |
+| sticker_type     | String(20)    | 表情类型 ('single' 或 'pack') |
+| sticker_name     | String(100)   | 表情名称                   |
+| description      | String(255)   | 表情描述                   |
+| local_path       | String(255)   | 本地缓存路径               |
+| created_at       | DateTime      | 创建时间                   |
 
 ### 2.5 表情包合集中的表情表 (PackSticker)
 
 | 字段名           | 类型          | 描述                 |
-| ------------- | ----------- | ------------------ |
-| id            | Integer     | 表情 ID，主键           |
-| user\_id      | Integer     | 用户 ID，外键关联 User.id |
-| pack\_code    | String(20)  | 所属表情包合集码           |
-| sticker\_code | String(50)  | 表情码                |
-| sticker\_name | String(100) | 表情名称               |
-| description   | String(255) | 表情描述               |
-| local\_path   | String(255) | 本地缓存路径             |
-| created\_at   | DateTime    | 创建时间               |
+| ---------------- | ------------- | -------------------- |
+| id               | Integer       | 表情 ID，主键         |
+| user_id          | Integer       | 用户 ID，外键关联 User.id |
+| pack_code        | String(20)    | 所属表情包合集码      |
+| sticker_code     | String(50)    | 表情码               |
+| sticker_name     | String(100)   | 表情名称             |
+| description      | String(255)   | 表情描述             |
+| local_path       | String(255)   | 本地缓存路径         |
+| created_at       | DateTime      | 创建时间             |
 
 ### 2.6 小说阅读进度表 (NovelReadingProgress)
 
 | 字段名                  | 类型          | 描述                 |
-| -------------------- | ----------- | ------------------ |
-| id                   | Integer     | 进度 ID，主键           |
-| user\_id             | Integer     | 用户 ID，外键关联 User.id |
-| novel\_filename      | String(255) | 小说文件名              |
-| last\_chapter\_index | Integer     | 最后阅读的章节索引          |
-| last\_read\_at       | DateTime    | 最后阅读时间             |
+| ----------------------- | ------------- | -------------------- |
+| id                      | Integer       | 进度 ID，主键         |
+| user_id                 | Integer       | 用户 ID，外键关联 User.id |
+| novel_filename          | String(255)   | 小说文件名           |
+| last_chapter_index      | Integer       | 最后阅读的章节索引    |
+| last_read_at            | DateTime      | 最后阅读时间         |
 
 ## 3. API 接口
 
-### 3.1 用户相关
+### 3.1 用户认证相关
 
 #### 3.1.1 注册
 
@@ -168,7 +301,7 @@
 - **参数**：
   - username: 用户名
   - password: 密码
-  - confirm\_password: 确认密码
+  - confirm_password: 确认密码
   - passkey: 邀请码（可选，首个用户不需要）
 - **返回**：重定向到登录页面
 
@@ -204,7 +337,7 @@
 - **参数**：
   - username: 用户名
   - password: 密码
-  - is\_admin: 是否为管理员（仅超级管理员可设置）
+  - is_admin: 是否为管理员（仅超级管理员可设置）
 - **返回**：新用户信息 JSON
 
 #### 3.2.3 更新用户
@@ -215,7 +348,7 @@
 - **参数**：
   - id: 用户 ID
   - password: 密码（可选）
-  - is\_admin: 是否为管理员（仅超级管理员可设置）
+  - is_admin: 是否为管理员（仅超级管理员可设置）
 - **返回**：更新后的用户信息 JSON
 
 #### 3.2.4 删除用户
@@ -242,8 +375,8 @@
 - **方法**：POST
 - **权限**：超级管理员
 - **参数**：
-  - duration\_days: 有效期（天数，可选）
-  - max\_uses: 最大使用次数（可选）
+  - duration_days: 有效期（天数，可选）
+  - max_uses: 最大使用次数（可选）
 - **返回**：新 Passkey 信息 JSON
 
 #### 3.3.3 删除 Passkey
@@ -298,13 +431,52 @@
 - **方法**：POST
 - **权限**：登录用户
 - **参数**：
-  - room\_id: 聊天室 ID
+  - room_id: 聊天室 ID
   - password: 密码（如果需要）
 - **返回**：成功/失败信息 JSON
 
-### 3.5 表情包相关 API
+### 3.5 小说阅读器相关 API
 
-#### 3.5.1 获取表情商城列表
+#### 3.5.1 获取小说列表
+
+- **URL**：`/api/novels`
+- **方法**：GET
+- **权限**：登录用户
+- **返回**：小说列表 JSON
+
+#### 3.5.2 获取章节列表
+
+- **URL**：`/api/novels/{novel_name}/chapters`
+- **方法**：GET
+- **权限**：登录用户
+- **返回**：章节列表 JSON
+
+#### 3.5.3 获取章节内容
+
+- **URL**：`/api/novels/{novel_name}/chapters/{chapter_index}`
+- **方法**：GET
+- **权限**：登录用户
+- **返回**：章节内容 JSON
+
+#### 3.5.4 保存阅读进度
+
+- **URL**：`/api/novels/{novel_name}/progress`
+- **方法**：POST
+- **权限**：登录用户
+- **参数**：
+  - chapter_index: 章节索引
+- **返回**：成功/失败信息 JSON
+
+#### 3.5.5 获取阅读进度
+
+- **URL**：`/api/novels/{novel_name}/progress`
+- **方法**：GET
+- **权限**：登录用户
+- **返回**：阅读进度 JSON
+
+### 3.6 表情包相关 API
+
+#### 3.6.1 获取表情商城列表
 
 - **URL**：`/api/stickers/hub`
 - **方法**：GET
@@ -314,7 +486,7 @@
   - page: 页码（可选）
 - **返回**：表情列表 JSON
 
-#### 3.5.2 获取我的表情包
+#### 3.6.2 获取我的表情包
 
 - **URL**：`/api/stickers/mine`
 - **方法**：GET
@@ -323,7 +495,7 @@
   - type: 表情类型 ('single' 或 'pack')
 - **返回**：我的表情包列表 JSON
 
-#### 3.5.3 添加表情包
+#### 3.6.3 添加表情包
 
 - **URL**：`/api/stickers/add`
 - **方法**：POST
@@ -333,7 +505,7 @@
   - type: 表情类型 ('single' 或 'pack')
 - **返回**：成功/失败信息 JSON
 
-#### 3.5.4 移除表情包
+#### 3.6.4 移除表情包
 
 - **URL**：`/api/stickers/remove`
 - **方法**：POST
@@ -342,16 +514,16 @@
   - id: 表情包 ID
 - **返回**：成功/失败信息 JSON
 
-#### 3.5.5 获取表情包分类
+#### 3.6.5 获取表情包分类
 
 - **URL**：`/api/stickers/categories`
 - **方法**：GET
 - **权限**：登录用户
 - **返回**：表情包分类列表 JSON
 
-#### 3.5.6 获取表情包合集中的表情
+#### 3.6.6 获取表情包合集中的表情
 
-- **URL**：`/api/stickers/pack/<code>`
+- **URL**：`/api/stickers/pack/{code}`
 - **方法**：GET
 - **权限**：登录用户
 - **参数**：
@@ -400,7 +572,7 @@
   - username: 发送者用户名
   - message: 消息内容
   - timestamp: 时间戳
-  - is\_self: 是否为自己发送的消息
+  - is_self: 是否为自己发送的消息
 
 #### 4.2.2 用户加入
 
@@ -447,28 +619,51 @@
 - **JavaScript**：使用 ES6+ 语法
 - **CSS**：使用 BEM 命名规范
 - **HTML**：使用语义化标签
+- **模块化**：遵循单一职责原则，每个模块专注于单一业务领域
 
-### 5.3 测试
+### 5.3 模块开发指南
+
+#### 5.3.1 新增业务模块
+
+1. 在 `modules/` 目录下创建新模块目录
+2. 创建 `__init__.py`，定义 Blueprint
+3. 创建 `routes.py`，定义页面路由
+4. 创建 `api.py`，定义 API 接口
+5. 在 `app.py` 中注册 Blueprint
+
+#### 5.3.2 新增数据模型
+
+1. 在 `models/` 目录下创建新的模型文件
+2. 定义模型类，继承 `db.Model`
+3. 在 `models/__init__.py` 中导出模型
+
+#### 5.3.3 新增工具函数
+
+1. 在 `utils/` 目录下创建或编辑工具文件
+2. 在 `utils/__init__.py` 中导出函数
+
+### 5.4 测试
 
 - **手动测试**：通过浏览器访问各个功能页面
 - **API 测试**：使用 Postman 或类似工具测试 API 接口
 - **WebSocket 测试**：使用浏览器开发者工具测试 WebSocket 连接
+- **单元测试**：为每个模块编写独立的单元测试
 
-### 5.4 部署
+### 5.5 部署
 
-#### 5.4.1 本地部署
+#### 5.5.1 本地部署
 
 ```bash
 python app.py
 ```
 
-#### 5.4.2 打包为 EXE
+#### 5.5.2 打包为 EXE
 
 ```bash
 pyinstaller --onefile --name iFlyCompass app.py
 ```
 
-#### 5.4.3 生产部署
+#### 5.5.3 生产部署
 
 建议使用 Gunicorn 作为 WSGI 服务器，Nginx 作为反向代理：
 
@@ -500,3 +695,33 @@ gunicorn -w 4 -b 0.0.0.0:5002 app:app
 - **问题**：Passkey 无效
 - **解决方案**：检查 Passkey 是否已过期或达到最大使用次数
 
+### 6.5 模块导入问题
+
+- **问题**：模块导入失败
+- **解决方案**：确保所有模块都正确导出，检查 `__init__.py` 文件
+
+### 6.6 Blueprint 路由冲突
+
+- **问题**：路由冲突或 404 错误
+- **解决方案**：检查 Blueprint 的 url_prefix 设置，确保路由定义正确
+
+## 7. 贡献指南
+
+### 7.1 代码提交
+
+1. Fork 项目
+2. 创建功能分支
+3. 提交代码
+4. 创建 Pull Request
+
+### 7.2 代码审查
+
+- 确保代码符合项目规范
+- 确保所有测试通过
+- 确保文档更新
+
+### 7.3 版本发布
+
+- 遵循语义化版本规范
+- 更新 CHANGELOG
+- 创建 Git 标签
