@@ -6,6 +6,7 @@ from extensions import db
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
+    nickname = db.Column(db.String(50), nullable=True)
     password_hash = db.Column(db.String(128), nullable=False)
     is_super_admin = db.Column(db.Boolean, default=False)
     is_admin = db.Column(db.Boolean, default=False)
@@ -17,6 +18,10 @@ class User(UserMixin, db.Model):
     
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+    
+    @property
+    def display_name(self):
+        return self.nickname if self.nickname else self.username
 
 class Passkey(db.Model):
     id = db.Column(db.Integer, primary_key=True)

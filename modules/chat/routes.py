@@ -8,7 +8,7 @@ from . import chat_bp
 def chat():
     chat_rooms = ChatRoom.query.filter_by(is_active=True).all()
     return render_template('chat.html', 
-                         username=current_user.username, 
+                         username=current_user.display_name, 
                          passkey_used=current_user.passkey_used,
                          chat_rooms=chat_rooms, 
                          is_admin=current_user.is_admin, 
@@ -21,7 +21,7 @@ def chat_test(room_name):
     if not chat_room:
         return redirect(url_for('chat.chat'))
     return render_template('chat-simple.html', 
-                         username=current_user.username, 
+                         username=current_user.display_name, 
                          passkey_used=current_user.passkey_used,
                          room=chat_room, 
                          is_admin=current_user.is_admin, 

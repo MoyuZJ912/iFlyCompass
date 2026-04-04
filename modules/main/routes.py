@@ -14,19 +14,13 @@ def index():
 @login_required
 def board():
     return render_template('board.html', 
-                         username=current_user.username, 
-                         passkey_used=current_user.passkey_used,
-                         is_admin=current_user.is_admin, 
-                         is_super_admin=current_user.is_super_admin)
+                         current_user=current_user)
 
 @main_bp.route('/board/tools')
 @login_required
 def tools():
     return render_template('tools.html', 
-                         username=current_user.username, 
-                         passkey_used=current_user.passkey_used,
-                         is_admin=current_user.is_admin, 
-                         is_super_admin=current_user.is_super_admin)
+                         current_user=current_user)
 
 @main_bp.route('/temp/<path:filename>')
 def serve_temp(filename):

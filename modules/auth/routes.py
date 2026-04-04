@@ -89,10 +89,7 @@ def user_management():
     users = User.query.all()
     return render_template('user_management.html', 
                          users=users,
-                         username=current_user.username, 
-                         passkey_used=current_user.passkey_used,
-                         is_admin=current_user.is_admin, 
-                         is_super_admin=current_user.is_super_admin)
+                         current_user=current_user)
 
 @auth_bp.route('/board/passkeys')
 @login_required
@@ -104,7 +101,4 @@ def passkey_management():
     passkeys = Passkey.query.all()
     return render_template('passkey_management.html', 
                          passkeys=passkeys,
-                         username=current_user.username, 
-                         passkey_used=current_user.passkey_used,
-                         is_admin=current_user.is_admin, 
-                         is_super_admin=current_user.is_super_admin)
+                         current_user=current_user)

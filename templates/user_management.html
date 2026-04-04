@@ -45,8 +45,26 @@
             border: 1px solid #d9d9d9;
             border-radius: 4px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-            min-width: 180px;
+            min-width: 200px;
             overflow: hidden;
+        }
+        
+        .user-dropdown-header {
+            padding: 12px 16px;
+            background: #f5f7fa;
+            border-bottom: 1px solid #e8e8e8;
+        }
+        
+        .user-dropdown-header .display-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .user-dropdown-header .username-label {
+            font-size: 12px;
+            color: #999;
+            margin-top: 2px;
         }
         
         .user-dropdown-item {
@@ -63,18 +81,7 @@
         }
         
         .user-dropdown-item.disabled {
-            cursor: not-allowed;
-            color: #999;
-        }
-        
-        .user-dropdown-item .item-label {
-            margin-right: 8px;
-            font-size: 14px;
-        }
-        
-        .user-dropdown-item .item-value {
-            font-weight: 500;
-            flex: 1;
+            cursor: default;
         }
         
         .user-dropdown-divider {
@@ -93,6 +100,10 @@
         
         .user-dropdown-item i {
             margin-right: 8px;
+        }
+        
+        .profile-dialog-form .el-form-item {
+            margin-bottom: 18px;
         }
     </style>
 </head>
@@ -157,17 +168,17 @@
                     <div class="header-right">
                     <div class="user-menu-container" @click="toggleUserMenu">
                         <span class="user-info">
-                            您好，[[ username ]]
+                            您好，[[ displayName ]]
                             <i class="el-icon-arrow-down" :class="{ 'rotated': userMenuVisible }"></i>
                         </span>
                         <div class="user-dropdown-menu" v-show="userMenuVisible" @click.stop>
-                            <div class="user-dropdown-item disabled">
-                                <span class="item-label">用户名:</span>
-                                <span class="item-value">[[ username ]]</span>
+                            <div class="user-dropdown-header">
+                                <div class="display-name">[[ displayName ]]</div>
+                                <div class="username-label">@[[ username ]]</div>
                             </div>
-                            <div class="user-dropdown-item disabled" v-if="passkeyUsed">
-                                <span class="item-label">Passkey:</span>
-                                <span class="item-value">[[ passkeyUsed ]]</span>
+                            <div class="user-dropdown-item" @click="openProfileDialog">
+                                <i class="el-icon-user"></i>
+                                <span>个人设置</span>
                             </div>
                             <div class="user-dropdown-divider"></div>
                             <div class="user-dropdown-item logout-item" @click="confirmLogout">
@@ -202,37 +213,37 @@
                             border
                         >
                             <el-table-column prop="id" label="ID" width="80"></el-table-column>
-                            <el-table-column prop="username" label="用户名"></el-table-column>
-                            <el-table-column prop="is_super_admin" label="超级管理员">
+                            <el-table-column prop="display_name" label="显示名称">
                                 <template slot-scope="scope">
-                                    <el-tag v-if="scope.row.is_super_admin" type="danger">是</el-tag>
-                                    <el-tag v-else type="info">否</el-tag>
+                                    [[ scope.row.display_name ]]
+                                    <el-tag v-if="scope.row.nickname" size="mini" type="info" style="margin-left: 4px;">昵称</el-tag>
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="username" label="用户名">
+                                <template slot-scope="scope">
+                                    [[ scope.row.username ]]
+                                    <el-tag v-if="scope.row.is_super_admin" size="mini" type="danger">超管</el-tag>
                                 </template>
                             </el-table-column>
                             <el-table-column prop="is_admin" label="管理员">
                                 <template slot-scope="scope">
-                                    <el-tag v-if="scope.row.is_admin" type="success">是</el-tag>
-                                    <el-tag v-else type="info">否</el-tag>
+                                    <el-switch
+                                        v-model="scope.row.is_admin"
+                                        :disabled="scope.row.is_super_admin || !isSuperAdmin"
+                                        @change="toggleAdmin(scope.row)"
+                                    ></el-switch>
                                 </template>
                             </el-table-column>
                             <el-table-column prop="created_at" label="创建时间"></el-table-column>
-                            <el-table-column label="操作" width="200">
+                            <el-table-column label="操作" width="150">
                                 <template slot-scope="scope">
                                     <el-button 
                                         type="primary" 
                                         size="small" 
                                         @click="resetPassword(scope.row)"
-                                        :disabled="scope.row.is_super_admin"
+                                        :disabled="scope.row.is_super_admin && scope.row.id !== currentUserId"
                                     >
                                         重置密码
-                                    </el-button>
-                                    <el-button 
-                                        type="warning" 
-                                        size="small" 
-                                        @click="editUser(scope.row)"
-                                        :disabled="scope.row.is_super_admin"
-                                    >
-                                        编辑
                                     </el-button>
                                     <el-button 
                                         type="danger" 
@@ -246,18 +257,21 @@
                             </el-table-column>
                         </el-table>
                         
-                        <!-- 添加/编辑用户对话框 -->
+                        <!-- 添加用户对话框 -->
                         <el-dialog
-                            :title="dialogTitle"
+                            title="添加用户"
                             :visible.sync="dialogVisible"
                             width="500px"
                         >
                             <el-form :model="form" label-width="80px">
-                                <el-form-item label="用户名">
+                                <el-form-item label="用户名" required>
                                     <el-input v-model="form.username" placeholder="请输入用户名"></el-input>
                                 </el-form-item>
-                                <el-form-item label="密码">
+                                <el-form-item label="密码" required>
                                     <el-input v-model="form.password" type="password" placeholder="请输入密码"></el-input>
+                                </el-form-item>
+                                <el-form-item label="昵称">
+                                    <el-input v-model="form.nickname" placeholder="请输入昵称（可选）"></el-input>
                                 </el-form-item>
                                 <el-form-item label="管理员" v-if="isSuperAdmin">
                                     <el-switch v-model="form.is_admin"></el-switch>
@@ -285,6 +299,29 @@
                                 <el-button type="primary" @click="confirmResetPassword">确定</el-button>
                             </span>
                         </el-dialog>
+                        
+                        <!-- 个人设置对话框 -->
+                        <el-dialog
+                            title="个人设置"
+                            :visible.sync="profileDialogVisible"
+                            width="450px"
+                        >
+                            <el-form :model="profileForm" label-width="80px">
+                                <el-form-item label="用户名">
+                                    <el-input :value="username" disabled></el-input>
+                                </el-form-item>
+                                <el-form-item label="昵称">
+                                    <el-input v-model="profileForm.nickname" placeholder="请输入昵称"></el-input>
+                                </el-form-item>
+                                <el-form-item label="新密码" v-if="isSuperAdmin">
+                                    <el-input v-model="profileForm.password" type="password" placeholder="留空则不修改密码"></el-input>
+                                </el-form-item>
+                            </el-form>
+                            <span slot="footer" class="dialog-footer">
+                                <el-button @click="profileDialogVisible = false">取消</el-button>
+                                <el-button type="primary" @click="saveProfile">保存</el-button>
+                            </span>
+                        </el-dialog>
                     </div>
                 </el-main>
             </el-container>
@@ -304,23 +341,31 @@
                 return {
                     isCollapse: true,
                     activeMenu: 'users',
+                    displayName: '{{ current_user.display_name }}',
                     username: '{{ current_user.username }}',
+                    nickname: '{{ current_user.nickname or "" }}',
+                    currentUserId: {{ current_user.id }},
                     passkeyUsed: {% if current_user.passkey_used %}'{{ current_user.passkey_used }}'{% else %}null{% endif %},
                     isSuperAdmin: {% if current_user.is_super_admin %}true{% else %}false{% endif %},
                     users: [],
                     searchQuery: '',
                     dialogVisible: false,
                     resetDialogVisible: false,
-                    dialogTitle: '添加用户',
+                    profileDialogVisible: false,
                     form: {
                         id: null,
                         username: '',
                         password: '',
+                        nickname: '',
                         is_admin: false
                     },
                     resetForm: {
                         password: '',
                         userId: null
+                    },
+                    profileForm: {
+                        nickname: '',
+                        password: ''
                     },
                     userMenuVisible: false
                 };
@@ -331,7 +376,8 @@
                         return this.users;
                     }
                     return this.users.filter(user => 
-                        user.username.toLowerCase().includes(this.searchQuery.toLowerCase())
+                        user.username.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
+                        (user.nickname && user.nickname.toLowerCase().includes(this.searchQuery.toLowerCase()))
                     );
                 }
             },
@@ -410,25 +456,43 @@
                 },
                 addUser() {
                     console.log('打开添加用户对话框');
-                    this.dialogTitle = '添加用户';
                     this.form = {
                         id: null,
                         username: '',
                         password: '',
+                        nickname: '',
                         is_admin: false
                     };
                     this.dialogVisible = true;
                 },
-                editUser(user) {
-                    console.log('打开编辑用户对话框:', user.username);
-                    this.dialogTitle = '编辑用户';
-                    this.form = {
-                        id: user.id,
-                        username: user.username,
-                        password: '',
-                        is_admin: user.is_admin
-                    };
-                    this.dialogVisible = true;
+                toggleAdmin(user) {
+                    console.log('切换用户管理员状态:', user.username, user.is_admin);
+                    fetch('/api/users', {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            id: user.id,
+                            is_admin: user.is_admin
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            console.error('更新失败:', data.error);
+                            this.$message.error(data.error);
+                            user.is_admin = !user.is_admin;
+                        } else {
+                            console.log('更新成功:', data);
+                            this.$message.success(user.is_admin ? '已设为管理员' : '已取消管理员');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('更新失败:', error);
+                        this.$message.error('更新失败');
+                        user.is_admin = !user.is_admin;
+                    });
                 },
                 saveUser() {
                     if (!this.form.username || !this.form.password) {
@@ -438,11 +502,8 @@
                     }
                     
                     console.log('保存用户:', this.form);
-                    const method = this.form.id ? 'PUT' : 'POST';
-                    const url = '/api/users';
-                    
-                    fetch(url, {
-                        method: method,
+                    fetch('/api/users', {
+                        method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
                         },
@@ -455,7 +516,7 @@
                             this.$message.error(data.error);
                         } else {
                             console.log('保存用户成功:', data);
-                            this.$message.success(this.form.id ? '用户更新成功' : '用户添加成功');
+                            this.$message.success('用户添加成功');
                             this.dialogVisible = false;
                             this.loadUsers();
                         }
@@ -536,7 +597,43 @@
                     })
                     .catch(() => {
                         console.log('取消删除用户');
-                        // 取消删除
+                    });
+                },
+                openProfileDialog() {
+                    console.log('打开个人设置对话框');
+                    this.userMenuVisible = false;
+                    fetch('/api/user/profile')
+                        .then(response => response.json())
+                        .then(data => {
+                            this.profileForm.nickname = data.nickname || '';
+                            this.profileForm.password = '';
+                        });
+                    this.profileDialogVisible = true;
+                },
+                saveProfile() {
+                    fetch('/api/user/profile', {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(this.profileForm)
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            this.$message.error(data.error);
+                        } else {
+                            this.$message.success('保存成功');
+                            this.profileDialogVisible = false;
+                            if (data.display_name) {
+                                this.displayName = data.display_name;
+                                this.nickname = this.profileForm.nickname;
+                            }
+                            this.loadUsers();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('保存失败:', error);
                     });
                 }
             }

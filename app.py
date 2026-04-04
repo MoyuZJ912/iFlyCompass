@@ -1,4 +1,5 @@
 import os
+import sqlite3
 from flask import Flask
 from config import Config
 from extensions import db, login_manager, socketio
@@ -12,6 +13,24 @@ from modules.chat.websocket import register_socketio_events
 for directory in [Config.TEMP_DIR, Config.INSTANCE_DIR, Config.STICKERS_DIR, Config.NOVELS_DIR]:
     if not os.path.exists(directory):
         os.makedirs(directory)
+
+def run_migrations(app):
+    db_path = os.path.join(Config.INSTANCE_DIR, 'users.db')
+    
+    if not os.path.exists(db_path):
+        return
+    
+    with sqlite3.connect(db_path) as conn:
+        cursor = conn.cursor()
+        
+        cursor.execute("PRAGMA table_info(user)")
+        columns = [column[1] for column in cursor.fetchall()]
+        
+        if 'nickname' not in columns:
+            print("正在迁移数据库：添加 nickname 字段...")
+            cursor.execute("ALTER TABLE user ADD COLUMN nickname VARCHAR(50)")
+            conn.commit()
+            print("数据库迁移完成！")
 
 def create_app():
     app = Flask(__name__)
@@ -33,6 +52,7 @@ def create_app():
     
     with app.app_context():
         db.create_all()
+        run_migrations(app)
     
     return app
 

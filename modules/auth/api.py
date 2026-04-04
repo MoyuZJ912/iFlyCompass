@@ -17,6 +17,8 @@ def api_users():
         return jsonify([{
             'id': user.id,
             'username': user.username,
+            'nickname': user.nickname,
+            'display_name': user.display_name,
             'is_super_admin': user.is_super_admin,
             'is_admin': user.is_admin,
             'created_at': user.created_at.strftime('%Y-%m-%d %H:%M:%S')
@@ -29,6 +31,7 @@ def api_users():
         
         user = User(
             username=data['username'],
+            nickname=data.get('nickname'),
             is_admin=data.get('is_admin', False),
             is_super_admin=False
         )
@@ -43,15 +46,15 @@ def api_users():
         if not user:
             return jsonify({'error': '用户不存在'}), 404
         
-        if user.is_super_admin:
+        if user.is_super_admin and user.id != current_user.id:
             return jsonify({'error': '超级管理员不可修改'}), 403
         
         if not current_user.is_super_admin and user.is_admin:
             return jsonify({'error': '只有超级管理员可以修改管理员用户'}), 403
         
-        if 'password' in data:
+        if 'password' in data and data['password']:
             user.set_password(data['password'])
-        if 'is_admin' in data and current_user.is_super_admin:
+        if 'is_admin' in data and current_user.is_super_admin and not user.is_super_admin:
             user.is_admin = data['is_admin']
         db.session.commit()
         return jsonify({'id': user.id, 'username': user.username})
@@ -71,6 +74,33 @@ def api_users():
         db.session.delete(user)
         db.session.commit()
         return jsonify({'success': True})
+
+@auth_bp.route('/api/user/profile', methods=['GET', 'PUT'])
+@login_required
+def api_user_profile():
+    if request.method == 'GET':
+        return jsonify({
+            'id': current_user.id,
+            'username': current_user.username,
+            'nickname': current_user.nickname,
+            'display_name': current_user.display_name,
+            'is_super_admin': current_user.is_super_admin,
+            'is_admin': current_user.is_admin
+        })
+    
+    elif request.method == 'PUT':
+        data = request.json
+        
+        if 'nickname' in data:
+            current_user.nickname = data['nickname'] if data['nickname'] else None
+        
+        if 'password' in data and data['password']:
+            if not current_user.is_super_admin:
+                return jsonify({'error': '只有超级管理员可以修改自己的密码'}), 403
+            current_user.set_password(data['password'])
+        
+        db.session.commit()
+        return jsonify({'success': True, 'display_name': current_user.display_name})
 
 @auth_bp.route('/api/passkeys', methods=['GET', 'POST', 'DELETE'])
 @login_required

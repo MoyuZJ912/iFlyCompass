@@ -45,8 +45,26 @@
             border: 1px solid #d9d9d9;
             border-radius: 4px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-            min-width: 180px;
+            min-width: 200px;
             overflow: hidden;
+        }
+        
+        .user-dropdown-header {
+            padding: 12px 16px;
+            background: #f5f7fa;
+            border-bottom: 1px solid #e8e8e8;
+        }
+        
+        .user-dropdown-header .display-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .user-dropdown-header .username-label {
+            font-size: 12px;
+            color: #999;
+            margin-top: 2px;
         }
         
         .user-dropdown-item {
@@ -63,18 +81,7 @@
         }
         
         .user-dropdown-item.disabled {
-            cursor: not-allowed;
-            color: #999;
-        }
-        
-        .user-dropdown-item .item-label {
-            margin-right: 8px;
-            font-size: 14px;
-        }
-        
-        .user-dropdown-item .item-value {
-            font-weight: 500;
-            flex: 1;
+            cursor: default;
         }
         
         .user-dropdown-divider {
@@ -93,6 +100,10 @@
         
         .user-dropdown-item i {
             margin-right: 8px;
+        }
+        
+        .profile-dialog-form .el-form-item {
+            margin-bottom: 18px;
         }
     </style>
 </head>
@@ -157,17 +168,17 @@
                     <div class="header-right">
                     <div class="user-menu-container" @click="toggleUserMenu">
                         <span class="user-info">
-                            您好，[[ username ]]
+                            您好，[[ displayName ]]
                             <i class="el-icon-arrow-down" :class="{ 'rotated': userMenuVisible }"></i>
                         </span>
                         <div class="user-dropdown-menu" v-show="userMenuVisible" @click.stop>
-                            <div class="user-dropdown-item disabled">
-                                <span class="item-label">用户名:</span>
-                                <span class="item-value">[[ username ]]</span>
+                            <div class="user-dropdown-header">
+                                <div class="display-name">[[ displayName ]]</div>
+                                <div class="username-label">@[[ username ]]</div>
                             </div>
-                            <div class="user-dropdown-item disabled" v-if="passkeyUsed">
-                                <span class="item-label">Passkey:</span>
-                                <span class="item-value">[[ passkeyUsed ]]</span>
+                            <div class="user-dropdown-item" @click="openProfileDialog">
+                                <i class="el-icon-user"></i>
+                                <span>个人设置</span>
                             </div>
                             <div class="user-dropdown-divider"></div>
                             <div class="user-dropdown-item logout-item" @click="confirmLogout">
@@ -258,6 +269,29 @@
                 </el-main>
             </el-container>
         </el-container>
+        
+        <!-- 个人设置对话框 -->
+        <el-dialog
+            title="个人设置"
+            :visible.sync="profileDialogVisible"
+            width="450px"
+        >
+            <el-form :model="profileForm" label-width="80px" class="profile-dialog-form">
+                <el-form-item label="用户名">
+                    <el-input :value="username" disabled></el-input>
+                </el-form-item>
+                <el-form-item label="昵称">
+                    <el-input v-model="profileForm.nickname" placeholder="请输入昵称"></el-input>
+                </el-form-item>
+                <el-form-item label="新密码">
+                    <el-input v-model="profileForm.password" type="password" placeholder="留空则不修改密码"></el-input>
+                </el-form-item>
+            </el-form>
+            <span slot="footer" class="dialog-footer">
+                <el-button @click="profileDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="saveProfile">保存</el-button>
+            </span>
+        </el-dialog>
     </div>
 
     <script src="/assets/js/vue.min.js"></script>
@@ -273,10 +307,18 @@
                 return {
                     isCollapse: true,
                     activeMenu: 'passkeys',
+                    displayName: '{{ current_user.display_name }}',
                     username: '{{ current_user.username }}',
+                    nickname: '{{ current_user.nickname or "" }}',
                     passkeyUsed: {% if current_user.passkey_used %}'{{ current_user.passkey_used }}'{% else %}null{% endif %},
                     passkeys: [],
                     dialogVisible: false,
+                    userMenuVisible: false,
+                    profileDialogVisible: false,
+                    profileForm: {
+                        nickname: '',
+                        password: ''
+                    },
                     form: {
                         duration_days: null,
                         max_uses: null
@@ -292,13 +334,45 @@
             },
             methods: {
                 toggleCollapse() {
-                    console.log('切换侧边栏折叠状态:', !this.isCollapse);
                     this.isCollapse = !this.isCollapse;
                 },
                 toggleUserMenu() {
                     this.userMenuVisible = !this.userMenuVisible;
                 },
+                openProfileDialog() {
+                    this.userMenuVisible = false;
+                    this.profileForm.nickname = this.nickname;
+                    this.profileForm.password = '';
+                    this.profileDialogVisible = true;
+                },
+                saveProfile() {
+                    fetch('/api/user/profile', {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(this.profileForm)
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            this.$message.error(data.error);
+                        } else {
+                            this.$message.success('保存成功');
+                            this.profileDialogVisible = false;
+                            if (data.display_name) {
+                                this.displayName = data.display_name;
+                                this.nickname = this.profileForm.nickname;
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('保存失败:', error);
+                        this.$message.error('保存失败');
+                    });
+                },
                 confirmLogout() {
+                    this.userMenuVisible = false;
                     this.$confirm('确定要退出登录吗？', '提示', {
                         confirmButtonText: '确定',
                         cancelButtonText: '取消',
@@ -307,20 +381,12 @@
                     .then(() => {
                         this.logout();
                     })
-                    .catch(() => {
-                        console.log('取消退出登录');
-                    });
+                    .catch(() => {});
                 },
                 logout() {
-                    console.log('=== 退出登录操作开始 ===');
-                    console.log('当前用户:', this.username);
-                    console.log('正在重定向到退出登录页面...');
                     window.location.href = '/logout';
-                    console.log('=== 退出登录操作完成 ===');
                 },
                 handleMenuClick(key) {
-                    console.log('菜单点击:', key);
-                    // 点击菜单时关闭用户菜单
                     this.userMenuVisible = false;
                     if (key === 'dashboard') {
                         console.log('导航到控制台首页');
