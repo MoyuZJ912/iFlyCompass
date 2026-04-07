@@ -2,6 +2,43 @@
 
 ## 版本更新
 
+### EVA2.1.0
+
+**性能优化 + 随身听功能**
+
+- **小说缓存优化**：
+  - 新增 `utils/novel_cache.py` 小说缓存服务
+  - 启动时预扫描所有小说，缓存书名、作者、最新章节
+  - API 响应从数秒优化到毫秒级
+  - 支持手动刷新缓存 `/api/novels/refresh-cache`
+
+- **随身听功能**：
+  - 新增 `modules/ncm/` 随身听模块
+  - 网易云音乐播放器，支持搜索、推荐歌单、热门搜索
+  - 内网缓存播放：音乐文件先缓存到本地 `temp/music/`
+  - APlayer 播放器本地化部署，无需外网 CDN
+  - 与聊天室、小说阅读器保持一致的设计风格
+
+- **新增文件**：
+  - `utils/novel_cache.py` - 小说缓存服务
+  - `utils/music_cache.py` - 音乐缓存服务
+  - `utils/ncm_api.py` - 网易云音乐 API 封装
+  - `modules/ncm/__init__.py` - 随身听模块定义
+  - `modules/ncm/routes.py` - 播放器页面路由
+  - `modules/ncm/api.py` - NCM API 接口
+  - `templates/ncm_player.html` - 播放器前端页面
+  - `assets/css/aplayer.min.css` - APlayer 样式
+  - `assets/js/aplayer.min.js` - APlayer 脚本
+
+- **新增 API**：
+  - `GET /api/ncm/search` - 搜索歌曲
+  - `GET /api/ncm/song/url` - 获取歌曲播放地址
+  - `GET /api/ncm/personalized` - 获取推荐歌单
+  - `GET /api/ncm/hot-search` - 获取热搜列表
+  - `GET /api/ncm/playlist/detail` - 获取歌单详情
+  - `POST /api/ncm/cache-music` - 缓存音乐到本地
+  - `GET /music/<filename>` - 提供缓存的音乐文件
+
 ### REL2.0.2
 
 **用户管理系统优化**

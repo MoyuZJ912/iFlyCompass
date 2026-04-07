@@ -16,6 +16,7 @@ class Config:
     ASSETS_DIR = './assets'
     STICKERS_DIR = './stickers'
     NOVELS_DIR = './instance/novels'
+    MUSIC_CACHE_DIR = './temp/music'
     
     STICKER_API_BASE = 'http://45.207.204.145:5003/api'
     

@@ -8,7 +8,9 @@ from modules.chat import chat_bp
 from modules.novel import novel_bp
 from modules.sticker import sticker_bp
 from modules.main import main_bp
+from modules.ncm import ncm_bp
 from modules.chat.websocket import register_socketio_events
+from utils import init_novel_cache
 
 for directory in [Config.TEMP_DIR, Config.INSTANCE_DIR, Config.STICKERS_DIR, Config.NOVELS_DIR]:
     if not os.path.exists(directory):
@@ -47,12 +49,15 @@ def create_app():
     app.register_blueprint(novel_bp)
     app.register_blueprint(sticker_bp)
     app.register_blueprint(main_bp)
+    app.register_blueprint(ncm_bp)
     
     register_socketio_events(socketio)
     
     with app.app_context():
         db.create_all()
         run_migrations(app)
+    
+    init_novel_cache()
     
     return app
 

@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>随身听 - iFlyCompass</title>
+    <link rel="stylesheet" href="/assets/css/loading.css">
+    <link rel="stylesheet" href="/assets/css/material-icons.css">
+    <link rel="stylesheet" href="/assets/css/element-ui.css">
+    <link rel="stylesheet" href="/assets/css/console.css">
+    <link rel="stylesheet" href="/assets/css/aplayer.min.css">
+    <style>
+        .ncm-container {
+            height: calc(100vh - 60px);
+            display: flex;
+            flex-direction: column;
+            background: #f5f7fa;
+            overflow: hidden;
+        }
+        
+        .ncm-header {
+            padding: 16px;
+            background: #fff;
+            border-bottom: 1px solid #e6e6e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        
+        .ncm-body {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+        
+        .ncm-sidebar {
+            width: 280px;
+            background: #fff;
+            border-right: 1px solid #e6e6e6;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .ncm-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .search-box {
+            padding: 12px;
+            border-bottom: 1px solid #e6e6e6;
+        }
+        
+        .hot-search {
+            padding: 12px;
+            overflow-y: auto;
+            flex: 1;
+        }
+        
+        .hot-search-title {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        
+        .hot-search-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .hot-tag {
+            padding: 4px 12px;
+            background: #f5f7fa;
+            border-radius: 16px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .hot-tag:hover {
+            background: #409eff;
+            color: #fff;
+        }
+        
+        .recommend-section {
+            padding: 16px;
+            overflow-y: auto;
+            flex: 1;
+        }
+        
+        .section-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 12px;
+            color: #333;
+        }
+        
+        .playlist-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 12px;
+        }
+        
+        .playlist-card {
+            cursor: pointer;
+            transition: transform 0.3s;
+        }
+        
+        .playlist-card:hover {
+            transform: translateY(-2px);
+        }
+        
+        .playlist-cover {
+            width: 100%;
+            aspect-ratio: 1;
+            border-radius: 8px;
+            object-fit: cover;
+        }
+        
+        .playlist-name {
+            font-size: 12px;
+            color: #333;
+            margin-top: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .search-results {
+            padding: 16px;
+            overflow-y: auto;
+            flex: 1;
+        }
+        
+        .song-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .song-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background: #fff;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .song-item:hover {
+            background: #ecf5ff;
+        }
+        
+        .song-cover {
+            width: 50px;
+            height: 50px;
+            border-radius: 4px;
+            object-fit: cover;
+            margin-right: 12px;
+        }
+        
+        .song-info {
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        .song-name {
+            font-size: 14px;
+            color: #333;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .song-artist {
+            font-size: 12px;
+            color: #999;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .song-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .player-container {
+            padding: 16px;
+            background: #fff;
+            border-top: 1px solid #e6e6e6;
+        }
+        
+        .loading-mask {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            flex-direction: column;
+        }
+        
+        .loading-text {
+            margin-top: 12px;
+            color: #409eff;
+        }
+        
+        .back-btn {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            color: #409eff;
+            font-size: 14px;
+        }
+        
+        .back-btn:hover {
+            color: #66b1ff;
+        }
+        
+        @media (max-width: 768px) {
+            .ncm-sidebar {
+                display: none;
+            }
+            
+            .playlist-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">加载中...</div>
+    </div>
+    <div id="app">
+        <el-container class="console-container">
+            <el-aside width="64px" class="console-sidebar" :width="isCollapse ? '64px' : '200px'">
+                <div class="sidebar-header" @click="toggleCollapse">
+                    <img src="/assets/images/logo-trans-white.png" alt="Logo" class="sidebar-logo">
+                    <span v-show="!isCollapse" class="sidebar-brand">iFlyCompass</span>
+                    <i v-show="!isCollapse" class="el-icon-s-fold sidebar-toggle"></i>
+                </div>
+                <el-menu
+                    :default-active="activeMenu"
+                    class="el-menu-vertical-demo"
+                    background-color="#1a365d"
+                    text-color="#ffffff"
+                    active-text-color="#409EFF"
+                    :collapse="isCollapse"
+                    @select="handleMenuClick"
+                >
+                    <el-menu-item index="dashboard">
+                        <i class="el-icon-s-home"></i>
+                        <span slot="title">首页</span>
+                    </el-menu-item>
+                    <el-menu-item index="tools">
+                        <i class="el-icon-s-tools"></i>
+                        <span slot="title">小工具</span>
+                    </el-menu-item>
+                    <el-menu-item index="games">
+                        <i class="el-icon-s-marketing"></i>
+                        <span slot="title">小游戏</span>
+                    </el-menu-item>
+                    <el-menu-item index="chat">
+                        <i class="el-icon-chat-dot-round"></i>
+                        <span slot="title">聊天室</span>
+                    </el-menu-item>
+                </el-menu>
+            </el-aside>
+            
+            <el-container>
+                <el-header class="console-header">
+                    <div class="header-left">
+                        <div class="back-btn" @click="goBack">
+                            <i class="el-icon-arrow-left"></i>
+                            <span style="margin-left: 4px;">返回</span>
+                        </div>
+                    </div>
+                    <div class="header-right">
+                        <h1 style="font-size: 18px;">随身听</h1>
+                    </div>
+                </el-header>
+                
+                <el-main class="console-content" style="padding: 0;">
+                    <div class="ncm-container">
+                        <div class="ncm-body">
+                            <div class="ncm-sidebar">
+                                <div class="search-box">
+                                    <el-input
+                                        v-model="searchKeyword"
+                                        placeholder="搜索音乐、歌手"
+                                        prefix-icon="el-icon-search"
+                                        @keyup.enter.native="handleSearch"
+                                        clearable
+                                    >
+                                        <el-button slot="append" icon="el-icon-search" @click="handleSearch"></el-button>
+                                    </el-input>
+                                </div>
+                                <div class="hot-search">
+                                    <div class="hot-search-title">热门搜索</div>
+                                    <div class="hot-search-tags">
+                                        <span 
+                                            v-for="item in hotSearchList" 
+                                            :key="item.searchWord"
+                                            class="hot-tag"
+                                            @click="quickSearch(item.searchWord)"
+                                        >
+                                            [[ item.searchWord ]]
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="ncm-main">
+                                <div v-if="!showSearchResults" class="recommend-section">
+                                    <div class="section-title">推荐歌单</div>
+                                    <div class="playlist-grid">
+                                        <div 
+                                            v-for="item in personalizedList" 
+                                            :key="item.id"
+                                            class="playlist-card"
+                                            @click="openPlaylist(item.id)"
+                                        >
+                                            <img :src="item.picUrl + '?param=200y200'" class="playlist-cover">
+                                            <div class="playlist-name">[[ item.name ]]</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div v-else class="search-results">
+                                    <div class="section-title">
+                                        搜索结果
+                                        <el-button type="text" size="small" @click="clearSearch" style="margin-left: 8px;">清除</el-button>
+                                    </div>
+                                    <div class="song-list">
+                                        <div 
+                                            v-for="song in searchResults" 
+                                            :key="song.id"
+                                            class="song-item"
+                                            @click="playSong(song)"
+                                        >
+                                            <img :src="song.picUrl || (song.al && song.al.picUrl) || '/assets/images/logo-trans-white.png'" class="song-cover">
+                                            <div class="song-info">
+                                                <div class="song-name">[[ song.name ]]</div>
+                                                <div class="song-artist">
+                                                    [[ (song.ar && song.ar.map(a => a.name).join('/')) || '未知歌手' ]]
+                                                </div>
+                                            </div>
+                                            <div class="song-actions">
+                                                <el-button 
+                                                    type="primary" 
+                                                    size="mini" 
+                                                    icon="el-icon-video-play"
+                                                    @click.stop="playSong(song)"
+                                                    :loading="loadingSongId === song.id"
+                                                >
+                                                    播放
+                                                </el-button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-if="searchResults.length === 0 && !searching" style="text-align: center; padding: 40px; color: #999;">
+                                        暂无搜索结果
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="player-container">
+                            <div id="aplayer"></div>
+                        </div>
+                    </div>
+                </el-main>
+            </el-container>
+        </el-container>
+        
+        <div v-if="cachingMusic" class="loading-mask">
+            <i class="el-icon-loading" style="font-size: 40px; color: #409eff;"></i>
+            <div class="loading-text">正在缓存音乐...</div>
+        </div>
+    </div>
+
+    <script src="/assets/js/vue.min.js"></script>
+    <script src="/assets/js/element-ui.js"></script>
+    <script src="/assets/js/aplayer.min.js"></script>
+    <script>
+        new Vue({
+            el: '#app',
+            delimiters: ['[[', ']]'],
+            data() {
+                return {
+                    isCollapse: true,
+                    activeMenu: 'tools',
+                    searchKeyword: '',
+                    hotSearchList: [],
+                    personalizedList: [],
+                    searchResults: [],
+                    showSearchResults: false,
+                    searching: false,
+                    loadingSongId: null,
+                    cachingMusic: false,
+                    aplayer: null
+                };
+            },
+            mounted() {
+                this.loadHotSearch();
+                this.loadPersonalized();
+            },
+            methods: {
+                toggleCollapse() {
+                    this.isCollapse = !this.isCollapse;
+                },
+                handleMenuClick(key) {
+                    if (key === 'dashboard') {
+                        window.location.href = '/board';
+                    } else if (key === 'tools') {
+                        window.location.href = '/board/tools';
+                    } else if (key === 'chat') {
+                        window.location.href = '/board/chat';
+                    }
+                },
+                goBack() {
+                    window.location.href = '/board/tools';
+                },
+                async loadHotSearch() {
+                    try {
+                        const response = await fetch('/api/ncm/hot-search');
+                        const data = await response.json();
+                        if (data.code === 200 && data.data) {
+                            this.hotSearchList = data.data.slice(0, 10);
+                        }
+                    } catch (e) {
+                        console.error('加载热搜失败:', e);
+                    }
+                },
+                async loadPersonalized() {
+                    try {
+                        const response = await fetch('/api/ncm/personalized?limit=12');
+                        const data = await response.json();
+                        if (data.code === 200 && data.result) {
+                            this.personalizedList = data.result;
+                        }
+                    } catch (e) {
+                        console.error('加载推荐失败:', e);
+                    }
+                },
+                async handleSearch() {
+                    if (!this.searchKeyword.trim()) return;
+                    
+                    this.searching = true;
+                    this.showSearchResults = true;
+                    
+                    try {
+                        const response = await fetch(`/api/ncm/search?keywords=${encodeURIComponent(this.searchKeyword)}&limit=30`);
+                        const data = await response.json();
+                        if (data.code === 200 && data.result && data.result.songs) {
+                            this.searchResults = data.result.songs.map(song => ({
+                                ...song,
+                                picUrl: song.al ? song.al.picUrl : null
+                            }));
+                        } else {
+                            this.searchResults = [];
+                        }
+                    } catch (e) {
+                        console.error('搜索失败:', e);
+                        this.$message.error('搜索失败');
+                        this.searchResults = [];
+                    } finally {
+                        this.searching = false;
+                    }
+                },
+                quickSearch(keyword) {
+                    this.searchKeyword = keyword;
+                    this.handleSearch();
+                },
+                clearSearch() {
+                    this.searchKeyword = '';
+                    this.searchResults = [];
+                    this.showSearchResults = false;
+                },
+                async playSong(song) {
+                    this.loadingSongId = song.id;
+                    
+                    try {
+                        const urlResponse = await fetch(`/api/ncm/song/url?id=${song.id}`);
+                        const urlData = await urlResponse.json();
+                        
+                        if (urlData.code !== 200 || !urlData.data || !urlData.data[0] || !urlData.data[0].url) {
+                            this.$message.error('无法获取播放地址');
+                            return;
+                        }
+                        
+                        const musicUrl = urlData.data[0].url;
+                        
+                        this.cachingMusic = true;
+                        
+                        const cacheResponse = await fetch('/api/ncm/cache-music', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                id: song.id,
+                                url: musicUrl,
+                                name: song.name
+                            })
+                        });
+                        const cacheData = await cacheResponse.json();
+                        
+                        this.cachingMusic = false;
+                        
+                        if (!cacheData.success) {
+                            this.$message.error('缓存音乐失败');
+                            return;
+                        }
+                        
+                        const artistName = song.ar ? song.ar.map(a => a.name).join('/') : '未知歌手';
+                        const coverUrl = song.picUrl || (song.al && song.al.picUrl) || '';
+                        
+                        if (this.aplayer) {
+                            this.aplayer.list.add([{
+                                name: song.name,
+                                artist: artistName,
+                                url: cacheData.path,
+                                cover: coverUrl + '?param=200y200'
+                            }]);
+                            this.aplayer.skip(this.aplayer.list.audios.length - 1);
+                        } else {
+                            this.aplayer = new APlayer({
+                                container: document.getElementById('aplayer'),
+                                fixed: false,
+                                autoplay: true,
+                                theme: '#409eff',
+                                loop: 'all',
+                                order: 'list',
+                                preload: 'auto',
+                                volume: 0.7,
+                                mutex: true,
+                                listFolded: false,
+                                listMaxHeight: 90,
+                                audio: [{
+                                    name: song.name,
+                                    artist: artistName,
+                                    url: cacheData.path,
+                                    cover: coverUrl + '?param=200y200'
+                                }]
+                            });
+                        }
+                        
+                        this.$message.success('开始播放: ' + song.name);
+                    } catch (e) {
+                        console.error('播放失败:', e);
+                        this.$message.error('播放失败');
+                        this.cachingMusic = false;
+                    } finally {
+                        this.loadingSongId = null;
+                    }
+                },
+                async openPlaylist(playlistId) {
+                    this.$message.info('正在加载歌单...');
+                    try {
+                        const response = await fetch(`/api/ncm/playlist/detail?id=${playlistId}`);
+                        const data = await response.json();
+                        
+                        if (data.code === 200 && data.playlist && data.playlist.tracks) {
+                            this.searchResults = data.playlist.tracks.slice(0, 50).map(track => ({
+                                id: track.id,
+                                name: track.name,
+                                ar: track.ar,
+                                al: track.al,
+                                picUrl: track.al ? track.al.picUrl : null
+                            }));
+                            this.showSearchResults = true;
+                        }
+                    } catch (e) {
+                        console.error('加载歌单失败:', e);
+                        this.$message.error('加载歌单失败');
+                    }
+                }
+            }
+        });
+    </script>
+    <script src="/assets/js/loading.js"></script>
+</body>
+</html>

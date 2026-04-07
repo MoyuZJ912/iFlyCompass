@@ -6,101 +6,69 @@ from flask_login import login_required, current_user
 from extensions import db
 from models.novel import NovelReadingProgress
 from config import Config
-from utils import read_novel_content, detect_file_encoding
+from utils import read_novel_content, get_all_novels, get_novel_info, refresh_novel_cache
 from .parser import parse_chapters
 from . import novel_bp
 
-def get_novel_author(filename):
-    match = re.search(r'_作者：([^.]+)\.txt$', filename)
-    if match:
-        return match.group(1)
-    
-    file_path = os.path.join(Config.NOVELS_DIR, filename)
-    try:
-        encoding = detect_file_encoding(file_path)
-        with open(file_path, 'r', encoding=encoding, errors='ignore') as f:
-            for i in range(10):
-                line = f.readline()
-                if not line:
-                    break
-                author_match = re.search(r'作者：(.+)', line)
-                if author_match:
-                    return author_match.group(1).strip()
-    except Exception as e:
-        print(f"读取文件失败: {e}")
-    
-    return "未知作者"
-
-def get_novel_latest_chapter(filename):
-    file_path = os.path.join(Config.NOVELS_DIR, filename)
-    try:
-        content = read_novel_content(file_path)
-        if content is None:
-            return "未知章节"
-        chapters = parse_chapters(content)
-        if chapters:
-            return chapters[-1]['name']
-    except Exception as e:
-        print(f"获取最新章节失败: {e}")
-    return "未知章节"
-
-def extract_novel_name(filename):
-    name = filename[:-4]
-    author_match = re.search(r'^(.*?)_作者：', name)
-    if author_match:
-        return author_match.group(1)
-    return name
-
 def find_novel_file_by_name(novel_name):
-    if not os.path.exists(Config.NOVELS_DIR):
-        return None
-    
-    for filename in os.listdir(Config.NOVELS_DIR):
-        if filename.endswith('.txt'):
-            extracted_name = extract_novel_name(filename)
-            if extracted_name == novel_name:
-                return os.path.join(Config.NOVELS_DIR, filename)
+    novels = get_all_novels()
+    for novel in novels:
+        if novel['name'] == novel_name:
+            return novel.get('file_path') or os.path.join(Config.NOVELS_DIR, novel['filename'])
     return None
 
 @novel_bp.route('/api/novels', methods=['GET'])
 @login_required
 def get_novels():
     try:
-        novels = []
-        if os.path.exists(Config.NOVELS_DIR):
-            for filename in os.listdir(Config.NOVELS_DIR):
-                if filename.endswith('.txt'):
-                    novel_name = extract_novel_name(filename)
-                    author = get_novel_author(filename)
-                    latest_chapter = get_novel_latest_chapter(filename)
-                    
-                    progress = NovelReadingProgress.query.filter_by(
-                        user_id=current_user.id,
-                        novel_filename=filename
-                    ).first()
-                    
-                    last_read_chapter = None
-                    if progress:
-                        file_path = os.path.join(Config.NOVELS_DIR, filename)
-                        content = read_novel_content(file_path)
-                        if content:
-                            chapters = parse_chapters(content)
-                            if progress.last_chapter_index < len(chapters):
-                                last_read_chapter = chapters[progress.last_chapter_index]['name']
-                    
-                    novels.append({
-                        'name': novel_name,
-                        'filename': filename,
-                        'author': author,
-                        'latest_chapter': latest_chapter,
-                        'last_read_chapter': last_read_chapter
-                    })
+        novels = get_all_novels()
+        
+        result = []
+        for novel in novels:
+            progress = NovelReadingProgress.query.filter_by(
+                user_id=current_user.id,
+                novel_filename=novel['filename']
+            ).first()
+            
+            last_read_chapter = None
+            if progress:
+                file_path = os.path.join(Config.NOVELS_DIR, novel['filename'])
+                content = read_novel_content(file_path)
+                if content:
+                    chapters = parse_chapters(content)
+                    if progress.last_chapter_index < len(chapters):
+                        last_read_chapter = chapters[progress.last_chapter_index]['name']
+            
+            result.append({
+                'name': novel['name'],
+                'filename': novel['filename'],
+                'author': novel['author'],
+                'latest_chapter': novel['latest_chapter'],
+                'last_read_chapter': last_read_chapter
+            })
+        
         return jsonify({
             'success': True,
-            'novels': novels
+            'novels': result
         })
     except Exception as e:
         print(f"获取小说列表失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@novel_bp.route('/api/novels/refresh-cache', methods=['POST'])
+@login_required
+def refresh_cache():
+    try:
+        count = refresh_novel_cache()
+        return jsonify({
+            'success': True,
+            'message': f'缓存刷新成功，共扫描 {count} 本小说'
+        })
+    except Exception as e:
+        print(f"刷新缓存失败: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
