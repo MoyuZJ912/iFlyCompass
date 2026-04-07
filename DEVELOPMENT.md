@@ -2,6 +2,35 @@
 
 ## 版本更新
 
+### EVA2.1.1
+
+**随身听兼容性修复**
+
+- **修复 APlayer API 错误**：
+  - 将 `this.aplayer.skip(index)` 改为 `this.aplayer.list.switch(index) + this.aplayer.play()`
+  - APlayer 正确的方法是使用 `list.switch(index)` 切换歌曲
+
+- **添加旧版 WebView 兼容性处理**：
+  - 检测 `localStorage` 是否存在，不存在则创建 mock 对象
+  - 检测 `localStorage` 是否可用，失败则替换为 mock
+  - 提供 `getItem`, `setItem`, `removeItem`, `clear` 方法
+  - 解决旧版 WebView 中 `Cannot read property 'getItem' of null` 错误
+
+- **播放器操作容错处理**：
+  - 添加空值检查：`this.aplayer.list` 和 `this.aplayer.list.audios`
+  - 添加 try-catch 保护，播放器操作失败时自动尝试重新创建
+  - 双重保护机制，即使初始化失败也会尝试再次创建
+
+- **错误提示优化**：
+  - 播放失败时显示具体原因
+  - `无法获取播放地址: 歌曲暂无播放地址` / `API返回错误码: xxx`
+  - `缓存音乐失败: xxx`（后端返回的具体错误信息）
+  - `播放失败: xxx`（JavaScript 异常的消息）
+
+- **添加详尽的日志记录**：
+  - 前端日志：`[NCM]` 前缀的各步骤日志
+  - 后端日志：`[NCM API]` / `[MusicCache]` 前缀的详细日志
+
 ### EVA2.1.0
 
 **性能优化 + 随身听功能**

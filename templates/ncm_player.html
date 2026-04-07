@@ -396,6 +396,53 @@
     <script src="/assets/js/element-ui.js"></script>
     <script src="/assets/js/aplayer.min.js"></script>
     <script>
+        // 兼容性处理：旧版 WebView 可能没有 localStorage
+        if (!window.localStorage) {
+            console.log('[NCM] 检测到无 localStorage，创建 mock 对象');
+            window.localStorage = {
+                _data: {},
+                getItem: function(key) {
+                    return this._data[key] || null;
+                },
+                setItem: function(key, value) {
+                    this._data[key] = String(value);
+                },
+                removeItem: function(key) {
+                    delete this._data[key];
+                },
+                clear: function() {
+                    this._data = {};
+                }
+            };
+        }
+        
+        // 兼容性处理：确保 localStorage 方法可用
+        try {
+            localStorage.setItem('test', 'test');
+            localStorage.removeItem('test');
+        } catch (e) {
+            console.log('[NCM] localStorage 不可用，创建 mock 对象');
+            var mockStorage = {
+                _data: {},
+                getItem: function(key) {
+                    return this._data[key] || null;
+                },
+                setItem: function(key, value) {
+                    this._data[key] = String(value);
+                },
+                removeItem: function(key) {
+                    delete this._data[key];
+                },
+                clear: function() {
+                    this._data = {};
+                }
+            };
+            Object.defineProperty(window, 'localStorage', {
+                value: mockStorage,
+                writable: true
+            });
+        }
+        
         new Vue({
             el: '#app',
             delimiters: ['[[', ']]'],
@@ -435,46 +482,63 @@
                     window.location.href = '/board/tools';
                 },
                 async loadHotSearch() {
+                    console.log('[NCM] 加载热搜列表...');
                     try {
                         const response = await fetch('/api/ncm/hot-search');
                         const data = await response.json();
+                        console.log('[NCM] 热搜响应:', JSON.stringify(data));
                         if (data.code === 200 && data.data) {
                             this.hotSearchList = data.data.slice(0, 10);
+                            console.log('[NCM] 热搜列表加载成功, 数量:', this.hotSearchList.length);
+                        } else {
+                            console.warn('[NCM] 热搜数据格式异常');
                         }
                     } catch (e) {
-                        console.error('加载热搜失败:', e);
+                        console.error('[NCM] 加载热搜失败:', e);
                     }
                 },
                 async loadPersonalized() {
+                    console.log('[NCM] 加载推荐歌单...');
                     try {
                         const response = await fetch('/api/ncm/personalized?limit=12');
                         const data = await response.json();
+                        console.log('[NCM] 推荐歌单响应:', JSON.stringify(data));
                         if (data.code === 200 && data.result) {
                             this.personalizedList = data.result;
+                            console.log('[NCM] 推荐歌单加载成功, 数量:', this.personalizedList.length);
+                        } else {
+                            console.warn('[NCM] 推荐歌单数据格式异常');
                         }
                     } catch (e) {
-                        console.error('加载推荐失败:', e);
+                        console.error('[NCM] 加载推荐失败:', e);
                     }
                 },
                 async handleSearch() {
-                    if (!this.searchKeyword.trim()) return;
+                    if (!this.searchKeyword.trim()) {
+                        console.log('[NCM] 搜索关键词为空, 跳过搜索');
+                        return;
+                    }
                     
+                    console.log('[NCM] 开始搜索, 关键词:', this.searchKeyword);
                     this.searching = true;
                     this.showSearchResults = true;
                     
                     try {
                         const response = await fetch(`/api/ncm/search?keywords=${encodeURIComponent(this.searchKeyword)}&limit=30`);
                         const data = await response.json();
+                        console.log('[NCM] 搜索响应:', JSON.stringify(data));
                         if (data.code === 200 && data.result && data.result.songs) {
                             this.searchResults = data.result.songs.map(song => ({
                                 ...song,
                                 picUrl: song.al ? song.al.picUrl : null
                             }));
+                            console.log('[NCM] 搜索成功, 结果数量:', this.searchResults.length);
                         } else {
                             this.searchResults = [];
+                            console.log('[NCM] 搜索无结果');
                         }
                     } catch (e) {
-                        console.error('搜索失败:', e);
+                        console.error('[NCM] 搜索失败:', e);
                         this.$message.error('搜索失败');
                         this.searchResults = [];
                     } finally {
@@ -482,29 +546,38 @@
                     }
                 },
                 quickSearch(keyword) {
+                    console.log('[NCM] 快速搜索:', keyword);
                     this.searchKeyword = keyword;
                     this.handleSearch();
                 },
                 clearSearch() {
+                    console.log('[NCM] 清除搜索结果');
                     this.searchKeyword = '';
                     this.searchResults = [];
                     this.showSearchResults = false;
                 },
                 async playSong(song) {
+                    console.log('[NCM] 开始播放歌曲:', JSON.stringify({ id: song.id, name: song.name, artist: song.ar }));
                     this.loadingSongId = song.id;
                     
                     try {
+                        console.log('[NCM] 步骤1: 获取歌曲播放地址...');
                         const urlResponse = await fetch(`/api/ncm/song/url?id=${song.id}`);
                         const urlData = await urlResponse.json();
+                        console.log('[NCM] 歌曲URL响应:', JSON.stringify(urlData));
                         
                         if (urlData.code !== 200 || !urlData.data || !urlData.data[0] || !urlData.data[0].url) {
-                            this.$message.error('无法获取播放地址');
+                            const reason = urlData.code === 200 ? '歌曲暂无播放地址' : `API返回错误码: ${urlData.code}`;
+                            console.error('[NCM] 无法获取播放地址:', reason);
+                            this.$message.error('无法获取播放地址: ' + reason);
                             return;
                         }
                         
                         const musicUrl = urlData.data[0].url;
+                        console.log('[NCM] 步骤2: 获取到音乐URL:', musicUrl);
                         
                         this.cachingMusic = true;
+                        console.log('[NCM] 步骤3: 开始缓存音乐到本地...');
                         
                         const cacheResponse = await fetch('/api/ncm/cache-music', {
                             method: 'POST',
@@ -516,61 +589,99 @@
                             })
                         });
                         const cacheData = await cacheResponse.json();
+                        console.log('[NCM] 缓存响应:', JSON.stringify(cacheData));
                         
                         this.cachingMusic = false;
                         
                         if (!cacheData.success) {
-                            this.$message.error('缓存音乐失败');
+                            console.error('[NCM] 缓存音乐失败:', cacheData.error);
+                            this.$message.error('缓存音乐失败: ' + (cacheData.error || '未知原因'));
                             return;
                         }
+                        
+                        console.log('[NCM] 步骤4: 音乐缓存成功, 本地路径:', cacheData.path);
                         
                         const artistName = song.ar ? song.ar.map(a => a.name).join('/') : '未知歌手';
                         const coverUrl = song.picUrl || (song.al && song.al.picUrl) || '';
                         
-                        if (this.aplayer) {
-                            this.aplayer.list.add([{
-                                name: song.name,
-                                artist: artistName,
-                                url: cacheData.path,
-                                cover: coverUrl + '?param=200y200'
-                            }]);
-                            this.aplayer.skip(this.aplayer.list.audios.length - 1);
-                        } else {
-                            this.aplayer = new APlayer({
-                                container: document.getElementById('aplayer'),
-                                fixed: false,
-                                autoplay: true,
-                                theme: '#409eff',
-                                loop: 'all',
-                                order: 'list',
-                                preload: 'auto',
-                                volume: 0.7,
-                                mutex: true,
-                                listFolded: false,
-                                listMaxHeight: 90,
-                                audio: [{
-                                    name: song.name,
-                                    artist: artistName,
-                                    url: cacheData.path,
-                                    cover: coverUrl + '?param=200y200'
-                                }]
-                            });
+                        const audioInfo = {
+                            name: song.name,
+                            artist: artistName,
+                            url: cacheData.path,
+                            cover: coverUrl + '?param=200y200'
+                        };
+                        console.log('[NCM] 步骤5: 准备播放, 音频信息:', JSON.stringify(audioInfo));
+                        
+                        try {
+                            if (this.aplayer && this.aplayer.list && this.aplayer.list.audios) {
+                                console.log('[NCM] 播放器已存在, 添加到播放列表');
+                                const oldCount = this.aplayer.list.audios.length;
+                                this.aplayer.list.add([audioInfo]);
+                                console.log('[NCM] 播放列表数量:', oldCount, '->', this.aplayer.list.audios.length);
+                                const newIndex = this.aplayer.list.audios.length - 1;
+                                console.log('[NCM] 切换到新歌曲, 索引:', newIndex);
+                                this.aplayer.list.switch(newIndex);
+                                this.aplayer.play();
+                            } else {
+                                console.log('[NCM] 播放器不存在或不支持, 创建新播放器');
+                                this.aplayer = new APlayer({
+                                    container: document.getElementById('aplayer'),
+                                    fixed: false,
+                                    autoplay: true,
+                                    theme: '#409eff',
+                                    loop: 'all',
+                                    order: 'list',
+                                    preload: 'auto',
+                                    volume: 0.7,
+                                    mutex: true,
+                                    listFolded: false,
+                                    listMaxHeight: 90,
+                                    audio: [audioInfo]
+                                });
+                                console.log('[NCM] 播放器创建成功');
+                            }
+                        } catch (playerError) {
+                            console.error('[NCM] 播放器操作失败, 尝试创建新播放器:', playerError);
+                            try {
+                                this.aplayer = new APlayer({
+                                    container: document.getElementById('aplayer'),
+                                    fixed: false,
+                                    autoplay: true,
+                                    theme: '#409eff',
+                                    loop: 'all',
+                                    order: 'list',
+                                    preload: 'auto',
+                                    volume: 0.7,
+                                    mutex: true,
+                                    listFolded: false,
+                                    listMaxHeight: 90,
+                                    audio: [audioInfo]
+                                });
+                                console.log('[NCM] 新播放器创建成功');
+                            } catch (createError) {
+                                console.error('[NCM] 创建播放器失败:', createError);
+                                throw new Error('播放器初始化失败: ' + createError.message);
+                            }
                         }
                         
+                        console.log('[NCM] 播放成功:', song.name);
                         this.$message.success('开始播放: ' + song.name);
                     } catch (e) {
-                        console.error('播放失败:', e);
-                        this.$message.error('播放失败');
+                        console.error('[NCM] 播放失败:', e);
+                        console.error('[NCM] 错误堆栈:', e.stack);
+                        this.$message.error('播放失败: ' + e.message);
                         this.cachingMusic = false;
                     } finally {
                         this.loadingSongId = null;
                     }
                 },
                 async openPlaylist(playlistId) {
+                    console.log('[NCM] 打开歌单, ID:', playlistId);
                     this.$message.info('正在加载歌单...');
                     try {
                         const response = await fetch(`/api/ncm/playlist/detail?id=${playlistId}`);
                         const data = await response.json();
+                        console.log('[NCM] 歌单详情响应:', JSON.stringify(data));
                         
                         if (data.code === 200 && data.playlist && data.playlist.tracks) {
                             this.searchResults = data.playlist.tracks.slice(0, 50).map(track => ({
@@ -581,9 +692,12 @@
                                 picUrl: track.al ? track.al.picUrl : null
                             }));
                             this.showSearchResults = true;
+                            console.log('[NCM] 歌单加载成功, 歌曲数量:', this.searchResults.length);
+                        } else {
+                            console.warn('[NCM] 歌单数据格式异常');
                         }
                     } catch (e) {
-                        console.error('加载歌单失败:', e);
+                        console.error('[NCM] 加载歌单失败:', e);
                         this.$message.error('加载歌单失败');
                     }
                 }
