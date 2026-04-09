@@ -737,17 +737,19 @@
                 return;
             }
             
-            listContainer.innerHTML = novels.map(novel => `
-                <div class="novel-item" data-novel="${novel.name}" onclick="selectNovel('${novel.name}')">
-                    <span class="material-icons">book</span>
-                    <div class="novel-info">
-                        <span class="novel-name">${novel.name}</span>
-                        <span class="novel-author">作者：${novel.author || '未知作者'}</span>
-                        <span class="novel-latest-chapter">最新章节：${novel.latest_chapter || '未知章节'}</span>
-                        ${novel.last_read_chapter ? `<span class="novel-last-read">上次读到：${novel.last_read_chapter}</span>` : ''}
+            listContainer.innerHTML = novels.map(function(novel) {
+                return `
+                    <div class="novel-item" data-novel="${novel.name}" onclick="selectNovel('${novel.name}')">
+                        <span class="material-icons">book</span>
+                        <div class="novel-info">
+                            <span class="novel-name">${novel.name}</span>
+                            <span class="novel-author">作者：${novel.author || '未知作者'}</span>
+                            <span class="novel-latest-chapter">最新章节：${novel.latest_chapter || '未知章节'}</span>
+                            ${novel.last_read_chapter ? `<span class="novel-last-read">上次读到：${novel.last_read_chapter}</span>` : ''}
+                        </div>
                     </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
         
         // 选择小说
@@ -755,7 +757,7 @@
             console.log('选择小说:', novelName);
             
             // 更新选中状态
-            document.querySelectorAll('.novel-item').forEach(item => {
+            document.querySelectorAll('.novel-item').forEach(function(item) {
                 item.classList.remove('active');
                 if (item.dataset.novel === novelName) {
                     item.classList.add('active');
@@ -763,7 +765,7 @@
             });
             
             currentNovel = novelName;
-            const novelData = novels.find(n => n.name === novelName);
+            const novelData = novels.find(function(n) { return n.name === novelName; });
             currentNovelAuthor = novelData ? (novelData.author || '未知作者') : '未知作者';
             
             // 显示加载状态
@@ -1005,14 +1007,14 @@
                 return;
             }
             
-            chapters.forEach((chapter, index) => {
+            chapters.forEach(function(chapter, index) {
                 const li = document.createElement('li');
                 li.className = `toc-item ${index === currentChapter ? 'active' : ''}`;
                 li.innerHTML = `
                     <span class="chapter-index">${index + 1}.</span>
                     ${chapter.name}
                 `;
-                li.onclick = () => {
+                li.onclick = function() {
                     loadChapter(index);
                     toggleToc();
                 };
