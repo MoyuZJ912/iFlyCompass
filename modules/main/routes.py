@@ -22,6 +22,17 @@ def tools():
     return render_template('tools.html', 
                          current_user=current_user)
 
+@main_bp.route('/board/swipe-test')
+@login_required
+def swipe_test():
+    if not (current_user.is_admin or current_user.is_super_admin):
+        return render_template('error.html', 
+                             error_title='权限不足',
+                             error_message='您没有权限访问此页面',
+                             current_user=current_user), 403
+    return render_template('swipe_test.html', 
+                         current_user=current_user)
+
 @main_bp.route('/temp/<path:filename>')
 def serve_temp(filename):
     return send_from_directory(Config.TEMP_DIR, filename)

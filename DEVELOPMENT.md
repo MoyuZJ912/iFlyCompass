@@ -2,6 +2,48 @@
 
 ## 版本更新
 
+### REL2.1.3
+
+**手势防御系统 + 随身听优化**
+
+- **防御层 5：absolute 定位 + body 缓冲垫**：
+  - 解决宿主 App 全局手势劫持页面滚动的问题
+  - 通过 `#touch-buffer` 元素创建可滚动的 body 区域
+  - 欺骗浏览器认为页面可滚动，从而让内部内容区域正常滚动
+  - 支持四方向滚动（上、下、左、右）
+  - 侧边栏和标题栏通过反向 transform 固定位置
+
+- **CSS 实现**：
+  - `html.touch-defense-5`：禁用 overscroll-behavior
+  - `body.touch-defense-5`：设置 overflow: auto，允许滚动
+  - `.touch-defense-5 #scroll-wrap`：absolute 定位，跟随 body 滚动
+  - `.touch-defense-5 .console-content`：设置 touch-action: pan-x pan-y
+
+- **JavaScript 滚动同步**：
+  - 监听 window scroll 事件
+  - 主容器通过 transform 跟随 body 滚动
+  - 侧边栏和标题栏通过反向 transform 固定位置
+
+- **滑动测试页面**：
+  - 新增 `/board/swipe-test` 路由
+  - 仅管理员和超级管理员可访问
+  - 从用户下拉菜单进入（个人设置下方）
+  - 测试四方向滑动功能
+
+- **随身听优化**：
+  - 搜索结果调用 `/api/ncm/song/detail` 获取完整歌曲信息
+  - 修复搜索结果封面显示默认图片、歌手显示未知的问题
+  - 新增封面缓存 API `/api/ncm/cache-cover`
+  - 移除播放列表功能，改为单曲播放模式
+  - 点击新歌曲时替换当前播放的歌曲
+
+- **新增 API**：
+  - `POST /api/ncm/cache-cover` - 缓存封面图片
+  - `GET /music/cache/covers/<filename>` - 提供缓存的封面文件
+
+- **新增文件**：
+  - `templates/swipe_test.html` - 滑动测试页面
+
 ### EVA2.1.2
 
 **沉浸式阅读器兼容性修复**
@@ -679,6 +721,93 @@
 - **参数**：
   - code: 表情包合集码
 - **返回**：表情合集中的表情列表 JSON
+
+### 3.7 随身听相关 API
+
+#### 3.7.1 搜索歌曲
+
+- **URL**：`/api/ncm/search`
+- **方法**：GET
+- **权限**：登录用户
+- **参数**：
+  - keywords: 搜索关键词
+  - limit: 返回数量（可选，默认 30）
+- **返回**：歌曲列表 JSON
+
+#### 3.7.2 获取歌曲详情
+
+- **URL**：`/api/ncm/song/detail`
+- **方法**：GET
+- **权限**：登录用户
+- **参数**：
+  - ids: 歌曲 ID（多个用逗号分隔）
+- **返回**：歌曲详情列表 JSON
+
+#### 3.7.3 获取歌曲播放地址
+
+- **URL**：`/api/ncm/song/url`
+- **方法**：GET
+- **权限**：登录用户
+- **参数**：
+  - id: 歌曲 ID
+- **返回**：播放地址 JSON
+
+#### 3.7.4 获取推荐歌单
+
+- **URL**：`/api/ncm/personalized`
+- **方法**：GET
+- **权限**：登录用户
+- **参数**：
+  - limit: 返回数量（可选，默认 10）
+- **返回**：推荐歌单列表 JSON
+
+#### 3.7.5 获取热搜列表
+
+- **URL**：`/api/ncm/hot-search`
+- **方法**：GET
+- **权限**：登录用户
+- **返回**：热搜列表 JSON
+
+#### 3.7.6 获取歌单详情
+
+- **URL**：`/api/ncm/playlist/detail`
+- **方法**：GET
+- **权限**：登录用户
+- **参数**：
+  - id: 歌单 ID
+- **返回**：歌单详情 JSON
+
+#### 3.7.7 缓存音乐到本地
+
+- **URL**：`/api/ncm/cache-music`
+- **方法**：POST
+- **权限**：登录用户
+- **参数**：
+  - id: 歌曲 ID
+- **返回**：缓存文件路径 JSON
+
+#### 3.7.8 缓存封面图片
+
+- **URL**：`/api/ncm/cache-cover`
+- **方法**：POST
+- **权限**：登录用户
+- **参数**：
+  - url: 封面图片 URL
+- **返回**：缓存文件路径 JSON
+
+#### 3.7.9 获取缓存的音乐文件
+
+- **URL**：`/music/<filename>`
+- **方法**：GET
+- **权限**：登录用户
+- **返回**：音乐文件
+
+#### 3.7.10 获取缓存的封面文件
+
+- **URL**：`/music/cache/covers/<filename>`
+- **方法**：GET
+- **权限**：登录用户
+- **返回**：封面图片文件
 
 ## 4. WebSocket 事件
 

@@ -2,7 +2,7 @@
 
 ## 项目简介
 
-**版本：EVA2.1.2**
+**版本：REL2.1.3**
 
 iFlyCompass 是一个多功能的 Web 应用平台，采用模块化架构设计，提供了多种实用工具和功能，包括：
 
@@ -13,6 +13,7 @@ iFlyCompass 是一个多功能的 Web 应用平台，采用模块化架构设计
 - **表情包管理**：表情商城、个人收藏、表情包合集管理
 - **用户管理**：支持用户注册、登录、权限管理
 - **Passkey 管理**：支持生成和管理注册邀请码
+- **手势防御**：防御层 5 技术，防止宿主 App 全局手势劫持页面滚动
 
 ## 技术栈
 
@@ -190,6 +191,7 @@ iFlyCompass/
 │   ├── board.html           # 控制面板页面
 │   ├── user_management.html # 用户管理页面
 │   ├── passkey_management.html # Passkey 管理页面
+│   ├── swipe_test.html      # 滑动测试页面
 │   └── tools.html           # 工具页面
 ├── instance/                 # 数据库文件目录
 │   ├── users.db             # 用户数据库
@@ -197,6 +199,7 @@ iFlyCompass/
 ├── stickers/                 # 表情包缓存目录
 ├── temp/                     # 临时文件目录
 │   └── music/               # 音乐缓存目录
+│       └── covers/          # 封面缓存目录
 └── requirements.txt          # 依赖文件
 ```
 

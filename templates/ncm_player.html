@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="touch-defense-5">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -239,7 +239,8 @@
         }
     </style>
 </head>
-<body>
+<body class="touch-defense-5">
+    <div id="touch-buffer"></div>
     <div id="loading-overlay">
         <div class="loading-spinner"></div>
         <div class="loading-text">加载中...</div>
@@ -396,6 +397,41 @@
     <script src="/assets/js/element-ui.js"></script>
     <script src="/assets/js/aplayer.min.js"></script>
     <script>
+        // 防御层 5 滚动处理（四方向支持）
+        // 主容器跟随 body 滚动，侧边栏和标题栏通过反向 transform 固定
+        var defenseLayer5ScrollHandler = null;
+        
+        function enableDefenseLayer5() {
+            if (!defenseLayer5ScrollHandler) {
+                defenseLayer5ScrollHandler = function() {
+                    var scrollLeft = document.documentElement.scrollLeft || document.body.scrollLeft;
+                    var scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+                    
+                    // 主容器跟随滚动
+                    var container = document.querySelector('.console-container');
+                    if (container) {
+                        container.style.transform = 'translate(' + (-scrollLeft) + 'px, ' + (-scrollTop) + 'px)';
+                    }
+                    
+                    // 侧边栏反向固定
+                    var sidebar = document.querySelector('.console-sidebar');
+                    if (sidebar) {
+                        sidebar.style.transform = 'translate(' + scrollLeft + 'px, ' + scrollTop + 'px)';
+                    }
+                    
+                    // 标题栏反向固定
+                    var header = document.querySelector('.console-header');
+                    if (header) {
+                        header.style.transform = 'translate(' + scrollLeft + 'px, ' + scrollTop + 'px)';
+                    }
+                };
+                window.addEventListener('scroll', defenseLayer5ScrollHandler, { passive: true });
+            }
+        }
+        
+        // 启用防御层 5
+        enableDefenseLayer5();
+        
         // 兼容性处理：旧版 WebView 可能没有 localStorage
         if (!window.localStorage) {
             console.log('[NCM] 检测到无 localStorage，创建 mock 对象');
@@ -528,10 +564,30 @@
                         const data = await response.json();
                         console.log('[NCM] 搜索响应:', JSON.stringify(data));
                         if (data.code === 200 && data.result && data.result.songs) {
-                            this.searchResults = data.result.songs.map(song => ({
-                                ...song,
-                                picUrl: song.al ? song.al.picUrl : null
-                            }));
+                            const songIds = data.result.songs.map(s => s.id).join(',');
+                            console.log('[NCM] 获取歌曲详情, IDs:', songIds);
+                            
+                            const detailResponse = await fetch(`/api/ncm/song/detail?ids=${songIds}`);
+                            const detailData = await detailResponse.json();
+                            console.log('[NCM] 歌曲详情响应:', JSON.stringify(detailData));
+                            
+                            if (detailData.code === 200 && detailData.songs) {
+                                this.searchResults = detailData.songs.map(song => ({
+                                    id: song.id,
+                                    name: song.name,
+                                    ar: song.ar,
+                                    al: song.al,
+                                    picUrl: song.al ? song.al.picUrl : null
+                                }));
+                            } else {
+                                this.searchResults = data.result.songs.map(song => ({
+                                    id: song.id,
+                                    name: song.name,
+                                    ar: song.artists || song.ar || [],
+                                    al: song.album || song.al || {},
+                                    picUrl: (song.album && song.album.picUrl) || (song.al && song.al.picUrl) || null
+                                }));
+                            }
                             console.log('[NCM] 搜索成功, 结果数量:', this.searchResults.length);
                         } else {
                             this.searchResults = [];
@@ -602,40 +658,63 @@
                         console.log('[NCM] 步骤4: 音乐缓存成功, 本地路径:', cacheData.path);
                         
                         const artistName = song.ar ? song.ar.map(a => a.name).join('/') : '未知歌手';
-                        const coverUrl = song.picUrl || (song.al && song.al.picUrl) || '';
+                        const originalCoverUrl = song.picUrl || (song.al && song.al.picUrl) || '';
+                        let coverUrl = originalCoverUrl;
+                        
+                        // 缓存封面
+                        if (originalCoverUrl) {
+                            console.log('[NCM] 步骤4.5: 缓存封面...');
+                            try {
+                                const coverResponse = await fetch('/api/ncm/cache-cover', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ url: originalCoverUrl + '?param=200y200' })
+                                });
+                                const coverData = await coverResponse.json();
+                                if (coverData.success) {
+                                    coverUrl = coverData.url;
+                                    console.log('[NCM] 封面缓存成功:', coverUrl);
+                                }
+                            } catch (coverError) {
+                                console.warn('[NCM] 封面缓存失败:', coverError);
+                            }
+                        }
                         
                         const audioInfo = {
                             name: song.name,
                             artist: artistName,
                             url: cacheData.path,
-                            cover: coverUrl + '?param=200y200'
+                            cover: coverUrl
                         };
                         console.log('[NCM] 步骤5: 准备播放, 音频信息:', JSON.stringify(audioInfo));
                         
                         try {
-                            if (this.aplayer && this.aplayer.list && this.aplayer.list.audios) {
-                                console.log('[NCM] 播放器已存在, 添加到播放列表');
-                                const oldCount = this.aplayer.list.audios.length;
+                            if (this.aplayer) {
+                                console.log('[NCM] 播放器已存在, 清空并替换当前歌曲');
+                                // 清空播放列表并添加新歌曲
+                                const currentAudios = this.aplayer.list.audios || [];
+                                currentAudios.forEach(() => {
+                                    if (this.aplayer.list.audios.length > 0) {
+                                        this.aplayer.list.remove(0);
+                                    }
+                                });
                                 this.aplayer.list.add([audioInfo]);
-                                console.log('[NCM] 播放列表数量:', oldCount, '->', this.aplayer.list.audios.length);
-                                const newIndex = this.aplayer.list.audios.length - 1;
-                                console.log('[NCM] 切换到新歌曲, 索引:', newIndex);
-                                this.aplayer.list.switch(newIndex);
                                 this.aplayer.play();
+                                console.log('[NCM] 播放列表已替换, 开始播放');
                             } else {
-                                console.log('[NCM] 播放器不存在或不支持, 创建新播放器');
+                                console.log('[NCM] 创建新播放器');
                                 this.aplayer = new APlayer({
                                     container: document.getElementById('aplayer'),
                                     fixed: false,
                                     autoplay: true,
                                     theme: '#409eff',
-                                    loop: 'all',
+                                    loop: 'none',
                                     order: 'list',
                                     preload: 'auto',
                                     volume: 0.7,
                                     mutex: true,
-                                    listFolded: false,
-                                    listMaxHeight: 90,
+                                    listFolded: true,
+                                    listMaxHeight: 0,
                                     audio: [audioInfo]
                                 });
                                 console.log('[NCM] 播放器创建成功');
@@ -648,13 +727,13 @@
                                     fixed: false,
                                     autoplay: true,
                                     theme: '#409eff',
-                                    loop: 'all',
+                                    loop: 'none',
                                     order: 'list',
                                     preload: 'auto',
                                     volume: 0.7,
                                     mutex: true,
-                                    listFolded: false,
-                                    listMaxHeight: 90,
+                                    listFolded: true,
+                                    listMaxHeight: 0,
                                     audio: [audioInfo]
                                 });
                                 console.log('[NCM] 新播放器创建成功');

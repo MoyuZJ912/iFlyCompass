@@ -1,6 +1,6 @@
 from flask import jsonify, request, send_file
 from . import ncm_bp
-from utils.music_cache import get_cached_music, cache_music
+from utils.music_cache import get_cached_music, cache_music, cache_cover
 
 NCM_API_BASE = 'http://wjysrv.moyuzj.cn:29996'
 
@@ -165,3 +165,29 @@ def serve_music(filename):
     print(f"[NCM] 提供音乐文件: {filename}")
     music_dir = 'temp/music'
     return send_file(f'{music_dir}/{filename}')
+
+@ncm_bp.route('/api/ncm/cache-cover', methods=['POST'])
+def api_cache_cover():
+    data = request.get_json()
+    pic_url = data.get('url')
+    
+    print(f"[NCM] 缓存封面请求: {pic_url[:60] if pic_url else 'None'}...")
+    
+    if not pic_url:
+        print("[NCM] 缓存封面失败: 缺少URL")
+        return jsonify({'success': False, 'error': '缺少URL'})
+    
+    cached_url = cache_cover(pic_url)
+    
+    if cached_url:
+        print(f"[NCM] 封面缓存成功: {cached_url}")
+        return jsonify({'success': True, 'url': cached_url})
+    else:
+        print("[NCM] 封面缓存失败")
+        return jsonify({'success': False, 'error': '缓存失败'})
+
+@ncm_bp.route('/music/cache/covers/<filename>', methods=['GET'])
+def serve_cached_cover(filename):
+    print(f"[NCM] 提供缓存封面: {filename}")
+    cover_dir = 'temp/music/covers'
+    return send_file(f'{cover_dir}/{filename}')

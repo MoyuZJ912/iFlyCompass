@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="touch-defense-5">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -107,7 +107,8 @@
         }
     </style>
 </head>
-<body>
+<body class="touch-defense-5">
+    <div id="touch-buffer"></div>
     <div id="loading-overlay">
         <div class="loading-spinner"></div>
         <div class="loading-text">加载中...</div>
@@ -179,6 +180,10 @@
                             <div class="user-dropdown-item" @click="openProfileDialog">
                                 <i class="el-icon-user"></i>
                                 <span>个人设置</span>
+                            </div>
+                            <div class="user-dropdown-item" @click="goSwipeTest" v-if="isSuperAdmin">
+                                <i class="el-icon-mobile-phone"></i>
+                                <span>滑动测试</span>
                             </div>
                             <div class="user-dropdown-divider"></div>
                             <div class="user-dropdown-item logout-item" @click="confirmLogout">
@@ -331,8 +336,43 @@
     <script src="/assets/js/vue.min.js"></script>
     <script src="/assets/js/element-ui.js"></script>
     <script>
+        // 防御层 5 滚动处理（四方向支持）
+        // 主容器跟随 body 滚动，侧边栏和标题栏通过反向 transform 固定
+        var defenseLayer5ScrollHandler = null;
+        
+        function enableDefenseLayer5() {
+            if (!defenseLayer5ScrollHandler) {
+                defenseLayer5ScrollHandler = function() {
+                    var scrollLeft = document.documentElement.scrollLeft || document.body.scrollLeft;
+                    var scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+                    
+                    // 主容器跟随滚动
+                    var container = document.querySelector('.console-container');
+                    if (container) {
+                        container.style.transform = 'translate(' + (-scrollLeft) + 'px, ' + (-scrollTop) + 'px)';
+                    }
+                    
+                    // 侧边栏反向固定
+                    var sidebar = document.querySelector('.console-sidebar');
+                    if (sidebar) {
+                        sidebar.style.transform = 'translate(' + scrollLeft + 'px, ' + scrollTop + 'px)';
+                    }
+                    
+                    // 标题栏反向固定
+                    var header = document.querySelector('.console-header');
+                    if (header) {
+                        header.style.transform = 'translate(' + scrollLeft + 'px, ' + scrollTop + 'px)';
+                    }
+                };
+                window.addEventListener('scroll', defenseLayer5ScrollHandler, { passive: true });
+            }
+        }
+        
         // 页面加载完成日志
         console.log('=== iFlyCompass 用户管理页面加载完成 ===');
+        
+        // 启用防御层 5
+        enableDefenseLayer5();
         
         new Vue({
             el: '#app',
@@ -609,6 +649,10 @@
                             this.profileForm.password = '';
                         });
                     this.profileDialogVisible = true;
+                },
+                goSwipeTest() {
+                    this.userMenuVisible = false;
+                    window.location.href = '/board/swipe-test';
                 },
                 saveProfile() {
                     fetch('/api/user/profile', {

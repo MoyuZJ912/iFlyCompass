@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="touch-defense-5">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>滑动测试 - iFlyCompass</title>
+    <link rel="stylesheet" href="/assets/css/loading.css">
+    <link rel="stylesheet" href="/assets/css/material-icons.css">
+    <link rel="stylesheet" href="/assets/css/element-ui.css">
+    <link rel="stylesheet" href="/assets/css/console.css">
+    <style>
+        .user-menu-container {
+            position: relative;
+            cursor: pointer;
+            z-index: 1000;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        
+        .user-info:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .user-info .el-icon-arrow-down {
+            margin-left: 8px;
+            transition: transform 0.3s;
+        }
+        
+        .user-info .el-icon-arrow-down.rotated {
+            transform: rotate(180deg);
+        }
+        
+        .user-dropdown-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 4px;
+            background: #fff;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            min-width: 200px;
+            overflow: hidden;
+        }
+        
+        .user-dropdown-header {
+            padding: 12px 16px;
+            background: #f5f7fa;
+            border-bottom: 1px solid #e8e8e8;
+        }
+        
+        .user-dropdown-header .display-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .user-dropdown-header .username-label {
+            font-size: 12px;
+            color: #999;
+            margin-top: 2px;
+        }
+        
+        .user-dropdown-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            color: #333;
+        }
+        
+        .user-dropdown-item:hover:not(.disabled) {
+            background-color: #f5f7fa;
+        }
+        
+        .user-dropdown-item.disabled {
+            cursor: default;
+        }
+        
+        .user-dropdown-divider {
+            height: 1px;
+            background-color: #e8e8e8;
+            margin: 4px 0;
+        }
+        
+        .user-dropdown-item.logout-item {
+            color: #ff4d4f;
+        }
+        
+        .user-dropdown-item.logout-item:hover {
+            background-color: #fff1f0;
+        }
+        
+        .user-dropdown-item i {
+            margin-right: 8px;
+        }
+        
+        .swipe-test-container {
+            padding: 20px;
+        }
+        
+        .test-section {
+            margin-bottom: 24px;
+        }
+        
+        .test-section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #303133;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #409EFF;
+        }
+        
+        .horizontal-scroll-wrapper {
+            overflow-x: auto;
+            overflow-y: hidden;
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
+            padding: 16px 0;
+            background: #f5f7fa;
+            border-radius: 8px;
+        }
+        
+        .horizontal-scroll-wrapper::-webkit-scrollbar {
+            height: 6px;
+        }
+        
+        .horizontal-scroll-wrapper::-webkit-scrollbar-thumb {
+            background: #c0c4cc;
+            border-radius: 3px;
+        }
+        
+        .horizontal-scroll-content {
+            display: inline-flex;
+            gap: 16px;
+            padding: 0 16px;
+        }
+        
+        .scroll-card {
+            flex-shrink: 0;
+            width: 200px;
+            height: 150px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+            font-size: 24px;
+            font-weight: bold;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .scroll-card:nth-child(2n) {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        
+        .scroll-card:nth-child(3n) {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+        
+        .scroll-card:nth-child(4n) {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+        }
+        
+        .scroll-card:nth-child(5n) {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        }
+        
+        .scroll-card span {
+            font-size: 14px;
+            opacity: 0.8;
+            margin-top: 8px;
+        }
+        
+        .vertical-scroll-wrapper {
+            height: 300px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+            background: #f5f7fa;
+            border-radius: 8px;
+            padding: 16px;
+        }
+        
+        .vertical-scroll-wrapper::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .vertical-scroll-wrapper::-webkit-scrollbar-thumb {
+            background: #c0c4cc;
+            border-radius: 3px;
+        }
+        
+        .vertical-item {
+            padding: 16px;
+            background: #fff;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+        
+        .vertical-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .vertical-item-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+            font-size: 20px;
+        }
+        
+        .vertical-item-content {
+            flex: 1;
+        }
+        
+        .vertical-item-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #303133;
+            margin-bottom: 4px;
+        }
+        
+        .vertical-item-desc {
+            font-size: 12px;
+            color: #909399;
+        }
+        
+        .gesture-info {
+            background: #fff;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .gesture-info-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #303133;
+            margin-bottom: 12px;
+        }
+        
+        .gesture-row {
+            display: flex;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #ebeef5;
+        }
+        
+        .gesture-row:last-child {
+            border-bottom: none;
+        }
+        
+        .gesture-label {
+            width: 100px;
+            font-size: 13px;
+            color: #606266;
+        }
+        
+        .gesture-value {
+            flex: 1;
+            font-size: 13px;
+            color: #409EFF;
+            font-family: monospace;
+        }
+        
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+        
+        .status-indicator.success {
+            background: #f0f9eb;
+            color: #67c23a;
+        }
+        
+        .status-indicator.warning {
+            background: #fdf6ec;
+            color: #e6a23c;
+        }
+        
+        .status-indicator.danger {
+            background: #fef0f0;
+            color: #f56c6c;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+        
+        .profile-dialog-form .el-form-item {
+            margin-bottom: 18px;
+        }
+    </style>
+</head>
+<body class="touch-defense-5">
+    <div id="touch-buffer"></div>
+    <div id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">加载中...</div>
+    </div>
+    <div id="app">
+        <el-container class="console-container">
+            <el-aside width="64px" class="console-sidebar" :width="isCollapse ? '64px' : '200px'">
+                <div class="sidebar-header" @click="toggleCollapse">
+                    <img src="/assets/images/logo-trans-white.png" alt="Logo" class="sidebar-logo">
+                    <span v-show="!isCollapse" class="sidebar-brand">iFlyCompass</span>
+                    <i v-show="!isCollapse" class="el-icon-s-fold sidebar-toggle"></i>
+                </div>
+                <el-menu
+                    :default-active="activeMenu"
+                    class="el-menu-vertical-demo"
+                    background-color="#1a365d"
+                    text-color="#ffffff"
+                    active-text-color="#409EFF"
+                    :collapse="isCollapse"
+                    @select="handleMenuClick"
+                >
+                    <el-menu-item index="dashboard">
+                        <i class="el-icon-s-home"></i>
+                        <span slot="title">首页</span>
+                    </el-menu-item>
+                    <el-menu-item index="tools">
+                        <i class="el-icon-s-tools"></i>
+                        <span slot="title">小工具</span>
+                    </el-menu-item>
+                    <el-menu-item index="chat">
+                        <i class="el-icon-chat-dot-round"></i>
+                        <span slot="title">聊天室</span>
+                    </el-menu-item>
+                </el-menu>
+            </el-aside>
+            
+            <el-container>
+                <el-header class="console-header">
+                    <div class="header-left">
+                        <div class="back-btn" @click="goBack">
+                            <i class="el-icon-arrow-left"></i>
+                            <span style="margin-left: 4px;">返回</span>
+                        </div>
+                    </div>
+                    <div class="header-right">
+                        <h1 style="font-size: 18px;">滑动测试</h1>
+                    </div>
+                </el-header>
+                
+                <el-main class="console-content">
+                    <div class="content-wrapper">
+                        <div class="swipe-test-container">
+                            <div class="gesture-info">
+                                <div class="gesture-info-title">手势状态监测</div>
+                                <div class="gesture-row">
+                                    <span class="gesture-label">触摸状态</span>
+                                    <span class="gesture-value">[[ touchStatus ]]</span>
+                                </div>
+                                <div class="gesture-row">
+                                    <span class="gesture-label">触摸位置</span>
+                                    <span class="gesture-value">X: [[ touchX ]] | Y: [[ touchY ]]</span>
+                                </div>
+                                <div class="gesture-row">
+                                    <span class="gesture-label">移动距离</span>
+                                    <span class="gesture-value">X: [[ deltaX ]]px | Y: [[ deltaY ]]px</span>
+                                </div>
+                                <div class="gesture-row">
+                                    <span class="gesture-label">滑动方向</span>
+                                    <span class="gesture-value">[[ swipeDirection ]]</span>
+                                </div>
+                                <div class="gesture-row">
+                                    <span class="gesture-label">防御层状态</span>
+                                    <span class="status-indicator success">
+                                        <span class="status-dot"></span>
+                                        已启用
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <div class="test-section">
+                                <div class="test-section-title">水平滑动测试（左右滑动）</div>
+                                <p style="color: #909399; font-size: 13px; margin-bottom: 12px;">
+                                    在下方区域左右滑动，测试水平滚动是否正常工作
+                                </p>
+                                <div class="horizontal-scroll-wrapper" @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
+                                    <div class="horizontal-scroll-content">
+                                        <div v-for="i in 10" :key="i" class="scroll-card">
+                                            卡片 [[ i ]]
+                                            <span>向左滑动查看更多</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="test-section">
+                                <div class="test-section-title">垂直滑动测试（上下滑动）</div>
+                                <p style="color: #909399; font-size: 13px; margin-bottom: 12px;">
+                                    在下方区域上下滑动，测试垂直滚动是否正常工作
+                                </p>
+                                <div class="vertical-scroll-wrapper" @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
+                                    <div v-for="i in 20" :key="i" class="vertical-item">
+                                        <div class="vertical-item-icon">
+                                            <i class="el-icon-document"></i>
+                                        </div>
+                                        <div class="vertical-item-content">
+                                            <div class="vertical-item-title">列表项 [[ i ]]</div>
+                                            <div class="vertical-item-desc">这是第 [[ i ]] 个测试项目，用于验证垂直滚动功能</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="test-section">
+                                <div class="test-section-title">自由滑动区域</div>
+                                <p style="color: #909399; font-size: 13px; margin-bottom: 12px;">
+                                    在此区域可以自由滑动，测试上下左右四个方向的滚动
+                                </p>
+                                <div style="height: 300px; overflow: auto; background: #f5f7fa; border-radius: 8px; position: relative;" @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
+                                    <div style="width: 200%; height: 200%; padding: 20px;">
+                                        <div v-for="row in 10" :key="'row-' + row" style="display: flex; gap: 16px; margin-bottom: 16px;">
+                                            <div v-for="col in 5" :key="'col-' + col" style="width: 150px; height: 100px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; display: flex; justify-content: center; align-items: center; color: #fff; font-weight: bold;">
+                                                [[ row ]] - [[ col ]]
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </el-main>
+            </el-container>
+        </el-container>
+        
+        <el-dialog
+            title="个人设置"
+            :visible.sync="profileDialogVisible"
+            width="450px"
+        >
+            <el-form :model="profileForm" label-width="80px" class="profile-dialog-form">
+                <el-form-item label="用户名">
+                    <el-input :value="username" disabled></el-input>
+                </el-form-item>
+                <el-form-item label="昵称">
+                    <el-input v-model="profileForm.nickname" placeholder="请输入昵称"></el-input>
+                </el-form-item>
+                <el-form-item label="新密码" v-if="isSuperAdmin">
+                    <el-input v-model="profileForm.password" type="password" placeholder="留空则不修改密码"></el-input>
+                </el-form-item>
+            </el-form>
+            <span slot="footer" class="dialog-footer">
+                <el-button @click="profileDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="saveProfile">保存</el-button>
+            </span>
+        </el-dialog>
+    </div>
+
+    <script src="/assets/js/vue.min.js"></script>
+    <script src="/assets/js/element-ui.js"></script>
+    <script>
+        // 防御层 5 滚动处理（四方向支持）
+        // 主容器跟随 body 滚动，侧边栏和标题栏通过反向 transform 固定
+        var defenseLayer5ScrollHandler = null;
+        
+        function enableDefenseLayer5() {
+            if (!defenseLayer5ScrollHandler) {
+                defenseLayer5ScrollHandler = function() {
+                    var scrollLeft = document.documentElement.scrollLeft || document.body.scrollLeft;
+                    var scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+                    
+                    // 主容器跟随滚动
+                    var container = document.querySelector('.console-container');
+                    if (container) {
+                        container.style.transform = 'translate(' + (-scrollLeft) + 'px, ' + (-scrollTop) + 'px)';
+                    }
+                    
+                    // 侧边栏反向固定
+                    var sidebar = document.querySelector('.console-sidebar');
+                    if (sidebar) {
+                        sidebar.style.transform = 'translate(' + scrollLeft + 'px, ' + scrollTop + 'px)';
+                    }
+                    
+                    // 标题栏反向固定
+                    var header = document.querySelector('.console-header');
+                    if (header) {
+                        header.style.transform = 'translate(' + scrollLeft + 'px, ' + scrollTop + 'px)';
+                    }
+                };
+                window.addEventListener('scroll', defenseLayer5ScrollHandler, { passive: true });
+            }
+        }
+        
+        enableDefenseLayer5();
+        
+        console.log('=== iFlyCompass 滑动测试页面加载完成 ===');
+        
+        new Vue({
+            el: '#app',
+            delimiters: ['[[', ']]'],
+            data() {
+                return {
+                    isCollapse: true,
+                    activeMenu: 'tools',
+                    displayName: '{{ current_user.display_name }}',
+                    username: '{{ current_user.username }}',
+                    nickname: '{{ current_user.nickname or "" }}',
+                    isSuperAdmin: {% if current_user.is_super_admin %}true{% else %}false{% endif %},
+                    profileDialogVisible: false,
+                    profileForm: {
+                        nickname: '',
+                        password: ''
+                    },
+                    touchStatus: '未触摸',
+                    touchX: 0,
+                    touchY: 0,
+                    deltaX: 0,
+                    deltaY: 0,
+                    swipeDirection: '无',
+                    startTouchX: 0,
+                    startTouchY: 0
+                };
+            },
+            methods: {
+                toggleCollapse() {
+                    this.isCollapse = !this.isCollapse;
+                },
+                handleMenuClick(key) {
+                    if (key === 'dashboard') {
+                        window.location.href = '/board';
+                    } else if (key === 'tools') {
+                        window.location.href = '/board/tools';
+                    } else if (key === 'chat') {
+                        window.location.href = '/board/chat';
+                    }
+                },
+                goBack() {
+                    window.location.href = '/board';
+                },
+                onTouchStart(e) {
+                    var touch = e.touches[0];
+                    this.touchStatus = '触摸中';
+                    this.startTouchX = touch.clientX;
+                    this.startTouchY = touch.clientY;
+                    this.touchX = touch.clientX;
+                    this.touchY = touch.clientY;
+                    this.deltaX = 0;
+                    this.deltaY = 0;
+                },
+                onTouchMove(e) {
+                    var touch = e.touches[0];
+                    this.touchX = touch.clientX;
+                    this.touchY = touch.clientY;
+                    this.deltaX = Math.round(touch.clientX - this.startTouchX);
+                    this.deltaY = Math.round(touch.clientY - this.startTouchY);
+                    
+                    var absX = Math.abs(this.deltaX);
+                    var absY = Math.abs(this.deltaY);
+                    
+                    if (absX > 10 || absY > 10) {
+                        if (absX > absY) {
+                            this.swipeDirection = this.deltaX > 0 ? '向右' : '向左';
+                        } else {
+                            this.swipeDirection = this.deltaY > 0 ? '向下' : '向上';
+                        }
+                    }
+                },
+                onTouchEnd(e) {
+                    this.touchStatus = '触摸结束';
+                    
+                    setTimeout(function() {
+                        this.touchStatus = '未触摸';
+                        this.swipeDirection = '无';
+                    }.bind(this), 500);
+                },
+                openProfileDialog() {
+                    this.profileForm.nickname = this.nickname;
+                    this.profileForm.password = '';
+                    this.profileDialogVisible = true;
+                },
+                saveProfile() {
+                    fetch('/api/user/profile', {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(this.profileForm)
+                    })
+                    .then(function(response) { return response.json(); })
+                    .then(function(data) {
+                        if (data.error) {
+                            this.$message.error(data.error);
+                        } else {
+                            this.$message.success('保存成功');
+                            this.profileDialogVisible = false;
+                            if (data.display_name) {
+                                this.displayName = data.display_name;
+                                this.nickname = this.profileForm.nickname;
+                            }
+                        }
+                    }.bind(this))
+                    .catch(function(error) {
+                        console.error('保存失败:', error);
+                        this.$message.error('保存失败');
+                    }.bind(this));
+                }
+            }
+        });
+    </script>
+    <script src="/assets/js/loading.js"></script>
+</body>
+</html>
