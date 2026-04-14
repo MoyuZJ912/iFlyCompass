@@ -1010,6 +1010,10 @@
                         <i class="el-icon-chat-dot-round"></i>
                         <span slot="title">聊天室</span>
                     </el-menu-item>
+                    <el-menu-item index="settings" v-if="isAdmin">
+                        <i class="el-icon-setting"></i>
+                        <span slot="title">系统设置</span>
+                    </el-menu-item>
                 </el-menu>
             </el-aside>
             
@@ -1497,7 +1501,7 @@
             delimiters: ['[[', ']]'],
             data() {
                 return {
-                    isCollapse: true,
+                    isCollapse: {% if sidebar_expanded %}false{% else %}true{% endif %},
                     activeMenu: 'chat',
                     username: '{{ username }}',
                     passkeyUsed: {% if passkey_used %}'{{ passkey_used }}'{% else %}null{% endif %},
@@ -1571,6 +1575,8 @@
                         window.location.href = '/board/users';
                     } else if (key === 'passkeys' && this.isSuperAdmin) {
                         window.location.href = '/board/passkeys';
+                    } else if (key === 'settings' && this.isAdmin) {
+                        window.location.href = '/board/settings';
                     }
                 },
                 

@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="touch-defense-5">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统设置 - iFlyCompass</title>
+    <link rel="stylesheet" href="/assets/css/loading.css">
+    <link rel="stylesheet" href="/assets/css/material-icons.css">
+    <link rel="stylesheet" href="/assets/css/element-ui.css">
+    <link rel="stylesheet" href="/assets/css/console.css">
+    <style>
+        .user-menu-container {
+            position: relative;
+            cursor: pointer;
+            z-index: 1000;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        
+        .user-info:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .user-info .el-icon-arrow-down {
+            margin-left: 8px;
+            transition: transform 0.3s;
+        }
+        
+        .user-info .el-icon-arrow-down.rotated {
+            transform: rotate(180deg);
+        }
+        
+        .user-dropdown-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 4px;
+            background: #fff;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            min-width: 200px;
+            overflow: hidden;
+        }
+        
+        .user-dropdown-header {
+            padding: 12px 16px;
+            background: #f5f7fa;
+            border-bottom: 1px solid #e8e8e8;
+        }
+        
+        .user-dropdown-header .display-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .user-dropdown-header .username-label {
+            font-size: 12px;
+            color: #999;
+            margin-top: 2px;
+        }
+        
+        .user-dropdown-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            color: #333;
+        }
+        
+        .user-dropdown-item:hover:not(.disabled) {
+            background-color: #f5f7fa;
+        }
+        
+        .user-dropdown-item.disabled {
+            cursor: default;
+        }
+        
+        .user-dropdown-divider {
+            height: 1px;
+            background-color: #e8e8e8;
+            margin: 4px 0;
+        }
+        
+        .user-dropdown-item.logout-item {
+            color: #ff4d4f;
+        }
+        
+        .user-dropdown-item.logout-item:hover {
+            background-color: #fff1f0;
+        }
+        
+        .user-dropdown-item i {
+            margin-right: 8px;
+        }
+        
+        .settings-tabs {
+            margin-bottom: 20px;
+        }
+        
+        .settings-section {
+            margin-bottom: 24px;
+        }
+        
+        .settings-section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #303133;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #ebeef5;
+        }
+        
+        .settings-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .settings-item:last-child {
+            border-bottom: none;
+        }
+        
+        .settings-item-label {
+            font-size: 14px;
+            color: #606266;
+        }
+        
+        .settings-item-desc {
+            font-size: 12px;
+            color: #909399;
+            margin-top: 4px;
+        }
+        
+        .settings-item-control {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .settings-item-content {
+            flex: 1;
+        }
+        
+        .input-number-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .input-number-group span {
+            color: #909399;
+            font-size: 14px;
+        }
+        
+        .disabled-label {
+            color: #c0c4cc;
+        }
+        
+        .permission-hint {
+            font-size: 12px;
+            color: #e6a23c;
+            margin-left: 8px;
+        }
+    </style>
+</head>
+<body class="touch-defense-5">
+    <div id="touch-buffer"></div>
+    <div id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">加载中...</div>
+    </div>
+    <div id="app">
+        <el-container class="console-container">
+            <el-aside width="64px" class="console-sidebar" :width="isCollapse ? '64px' : '200px'">
+                <div class="sidebar-header" @click="toggleCollapse">
+                    <img src="/assets/images/logo-trans-white.png" alt="Logo" class="sidebar-logo">
+                    <span v-show="!isCollapse" class="sidebar-brand">iFlyCompass</span>
+                    <i v-show="!isCollapse" class="el-icon-s-fold sidebar-toggle" :class="{ 'rotated': !isCollapse }"></i>
+                </div>
+                
+                <el-menu
+                    :default-active="activeMenu"
+                    class="el-menu-vertical-demo"
+                    background-color="#1a365d"
+                    text-color="#ffffff"
+                    active-text-color="#409EFF"
+                    :collapse="isCollapse"
+                    @select="handleMenuClick"
+                >
+                    <el-menu-item index="dashboard">
+                        <i class="el-icon-s-home"></i>
+                        <span slot="title">首页</span>
+                    </el-menu-item>
+                    <el-menu-item index="tools">
+                        <i class="el-icon-s-tools"></i>
+                        <span slot="title">小工具</span>
+                    </el-menu-item>
+                    <el-menu-item index="games">
+                        <i class="el-icon-s-marketing"></i>
+                        <span slot="title">小游戏</span>
+                    </el-menu-item>
+                    <el-menu-item index="users" v-if="isAdmin">
+                        <i class="el-icon-s-custom"></i>
+                        <span slot="title">用户管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="passkeys" v-if="isSuperAdmin">
+                        <i class="el-icon-key"></i>
+                        <span slot="title">Passkey 管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="chat">
+                        <i class="el-icon-chat-dot-round"></i>
+                        <span slot="title">聊天室</span>
+                    </el-menu-item>
+                    <el-menu-item index="settings" class="active">
+                        <i class="el-icon-setting"></i>
+                        <span slot="title">系统设置</span>
+                    </el-menu-item>
+                </el-menu>
+            </el-aside>
+            
+            <el-container>
+                <el-header class="console-header">
+                    <div class="header-left">
+                        <h1>系统设置</h1>
+                    </div>
+                    <div class="header-right">
+                        <div class="user-menu-container" @click="toggleUserMenu">
+                            <span class="user-info">
+                                您好，[[ displayName ]]
+                                <i class="el-icon-arrow-down" :class="{ 'rotated': userMenuVisible }"></i>
+                            </span>
+                            <div class="user-dropdown-menu" v-show="userMenuVisible" @click.stop>
+                                <div class="user-dropdown-header">
+                                    <div class="display-name">[[ displayName ]]</div>
+                                    <div class="username-label">@[[ username ]]</div>
+                                </div>
+                                <div class="user-dropdown-item" @click="openProfileDialog">
+                                    <i class="el-icon-user"></i>
+                                    <span>个人设置</span>
+                                </div>
+                                <div class="user-dropdown-divider"></div>
+                                <div class="user-dropdown-item logout-item" @click="confirmLogout">
+                                    <i class="el-icon-switch-button"></i>
+                                    <span>退出登录</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </el-header>
+                
+                <el-main class="console-content">
+                    <div class="content-wrapper">
+                        <el-card>
+                            <el-tabs v-model="activeTab" class="settings-tabs">
+                                <el-tab-pane label="通用设置" name="general">
+                                    <div class="settings-section">
+                                        <div class="settings-section-title">首页设置</div>
+                                        <div class="settings-item">
+                                            <div class="settings-item-content">
+                                                <div class="settings-item-label">首页显示设置</div>
+                                                <div class="settings-item-desc">选择首页显示的用户名称类型</div>
+                                            </div>
+                                            <div class="settings-item-control">
+                                                <el-radio-group v-model="settings.general.home_display" @change="saveGeneralSettings">
+                                                    <el-radio label="nickname">显示昵称</el-radio>
+                                                    <el-radio label="username">显示用户名</el-radio>
+                                                </el-radio-group>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="settings-section">
+                                        <div class="settings-section-title">用户设置</div>
+                                        <div class="settings-item">
+                                            <div class="settings-item-content">
+                                                <div class="settings-item-label">允许设置昵称</div>
+                                                <div class="settings-item-desc">关闭后，所有用户将只显示用户名</div>
+                                            </div>
+                                            <div class="settings-item-control">
+                                                <el-switch v-model="settings.general.allow_nickname" @change="saveGeneralSettings"></el-switch>
+                                            </div>
+                                        </div>
+                                        <div class="settings-item">
+                                            <div class="settings-item-content">
+                                                <div class="settings-item-label" :class="{ 'disabled-label': !settings.general.allow_nickname }">昵称长度限制</div>
+                                                <div class="settings-item-desc">设置昵称的最小和最大长度（5-20字之间）</div>
+                                            </div>
+                                            <div class="settings-item-control">
+                                                <div class="input-number-group">
+                                                    <el-input-number 
+                                                        v-model="settings.general.nickname_min_length" 
+                                                        :min="1" 
+                                                        :max="settings.general.nickname_max_length"
+                                                        :disabled="!settings.general.allow_nickname"
+                                                        size="small"
+                                                        @change="saveGeneralSettings"
+                                                    ></el-input-number>
+                                                    <span>至</span>
+                                                    <el-input-number 
+                                                        v-model="settings.general.nickname_max_length" 
+                                                        :min="settings.general.nickname_min_length" 
+                                                        :max="50"
+                                                        :disabled="!settings.general.allow_nickname"
+                                                        size="small"
+                                                        @change="saveGeneralSettings"
+                                                    ></el-input-number>
+                                                    <span>字</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="settings-section">
+                                        <div class="settings-section-title">导航设置</div>
+                                        <div class="settings-item">
+                                            <div class="settings-item-content">
+                                                <div class="settings-item-label">导航栏默认展开</div>
+                                                <div class="settings-item-desc">开启后，所有页面的左侧导航栏默认展开</div>
+                                            </div>
+                                            <div class="settings-item-control">
+                                                <el-switch v-model="settings.general.sidebar_default_expanded" @change="saveGeneralSettings"></el-switch>
+                                            </div>
+                                        </div>
+                                        <div class="settings-item">
+                                            <div class="settings-item-content">
+                                                <div class="settings-item-label">工具/游戏卡片布局</div>
+                                                <div class="settings-item-desc">设置工具和游戏页面的卡片显示布局</div>
+                                            </div>
+                                            <div class="settings-item-control">
+                                                <el-select v-model="settings.general.card_layout" placeholder="请选择" @change="saveGeneralSettings">
+                                                    <el-option
+                                                        v-for="item in cardLayoutOptions"
+                                                        :key="item.value"
+                                                        :label="item.label"
+                                                        :value="item.value">
+                                                    </el-option>
+                                                </el-select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </el-tab-pane>
+                                
+                                <el-tab-pane label="安全设置" name="security">
+                                    <div class="settings-section">
+                                        <div class="settings-section-title">用户名设置</div>
+                                        <div class="settings-item">
+                                            <div class="settings-item-content">
+                                                <div class="settings-item-label">
+                                                    手动添加 - 用户名长度范围
+                                                    <span class="permission-hint" v-if="!isSuperAdmin">(仅超级管理员可修改)</span>
+                                                </div>
+                                                <div class="settings-item-desc">管理员在用户管理界面添加用户时的用户名长度限制</div>
+                                            </div>
+                                            <div class="settings-item-control">
+                                                <div class="input-number-group">
+                                                    <el-input-number 
+                                                        v-model="settings.security.username_manual_min" 
+                                                        :min="1" 
+                                                        :max="settings.security.username_manual_max"
+                                                        :disabled="!isSuperAdmin"
+                                                        size="small"
+                                                        @change="saveSecuritySettings"
+                                                    ></el-input-number>
+                                                    <span>至</span>
+                                                    <el-input-number 
+                                                        v-model="settings.security.username_manual_max" 
+                                                        :min="settings.security.username_manual_min" 
+                                                        :max="50"
+                                                        :disabled="!isSuperAdmin"
+                                                        size="small"
+                                                        @change="saveSecuritySettings"
+                                                    ></el-input-number>
+                                                    <span>字</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="settings-item">
+                                            <div class="settings-item-content">
+                                                <div class="settings-item-label">自助注册 - 用户名长度范围</div>
+                                                <div class="settings-item-desc">用户在注册页面自行注册时的用户名长度限制</div>
+                                            </div>
+                                            <div class="settings-item-control">
+                                                <div class="input-number-group">
+                                                    <el-input-number 
+                                                        v-model="settings.security.username_register_min" 
+                                                        :min="1" 
+                                                        :max="settings.security.username_register_max"
+                                                        size="small"
+                                                        @change="saveSecuritySettings"
+                                                    ></el-input-number>
+                                                    <span>至</span>
+                                                    <el-input-number 
+                                                        v-model="settings.security.username_register_max" 
+                                                        :min="settings.security.username_register_min" 
+                                                        :max="50"
+                                                        size="small"
+                                                        @change="saveSecuritySettings"
+                                                    ></el-input-number>
+                                                    <span>字</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="settings-section">
+                                        <div class="settings-section-title">密码设置</div>
+                                        <div class="settings-item">
+                                            <div class="settings-item-content">
+                                                <div class="settings-item-label">密码强度要求</div>
+                                                <div class="settings-item-desc">设置用户注册和修改密码时的密码强度要求</div>
+                                            </div>
+                                            <div class="settings-item-control">
+                                                <el-select v-model="settings.security.password_strength" placeholder="请选择" @change="saveSecuritySettings">
+                                                    <el-option
+                                                        v-for="item in passwordStrengthOptions"
+                                                        :key="item.value"
+                                                        :label="item.label"
+                                                        :value="item.value">
+                                                    </el-option>
+                                                </el-select>
+                                            </div>
+                                        </div>
+                                        <div class="settings-item">
+                                            <div class="settings-item-content">
+                                                <div class="settings-item-label">允许弱密码</div>
+                                                <div class="settings-item-desc">关闭后，用户注册时不能使用弱密码（手动添加不受限制）</div>
+                                            </div>
+                                            <div class="settings-item-control">
+                                                <el-switch v-model="settings.security.allow_weak_password" @change="saveSecuritySettings"></el-switch>
+                                            </div>
+                                        </div>
+                                        <div class="settings-item">
+                                            <div class="settings-item-content">
+                                                <div class="settings-item-label">允许自助找回密码</div>
+                                                <div class="settings-item-desc">开启后，用户可以通过安全问题找回密码</div>
+                                            </div>
+                                            <div class="settings-item-control">
+                                                <el-switch v-model="settings.security.allow_self_password_reset" @change="saveSecuritySettings"></el-switch>
+                                            </div>
+                                        </div>
+                                        <div class="settings-item">
+                                            <div class="settings-item-content">
+                                                <div class="settings-item-label">允许改密码</div>
+                                                <div class="settings-item-desc">开启后，用户可以在个人设置中修改密码</div>
+                                            </div>
+                                            <div class="settings-item-control">
+                                                <el-switch v-model="settings.security.allow_change_password" @change="saveSecuritySettings"></el-switch>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </el-tab-pane>
+                            </el-tabs>
+                            
+                            <div style="margin-top: 20px; text-align: right;" v-if="isSuperAdmin">
+                                <el-button type="danger" plain @click="resetSettings">重置为默认设置</el-button>
+                            </div>
+                        </el-card>
+                    </div>
+                </el-main>
+            </el-container>
+        </el-container>
+    </div>
+
+    <script src="/assets/js/vue.min.js"></script>
+    <script src="/assets/js/element-ui.js"></script>
+    <script>
+        var defenseLayer5ScrollHandler = null;
+        
+        function enableDefenseLayer5() {
+            if (!defenseLayer5ScrollHandler) {
+                defenseLayer5ScrollHandler = function() {
+                    var scrollLeft = document.documentElement.scrollLeft || document.body.scrollLeft;
+                    var scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+                    
+                    var container = document.querySelector('.console-container');
+                    if (container) {
+                        container.style.transform = 'translate(' + (-scrollLeft) + 'px, ' + (-scrollTop) + 'px)';
+                    }
+                    
+                    var sidebar = document.querySelector('.console-sidebar');
+                    if (sidebar) {
+                        sidebar.style.transform = 'translate(' + scrollLeft + 'px, ' + scrollTop + 'px)';
+                    }
+                    
+                    var header = document.querySelector('.console-header');
+                    if (header) {
+                        header.style.transform = 'translate(' + scrollLeft + 'px, ' + scrollTop + 'px)';
+                    }
+                };
+                window.addEventListener('scroll', defenseLayer5ScrollHandler, { passive: true });
+            }
+        }
+        
+        enableDefenseLayer5();
+        
+        new Vue({
+            el: '#app',
+            delimiters: ['[[', ']]'],
+            data() {
+                return {
+                    isCollapse: true,
+                    activeMenu: 'settings',
+                    activeTab: 'general',
+                    displayName: '{{ current_user.display_name }}',
+                    username: '{{ current_user.username }}',
+                    isAdmin: {% if current_user.is_admin or current_user.is_super_admin %}true{% else %}false{% endif %},
+                    isSuperAdmin: {% if current_user.is_super_admin %}true{% else %}false{% endif %},
+                    userMenuVisible: false,
+                    settings: {
+                        general: {
+                            home_display: 'nickname',
+                            allow_nickname: true,
+                            nickname_min_length: 2,
+                            nickname_max_length: 20,
+                            sidebar_default_expanded: false,
+                            card_layout: '1x4'
+                        },
+                        security: {
+                            username_manual_min: 3,
+                            username_manual_max: 50,
+                            username_register_min: 3,
+                            username_register_max: 50,
+                            password_strength: 1,
+                            allow_weak_password: false,
+                            allow_self_password_reset: false,
+                            allow_change_password: true
+                        }
+                    },
+                    passwordStrengthOptions: [],
+                    cardLayoutOptions: []
+                };
+            },
+            mounted() {
+                this.loadSettings();
+            },
+            methods: {
+                toggleCollapse() {
+                    this.isCollapse = !this.isCollapse;
+                },
+                toggleUserMenu() {
+                    this.userMenuVisible = !this.userMenuVisible;
+                },
+                loadSettings() {
+                    fetch('/api/settings')
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.error) {
+                                this.$message.error(data.error);
+                            } else {
+                                this.settings.general = data.general;
+                                this.settings.security = data.security;
+                                this.passwordStrengthOptions = data.password_strength_options;
+                                this.cardLayoutOptions = data.card_layout_options;
+                            }
+                        })
+                        .catch(error => {
+                            console.error('加载设置失败:', error);
+                            this.$message.error('加载设置失败');
+                        });
+                },
+                saveGeneralSettings() {
+                    fetch('/api/settings/general', {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(this.settings.general)
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            this.$message.error(data.error);
+                        } else {
+                            this.$message.success('通用设置已保存');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('保存设置失败:', error);
+                        this.$message.error('保存设置失败');
+                    });
+                },
+                saveSecuritySettings() {
+                    if (this.settings.security.username_manual_min >= this.settings.security.username_manual_max) {
+                        this.$message.warning('手动添加：用户名下限必须小于上限');
+                        return;
+                    }
+                    if (this.settings.security.username_register_min >= this.settings.security.username_register_max) {
+                        this.$message.warning('自助注册：用户名下限必须小于上限');
+                        return;
+                    }
+                    
+                    fetch('/api/settings/security', {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(this.settings.security)
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            this.$message.error(data.error);
+                        } else {
+                            this.$message.success('安全设置已保存');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('保存设置失败:', error);
+                        this.$message.error('保存设置失败');
+                    });
+                },
+                resetSettings() {
+                    this.$confirm('确定要重置所有设置为默认值吗？', '提示', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    })
+                    .then(() => {
+                        fetch('/api/settings/reset', {
+                            method: 'POST'
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.error) {
+                                this.$message.error(data.error);
+                            } else {
+                                this.$message.success('设置已重置');
+                                this.loadSettings();
+                            }
+                        })
+                        .catch(error => {
+                            console.error('重置设置失败:', error);
+                            this.$message.error('重置设置失败');
+                        });
+                    })
+                    .catch(() => {});
+                },
+                confirmLogout() {
+                    this.userMenuVisible = false;
+                    this.$confirm('确定要退出登录吗？', '提示', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    })
+                    .then(() => {
+                        window.location.href = '/logout';
+                    })
+                    .catch(() => {});
+                },
+                handleMenuClick(key) {
+                    this.userMenuVisible = false;
+                    if (key === 'dashboard') {
+                        window.location.href = '/board';
+                    } else if (key === 'tools') {
+                        window.location.href = '/board/tools';
+                    } else if (key === 'users') {
+                        window.location.href = '/board/users';
+                    } else if (key === 'passkeys') {
+                        window.location.href = '/board/passkeys';
+                    } else if (key === 'chat') {
+                        window.location.href = '/board/chat';
+                    }
+                },
+                openProfileDialog() {
+                    this.userMenuVisible = false;
+                    window.location.href = '/board';
+                }
+            }
+        });
+    </script>
+    <script src="/assets/js/loading.js"></script>
+</body>
+</html>

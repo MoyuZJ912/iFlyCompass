@@ -353,6 +353,10 @@
                         <i class="el-icon-chat-dot-round"></i>
                         <span slot="title">聊天室</span>
                     </el-menu-item>
+                    <el-menu-item index="settings" v-if="isAdmin">
+                        <i class="el-icon-setting"></i>
+                        <span slot="title">系统设置</span>
+                    </el-menu-item>
                 </el-menu>
             </el-aside>
             
@@ -520,11 +524,12 @@
             delimiters: ['[[', ']]'],
             data() {
                 return {
-                    isCollapse: true,
+                    isCollapse: {% if sidebar_expanded %}false{% else %}true{% endif %},
                     activeMenu: 'tools',
                     displayName: '{{ current_user.display_name }}',
                     username: '{{ current_user.username }}',
                     nickname: '{{ current_user.nickname or "" }}',
+                    isAdmin: {% if current_user.is_admin or current_user.is_super_admin %}true{% else %}false{% endif %},
                     isSuperAdmin: {% if current_user.is_super_admin %}true{% else %}false{% endif %},
                     profileDialogVisible: false,
                     profileForm: {
@@ -552,6 +557,8 @@
                         window.location.href = '/board/tools';
                     } else if (key === 'chat') {
                         window.location.href = '/board/chat';
+                    } else if (key === 'settings') {
+                        window.location.href = '/board/settings';
                     }
                 },
                 goBack() {

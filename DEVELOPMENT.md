@@ -2,6 +2,74 @@
 
 ## 版本更新
 
+### REL2.2.0
+
+**系统设置 + 配置重构**
+
+- **系统设置模块**：
+  - 新增 `modules/settings/` 系统设置模块
+  - 管理员/超级管理员可在系统设置页面配置各项功能
+  - 支持通用设置和安全设置两大分类
+
+- **通用设置**：
+  - 首页显示设置：切换显示昵称或用户名
+  - 用户设置：允许设置昵称、昵称长度限制（5-20字）
+  - 导航设置：导航栏默认展开、工具/游戏卡片布局（1×3、1×4、2×3）
+
+- **安全设置**：
+  - 用户名设置：手动添加和自助注册的用户名长度限制
+  - 密码设置：密码强度要求（4个等级）、允许弱密码、允许改密码
+  - 安全问题：允许自助找回密码、设置安全问题
+
+- **忘记密码功能**：
+  - 登录页面添加"忘记密码"链接
+  - 三步验证流程：输入用户名 → 回答安全问题 → 重置密码
+  - 支持通过安全问题自助重置密码
+
+- **个人设置增强**：
+  - 根据系统设置动态显示/隐藏昵称输入框
+  - 根据系统设置控制密码修改权限
+  - 安全问题设置（启用自助找回密码后可见）
+
+- **注册验证增强**：
+  - 用户名长度验证（根据系统设置）
+  - 密码强度验证（根据系统设置）
+  - 弱密码检测
+
+- **用户管理验证**：
+  - 手动添加用户时的用户名长度验证
+  - 昵称设置验证
+
+- **配置文件重构**：
+  - 删除 `config.py` 中的硬编码配置
+  - 新增 `instance/config.yml` YAML 配置文件
+  - 系统设置与 Flask 配置统一存储在 YAML 文件中
+  - 删除 `instance/system_settings.json`，合并到 config.yml
+  - 添加 PyYAML 依赖
+
+- **新增文件**：
+  - `modules/settings/__init__.py` - 系统设置模块定义
+  - `modules/settings/routes.py` - 系统设置页面路由
+  - `modules/settings/api.py` - 系统设置 API
+  - `templates/system_settings.html` - 系统设置页面
+  - `templates/forgot_password.html` - 忘记密码页面
+  - `utils/system_settings.py` - 系统设置工具（从 YAML 读取）
+  - `utils/validators.py` - 验证工具（密码强度、用户名、昵称）
+  - `instance/config.yml` - YAML 配置文件
+
+- **新增 API**：
+  - `GET /api/settings` - 获取所有系统设置
+  - `PUT /api/settings/general` - 更新通用设置
+  - `PUT /api/settings/security` - 更新安全设置
+  - `POST /api/settings/reset` - 重置设置为默认值
+  - `POST /api/auth/forgot-password/check` - 检查用户名
+  - `POST /api/auth/forgot-password/verify` - 验证安全问题答案
+  - `POST /api/auth/forgot-password/reset` - 重置密码
+
+- **数据库变更**：
+  - User 表新增 `security_question` 字段
+  - User 表新增 `security_answer_hash` 字段
+
 ### REL2.1.3
 
 **手势防御系统 + 随身听优化**
@@ -352,6 +420,10 @@
 - **main 模块**：主页面
   - routes.py：首页、控制面板、工具页面
 
+- **settings 模块**：系统设置
+  - routes.py：系统设置页面路由
+  - api.py：系统设置 API
+
 #### 1.3.3 数据模型层
 
 独立的数据模型层，按业务领域组织：
@@ -381,6 +453,17 @@
   - detect_chapters()：从文件检测章节位置
   - detect_chapters_from_lines()：从行列表检测章节
   - V3.1 锚点学习 + 统计验证算法
+
+- **system_settings.py**：
+  - get_settings()：获取系统设置
+  - update_settings()：更新系统设置
+  - 从 YAML 配置文件读取系统设置
+
+- **validators.py**：
+  - validate_password_strength()：验证密码强度
+  - is_weak_password()：检查是否为弱密码
+  - validate_username()：验证用户名
+  - validate_nickname()：验证昵称
 
 ### 1.4 架构优势
 
@@ -416,10 +499,13 @@
 | ------------------- | ------------- | ---------------- |
 | id                  | Integer       | 用户 ID，主键     |
 | username            | String(50)    | 用户名，唯一      |
+| nickname            | String(50)    | 昵称（可选）      |
 | password_hash       | String(128)   | 密码哈希值        |
 | is_super_admin      | Boolean       | 是否为超级管理员  |
 | is_admin            | Boolean       | 是否为管理员      |
 | passkey_used        | String(6)     | 注册时使用的 Passkey |
+| security_question   | String(255)   | 安全问题（可选）  |
+| security_answer_hash| String(128)   | 安全问题答案哈希（可选）|
 | created_at          | DateTime      | 创建时间          |
 
 ### 2.2 Passkey 表 (Passkey)
@@ -550,6 +636,55 @@
 - **权限**：管理员或超级管理员
 - **参数**：
   - id: 用户 ID
+- **返回**：成功/失败信息 JSON
+
+#### 3.2.5 获取个人资料
+
+- **URL**：`/api/user/profile`
+- **方法**：GET
+- **权限**：登录用户
+- **返回**：用户资料 JSON（包含系统设置相关权限）
+
+#### 3.2.6 更新个人资料
+
+- **URL**：`/api/user/profile`
+- **方法**：PUT
+- **权限**：登录用户
+- **参数**：
+  - nickname: 昵称（可选）
+  - password: 新密码（可选）
+  - security_question: 安全问题（可选）
+  - security_answer: 安全问题答案（可选）
+- **返回**：成功/失败信息 JSON
+
+#### 3.2.7 忘记密码 - 检查用户名
+
+- **URL**：`/api/auth/forgot-password/check`
+- **方法**：POST
+- **权限**：公开
+- **参数**：
+  - username: 用户名
+- **返回**：安全问题 JSON
+
+#### 3.2.8 忘记密码 - 验证答案
+
+- **URL**：`/api/auth/forgot-password/verify`
+- **方法**：POST
+- **权限**：公开
+- **参数**：
+  - username: 用户名
+  - answer: 安全问题答案
+- **返回**：成功/失败信息 JSON
+
+#### 3.2.9 忘记密码 - 重置密码
+
+- **URL**：`/api/auth/forgot-password/reset`
+- **方法**：POST
+- **权限**：公开
+- **参数**：
+  - username: 用户名
+  - answer: 安全问题答案
+  - new_password: 新密码
 - **返回**：成功/失败信息 JSON
 
 ### 3.3 Passkey 管理 API
@@ -722,9 +857,55 @@
   - code: 表情包合集码
 - **返回**：表情合集中的表情列表 JSON
 
-### 3.7 随身听相关 API
+### 3.7 系统设置相关 API
 
-#### 3.7.1 搜索歌曲
+#### 3.7.1 获取系统设置
+
+- **URL**：`/api/settings`
+- **方法**：GET
+- **权限**：管理员或超级管理员
+- **返回**：系统设置 JSON（包含 general、security、password_strength_options、card_layout_options）
+
+#### 3.7.2 更新通用设置
+
+- **URL**：`/api/settings/general`
+- **方法**：PUT
+- **权限**：管理员或超级管理员
+- **参数**：
+  - home_display: 首页显示（'nickname' 或 'username'）
+  - allow_nickname: 是否允许设置昵称
+  - nickname_min_length: 昵称最小长度
+  - nickname_max_length: 昵称最大长度
+  - sidebar_default_expanded: 导航栏默认展开
+  - card_layout: 卡片布局（'1x3'、'1x4'、'2x3'）
+- **返回**：成功/失败信息 JSON
+
+#### 3.7.3 更新安全设置
+
+- **URL**：`/api/settings/security`
+- **方法**：PUT
+- **权限**：管理员或超级管理员（超级管理员可修改所有设置，管理员只能修改部分）
+- **参数**：
+  - username_manual_min: 手动添加用户名最小长度（仅超管）
+  - username_manual_max: 手动添加用户名最大长度（仅超管）
+  - username_register_min: 自助注册用户名最小长度
+  - username_register_max: 自助注册用户名最大长度
+  - password_strength: 密码强度（1-4）
+  - allow_weak_password: 是否允许弱密码
+  - allow_self_password_reset: 是否允许自助找回密码
+  - allow_change_password: 是否允许改密码
+- **返回**：成功/失败信息 JSON
+
+#### 3.7.4 重置系统设置
+
+- **URL**：`/api/settings/reset`
+- **方法**：POST
+- **权限**：超级管理员
+- **返回**：成功/失败信息 JSON
+
+### 3.8 随身听相关 API
+
+#### 3.8.1 搜索歌曲
 
 - **URL**：`/api/ncm/search`
 - **方法**：GET
@@ -734,7 +915,7 @@
   - limit: 返回数量（可选，默认 30）
 - **返回**：歌曲列表 JSON
 
-#### 3.7.2 获取歌曲详情
+#### 3.8.2 获取歌曲详情
 
 - **URL**：`/api/ncm/song/detail`
 - **方法**：GET
@@ -743,7 +924,7 @@
   - ids: 歌曲 ID（多个用逗号分隔）
 - **返回**：歌曲详情列表 JSON
 
-#### 3.7.3 获取歌曲播放地址
+#### 3.8.3 获取歌曲播放地址
 
 - **URL**：`/api/ncm/song/url`
 - **方法**：GET
@@ -752,7 +933,7 @@
   - id: 歌曲 ID
 - **返回**：播放地址 JSON
 
-#### 3.7.4 获取推荐歌单
+#### 3.8.4 获取推荐歌单
 
 - **URL**：`/api/ncm/personalized`
 - **方法**：GET
@@ -761,14 +942,14 @@
   - limit: 返回数量（可选，默认 10）
 - **返回**：推荐歌单列表 JSON
 
-#### 3.7.5 获取热搜列表
+#### 3.8.5 获取热搜列表
 
 - **URL**：`/api/ncm/hot-search`
 - **方法**：GET
 - **权限**：登录用户
 - **返回**：热搜列表 JSON
 
-#### 3.7.6 获取歌单详情
+#### 3.8.6 获取歌单详情
 
 - **URL**：`/api/ncm/playlist/detail`
 - **方法**：GET
@@ -777,7 +958,7 @@
   - id: 歌单 ID
 - **返回**：歌单详情 JSON
 
-#### 3.7.7 缓存音乐到本地
+#### 3.8.7 缓存音乐到本地
 
 - **URL**：`/api/ncm/cache-music`
 - **方法**：POST
@@ -786,7 +967,7 @@
   - id: 歌曲 ID
 - **返回**：缓存文件路径 JSON
 
-#### 3.7.8 缓存封面图片
+#### 3.8.8 缓存封面图片
 
 - **URL**：`/api/ncm/cache-cover`
 - **方法**：POST
@@ -795,14 +976,14 @@
   - url: 封面图片 URL
 - **返回**：缓存文件路径 JSON
 
-#### 3.7.9 获取缓存的音乐文件
+#### 3.8.9 获取缓存的音乐文件
 
 - **URL**：`/music/<filename>`
 - **方法**：GET
 - **权限**：登录用户
 - **返回**：音乐文件
 
-#### 3.7.10 获取缓存的封面文件
+#### 3.8.10 获取缓存的封面文件
 
 - **URL**：`/music/cache/covers/<filename>`
 - **方法**：GET

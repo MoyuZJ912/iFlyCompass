@@ -186,6 +186,26 @@ def api_cache_cover():
         print("[NCM] 封面缓存失败")
         return jsonify({'success': False, 'error': '缓存失败'})
 
+@ncm_bp.route('/api/ncm/cache-covers', methods=['POST'])
+def api_cache_covers():
+    data = request.get_json()
+    urls = data.get('urls', [])
+    
+    print(f"[NCM] 批量缓存封面请求: {len(urls)} 个URL")
+    
+    if not urls:
+        return jsonify({'success': True, 'cached': {}})
+    
+    cached = {}
+    for url in urls:
+        if url:
+            cached_url = cache_cover(url)
+            if cached_url:
+                cached[url] = cached_url
+    
+    print(f"[NCM] 批量缓存完成: {len(cached)}/{len(urls)} 成功")
+    return jsonify({'success': True, 'cached': cached})
+
 @ncm_bp.route('/music/cache/covers/<filename>', methods=['GET'])
 def serve_cached_cover(filename):
     print(f"[NCM] 提供缓存封面: {filename}")

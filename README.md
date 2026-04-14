@@ -2,7 +2,7 @@
 
 ## 项目简介
 
-**版本：REL2.1.3**
+**版本：REL2.2.0**
 
 iFlyCompass 是一个多功能的 Web 应用平台，采用模块化架构设计，提供了多种实用工具和功能，包括：
 
@@ -14,6 +14,7 @@ iFlyCompass 是一个多功能的 Web 应用平台，采用模块化架构设计
 - **用户管理**：支持用户注册、登录、权限管理
 - **Passkey 管理**：支持生成和管理注册邀请码
 - **手势防御**：防御层 5 技术，防止宿主 App 全局手势劫持页面滚动
+- **系统设置**：管理员可配置首页显示、昵称设置、导航栏、密码强度、安全问题等
 
 ## 技术栈
 
@@ -23,6 +24,7 @@ iFlyCompass 是一个多功能的 Web 应用平台，采用模块化架构设计
 - **实时通信**：Flask-SocketIO
 - **认证**：Flask-Login
 - **架构**：Flask Blueprint 模块化设计
+- **配置**：YAML 配置文件（`instance/config.yml`）
 
 ## 架构特点
 
@@ -39,6 +41,7 @@ iFlyCompass 是一个多功能的 Web 应用平台，采用模块化架构设计
   - **sticker/** - 表情包管理模块
   - **ncm/** - 随身听模块（网易云音乐）
   - **main/** - 主页面模块
+  - **settings/** - 系统设置模块
 
 ### 单一职责原则
 
@@ -133,8 +136,8 @@ pyinstaller --onefile --name iFlyCompass app.py
 
 ```
 iFlyCompass/
-├── app.py                    # 应用入口（43行）
-├── config.py                 # 配置管理
+├── app.py                    # 应用入口
+├── config.py                 # 配置管理（从 YAML 读取）
 ├── extensions.py             # Flask 扩展初始化
 ├── models/                   # 数据库模型层
 │   ├── __init__.py
@@ -192,8 +195,11 @@ iFlyCompass/
 │   ├── user_management.html # 用户管理页面
 │   ├── passkey_management.html # Passkey 管理页面
 │   ├── swipe_test.html      # 滑动测试页面
-│   └── tools.html           # 工具页面
-├── instance/                 # 数据库文件目录
+│   ├── tools.html           # 工具页面
+│   ├── system_settings.html # 系统设置页面
+│   └── forgot_password.html # 忘记密码页面
+├── instance/                 # 数据文件目录
+│   ├── config.yml           # 配置文件（YAML格式）
 │   ├── users.db             # 用户数据库
 │   └── novels/              # 小说文件目录
 ├── stickers/                 # 表情包缓存目录

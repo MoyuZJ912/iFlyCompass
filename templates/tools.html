@@ -159,7 +159,10 @@
         
         .tools-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat({% if card_layout == '1x3' %}3{% elif card_layout == '2x3' %}3{% else %}4{% endif %}, 1fr);
+            {% if card_layout == '2x3' %}
+            grid-template-rows: repeat(2, 1fr);
+            {% endif %}
             gap: 20px;
             flex: 1;
             height: 100%;
@@ -342,6 +345,10 @@
                         <i class="el-icon-chat-dot-round"></i>
                         <span slot="title">聊天室</span>
                     </el-menu-item>
+                    <el-menu-item index="settings" v-if="isAdmin">
+                        <i class="el-icon-setting"></i>
+                        <span slot="title">系统设置</span>
+                    </el-menu-item>
                 </el-menu>
             </el-aside>
             
@@ -474,7 +481,7 @@
             delimiters: ['[[', ']]'],
             data() {
                 return {
-                    isCollapse: true,
+                    isCollapse: {% if sidebar_expanded %}false{% else %}true{% endif %},
                     activeMenu: 'tools',
                     displayName: '{{ current_user.display_name }}',
                     username: '{{ current_user.username }}',
@@ -606,6 +613,8 @@
                     } else if (key === 'games') {
                         console.log('导航到小游戏');
                         window.location.href = '/board/games';
+                    } else if (key === 'settings') {
+                        window.location.href = '/board/settings';
                     }
                 },
                 handleSearch() {

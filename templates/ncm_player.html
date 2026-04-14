@@ -278,6 +278,10 @@
                         <i class="el-icon-chat-dot-round"></i>
                         <span slot="title">聊天室</span>
                     </el-menu-item>
+                    <el-menu-item index="settings" v-if="isAdmin">
+                        <i class="el-icon-setting"></i>
+                        <span slot="title">系统设置</span>
+                    </el-menu-item>
                 </el-menu>
             </el-aside>
             
@@ -334,7 +338,7 @@
                                             class="playlist-card"
                                             @click="openPlaylist(item.id)"
                                         >
-                                            <img :src="item.picUrl + '?param=200y200'" class="playlist-cover">
+                                            <img :src="getCachedCover(item.picUrl)" class="playlist-cover">
                                             <div class="playlist-name">[[ item.name ]]</div>
                                         </div>
                                     </div>
@@ -352,7 +356,7 @@
                                             class="song-item"
                                             @click="playSong(song)"
                                         >
-                                            <img :src="song.picUrl || (song.al && song.al.picUrl) || '/assets/images/logo-trans-white.png'" class="song-cover">
+                                            <img :src="getCachedCover(song.picUrl)" class="song-cover">
                                             <div class="song-info">
                                                 <div class="song-name">[[ song.name ]]</div>
                                                 <div class="song-artist">
@@ -484,8 +488,13 @@
             delimiters: ['[[', ']]'],
             data() {
                 return {
-                    isCollapse: true,
+                    isCollapse: {% if sidebar_expanded %}false{% else %}true{% endif %},
                     activeMenu: 'tools',
+                    displayName: '{{ current_user.display_name }}',
+                    username: '{{ current_user.username }}',
+                    isAdmin: {% if current_user.is_admin or current_user.is_super_admin %}true{% else %}false{% endif %},
+                    isSuperAdmin: {% if current_user.is_super_admin %}true{% else %}false{% endif %},
+                    userMenuVisible: false,
                     searchKeyword: '',
                     hotSearchList: [],
                     personalizedList: [],
@@ -494,7 +503,8 @@
                     searching: false,
                     loadingSongId: null,
                     cachingMusic: false,
-                    aplayer: null
+                    aplayer: null,
+                    coverCache: {}
                 };
             },
             mounted() {
@@ -512,10 +522,56 @@
                         window.location.href = '/board/tools';
                     } else if (key === 'chat') {
                         window.location.href = '/board/chat';
+                    } else if (key === 'settings') {
+                        window.location.href = '/board/settings';
                     }
                 },
                 goBack() {
                     window.location.href = '/board/tools';
+                },
+                async cacheCovers(urls) {
+                    var uncachedUrls = [];
+                    for (var i = 0; i < urls.length; i++) {
+                        var url = urls[i];
+                        if (url && !this.coverCache[url]) {
+                            uncachedUrls.push(url + '?param=200y200');
+                        }
+                    }
+                    
+                    if (uncachedUrls.length === 0) {
+                        return;
+                    }
+                    
+                    console.log('[NCM] 批量缓存封面, 数量:', uncachedUrls.length);
+                    try {
+                        var response = await fetch('/api/ncm/cache-covers', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ urls: uncachedUrls })
+                        });
+                        var data = await response.json();
+                        if (data.success && data.cached) {
+                            for (var originalUrl in data.cached) {
+                                var cleanUrl = originalUrl.replace('?param=200y200', '');
+                                this.coverCache[cleanUrl] = data.cached[originalUrl];
+                                this.coverCache[originalUrl] = data.cached[originalUrl];
+                            }
+                            console.log('[NCM] 封面缓存完成, 已缓存:', Object.keys(data.cached).length);
+                        }
+                    } catch (e) {
+                        console.warn('[NCM] 批量缓存封面失败:', e);
+                    }
+                },
+                getCachedCover(url) {
+                    if (!url) return '/assets/images/logo-trans-white.png';
+                    if (this.coverCache[url]) {
+                        return this.coverCache[url];
+                    }
+                    var urlWithParam = url + '?param=200y200';
+                    if (this.coverCache[urlWithParam]) {
+                        return this.coverCache[urlWithParam];
+                    }
+                    return '/assets/images/logo-trans-white.png';
                 },
                 async loadHotSearch() {
                     console.log('[NCM] 加载热搜列表...');
@@ -540,6 +596,10 @@
                         const data = await response.json();
                         console.log('[NCM] 推荐歌单响应:', JSON.stringify(data));
                         if (data.code === 200 && data.result) {
+                            var coverUrls = data.result.map(function(item) {
+                                return item.picUrl;
+                            });
+                            await this.cacheCovers(coverUrls);
                             this.personalizedList = data.result;
                             console.log('[NCM] 推荐歌单加载成功, 数量:', this.personalizedList.length);
                         } else {
@@ -571,23 +631,35 @@
                             const detailData = await detailResponse.json();
                             console.log('[NCM] 歌曲详情响应:', JSON.stringify(detailData));
                             
+                            var results = [];
                             if (detailData.code === 200 && detailData.songs) {
-                                this.searchResults = detailData.songs.map(song => ({
-                                    id: song.id,
-                                    name: song.name,
-                                    ar: song.ar,
-                                    al: song.al,
-                                    picUrl: song.al ? song.al.picUrl : null
-                                }));
+                                results = detailData.songs.map(function(song) {
+                                    return {
+                                        id: song.id,
+                                        name: song.name,
+                                        ar: song.ar,
+                                        al: song.al,
+                                        picUrl: song.al ? song.al.picUrl : null
+                                    };
+                                });
                             } else {
-                                this.searchResults = data.result.songs.map(song => ({
-                                    id: song.id,
-                                    name: song.name,
-                                    ar: song.artists || song.ar || [],
-                                    al: song.album || song.al || {},
-                                    picUrl: (song.album && song.album.picUrl) || (song.al && song.al.picUrl) || null
-                                }));
+                                results = data.result.songs.map(function(song) {
+                                    return {
+                                        id: song.id,
+                                        name: song.name,
+                                        ar: song.artists || song.ar || [],
+                                        al: song.album || song.al || {},
+                                        picUrl: (song.album && song.album.picUrl) || (song.al && song.al.picUrl) || null
+                                    };
+                                });
                             }
+                            
+                            var coverUrls = results.map(function(song) {
+                                return song.picUrl;
+                            }).filter(function(url) { return url; });
+                            await this.cacheCovers(coverUrls);
+                            
+                            this.searchResults = results;
                             console.log('[NCM] 搜索成功, 结果数量:', this.searchResults.length);
                         } else {
                             this.searchResults = [];
@@ -657,36 +729,22 @@
                         
                         console.log('[NCM] 步骤4: 音乐缓存成功, 本地路径:', cacheData.path);
                         
-                        const artistName = song.ar ? song.ar.map(a => a.name).join('/') : '未知歌手';
-                        const originalCoverUrl = song.picUrl || (song.al && song.al.picUrl) || '';
-                        let coverUrl = originalCoverUrl;
+                        var artistName = song.ar ? song.ar.map(function(a) { return a.name; }).join('/') : '未知歌手';
+                        var coverUrl = this.getCachedCover(song.picUrl);
                         
-                        // 缓存封面
-                        if (originalCoverUrl) {
-                            console.log('[NCM] 步骤4.5: 缓存封面...');
-                            try {
-                                const coverResponse = await fetch('/api/ncm/cache-cover', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ url: originalCoverUrl + '?param=200y200' })
-                                });
-                                const coverData = await coverResponse.json();
-                                if (coverData.success) {
-                                    coverUrl = coverData.url;
-                                    console.log('[NCM] 封面缓存成功:', coverUrl);
-                                }
-                            } catch (coverError) {
-                                console.warn('[NCM] 封面缓存失败:', coverError);
-                            }
-                        }
+                        console.log('[NCM] 步骤5: 准备播放, 音频信息:', JSON.stringify({
+                            name: song.name,
+                            artist: artistName,
+                            url: cacheData.path,
+                            cover: coverUrl
+                        }));
                         
-                        const audioInfo = {
+                        var audioInfo = {
                             name: song.name,
                             artist: artistName,
                             url: cacheData.path,
                             cover: coverUrl
                         };
-                        console.log('[NCM] 步骤5: 准备播放, 音频信息:', JSON.stringify(audioInfo));
                         
                         try {
                             if (this.aplayer) {
@@ -763,13 +821,22 @@
                         console.log('[NCM] 歌单详情响应:', JSON.stringify(data));
                         
                         if (data.code === 200 && data.playlist && data.playlist.tracks) {
-                            this.searchResults = data.playlist.tracks.slice(0, 50).map(track => ({
-                                id: track.id,
-                                name: track.name,
-                                ar: track.ar,
-                                al: track.al,
-                                picUrl: track.al ? track.al.picUrl : null
-                            }));
+                            var results = data.playlist.tracks.slice(0, 50).map(function(track) {
+                                return {
+                                    id: track.id,
+                                    name: track.name,
+                                    ar: track.ar,
+                                    al: track.al,
+                                    picUrl: track.al ? track.al.picUrl : null
+                                };
+                            });
+                            
+                            var coverUrls = results.map(function(track) {
+                                return track.picUrl;
+                            }).filter(function(url) { return url; });
+                            await this.cacheCovers(coverUrls);
+                            
+                            this.searchResults = results;
                             this.showSearchResults = true;
                             console.log('[NCM] 歌单加载成功, 歌曲数量:', this.searchResults.length);
                         } else {

@@ -156,6 +156,10 @@
                         <i class="el-icon-chat-dot-round"></i>
                         <span slot="title">聊天室</span>
                     </el-menu-item>
+                    <el-menu-item index="settings" v-if="isAdmin">
+                        <i class="el-icon-setting"></i>
+                        <span slot="title">系统设置</span>
+                    </el-menu-item>
                 </el-menu>
             </el-aside>
             
@@ -248,17 +252,39 @@
         <el-dialog
             title="个人设置"
             :visible.sync="profileDialogVisible"
-            width="450px"
+            width="500px"
         >
-            <el-form :model="profileForm" label-width="80px" class="profile-dialog-form">
+            <el-form :model="profileForm" label-width="100px" class="profile-dialog-form">
                 <el-form-item label="用户名">
                     <el-input :value="username" disabled></el-input>
                 </el-form-item>
-                <el-form-item label="昵称">
-                    <el-input v-model="profileForm.nickname" placeholder="请输入昵称"></el-input>
+                <el-form-item label="昵称" v-if="profileSettings.allowNickname">
+                    <el-input 
+                        v-model="profileForm.nickname" 
+                        :placeholder="'请输入昵称（' + profileSettings.nicknameMinLength + '-' + profileSettings.nicknameMaxLength + '字）'"
+                        :maxlength="profileSettings.nicknameMaxLength"
+                    ></el-input>
                 </el-form-item>
-                <el-form-item label="新密码" v-if="isSuperAdmin">
-                    <el-input v-model="profileForm.password" type="password" placeholder="留空则不修改密码"></el-input>
+                <el-form-item label="新密码" v-if="profileSettings.allowChangePassword || isSuperAdmin">
+                    <el-input 
+                        v-model="profileForm.password" 
+                        type="password" 
+                        placeholder="留空则不修改密码"
+                        show-password
+                    ></el-input>
+                </el-form-item>
+                <el-divider v-if="profileSettings.allowSelfPasswordReset"></el-divider>
+                <el-form-item label="安全问题" v-if="profileSettings.allowSelfPasswordReset">
+                    <el-input 
+                        v-model="profileForm.securityQuestion" 
+                        placeholder="例如：您的出生城市是？"
+                    ></el-input>
+                </el-form-item>
+                <el-form-item label="安全问题答案" v-if="profileSettings.allowSelfPasswordReset">
+                    <el-input 
+                        v-model="profileForm.securityAnswer" 
+                        placeholder="请输入答案"
+                    ></el-input>
                 </el-form-item>
             </el-form>
             <span slot="footer" class="dialog-footer">
@@ -314,9 +340,10 @@
             delimiters: ['[[', ']]'],
             data() {
                 return {
-                    isCollapse: true,
+                    isCollapse: {% if sidebar_expanded %}false{% else %}true{% endif %},
                     activeMenu: 'dashboard',
-                    displayName: '{{ current_user.display_name }}',
+                    homeDisplay: '{{ home_display }}',
+                    displayName: '{% if home_display == "username" %}{{ current_user.username }}{% else %}{{ current_user.display_name }}{% endif %}',
                     username: '{{ current_user.username }}',
                     nickname: '{{ current_user.nickname or "" }}',
                     passkeyUsed: {% if current_user.passkey_used %}'{{ current_user.passkey_used }}'{% else %}null{% endif %},
@@ -326,7 +353,16 @@
                     profileDialogVisible: false,
                     profileForm: {
                         nickname: '',
-                        password: ''
+                        password: '',
+                        securityQuestion: '',
+                        securityAnswer: ''
+                    },
+                    profileSettings: {
+                        allowNickname: true,
+                        nicknameMinLength: 2,
+                        nicknameMaxLength: 20,
+                        allowChangePassword: true,
+                        allowSelfPasswordReset: false
                     }
                 };
             },
@@ -337,8 +373,24 @@
                     isAdmin: this.isAdmin,
                     isSuperAdmin: this.isSuperAdmin
                 });
+                this.loadProfileSettings();
             },
             methods: {
+                loadProfileSettings() {
+                    fetch('/api/user/profile')
+                        .then(response => response.json())
+                        .then(data => {
+                            this.profileSettings.allowNickname = data.allow_nickname;
+                            this.profileSettings.nicknameMinLength = data.nickname_min_length;
+                            this.profileSettings.nicknameMaxLength = data.nickname_max_length;
+                            this.profileSettings.allowChangePassword = data.allow_change_password;
+                            this.profileSettings.allowSelfPasswordReset = data.allow_self_password_reset;
+                            this.profileForm.securityQuestion = data.security_question || '';
+                        })
+                        .catch(error => {
+                            console.error('加载个人设置失败:', error);
+                        });
+                },
                 toggleCollapse() {
                     console.log('切换侧边栏折叠状态:', !this.isCollapse);
                     this.isCollapse = !this.isCollapse;
@@ -350,6 +402,7 @@
                     this.userMenuVisible = false;
                     this.profileForm.nickname = this.nickname;
                     this.profileForm.password = '';
+                    this.profileForm.securityAnswer = '';
                     this.profileDialogVisible = true;
                 },
                 goSwipeTest() {
@@ -357,12 +410,29 @@
                     window.location.href = '/board/swipe-test';
                 },
                 saveProfile() {
+                    var dataToSend = {};
+                    
+                    if (this.profileSettings.allowNickname) {
+                        dataToSend.nickname = this.profileForm.nickname;
+                    }
+                    
+                    if (this.profileForm.password) {
+                        dataToSend.password = this.profileForm.password;
+                    }
+                    
+                    if (this.profileSettings.allowSelfPasswordReset) {
+                        if (this.profileForm.securityQuestion || this.profileForm.securityAnswer) {
+                            dataToSend.security_question = this.profileForm.securityQuestion;
+                            dataToSend.security_answer = this.profileForm.securityAnswer;
+                        }
+                    }
+                    
                     fetch('/api/user/profile', {
                         method: 'PUT',
                         headers: {
                             'Content-Type': 'application/json'
                         },
-                        body: JSON.stringify(this.profileForm)
+                        body: JSON.stringify(dataToSend)
                     })
                     .then(response => response.json())
                     .then(data => {
@@ -413,6 +483,8 @@
                         window.location.href = '/board/passkeys';
                     } else if (key === 'chat') {
                         window.location.href = '/board/chat';
+                    } else if (key === 'settings') {
+                        window.location.href = '/board/settings';
                     }
                 }
             }

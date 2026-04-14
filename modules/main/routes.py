@@ -1,6 +1,6 @@
 from flask import render_template, send_from_directory
 from flask_login import login_required, current_user
-from utils import get_bing_wallpaper, get_poetry
+from utils import get_bing_wallpaper, get_poetry, get_settings
 from config import Config
 from . import main_bp
 
@@ -13,14 +13,20 @@ def index():
 @main_bp.route('/board')
 @login_required
 def board():
+    settings = get_settings()
     return render_template('board.html', 
-                         current_user=current_user)
+                         current_user=current_user,
+                         home_display=settings.get('home_display', 'nickname'),
+                         sidebar_expanded=settings.get('sidebar_default_expanded', False))
 
 @main_bp.route('/board/tools')
 @login_required
 def tools():
+    settings = get_settings()
     return render_template('tools.html', 
-                         current_user=current_user)
+                         current_user=current_user,
+                         sidebar_expanded=settings.get('sidebar_default_expanded', False),
+                         card_layout=settings.get('card_layout', '1x4'))
 
 @main_bp.route('/board/swipe-test')
 @login_required
@@ -30,8 +36,10 @@ def swipe_test():
                              error_title='权限不足',
                              error_message='您没有权限访问此页面',
                              current_user=current_user), 403
+    settings = get_settings()
     return render_template('swipe_test.html', 
-                         current_user=current_user)
+                         current_user=current_user,
+                         sidebar_expanded=settings.get('sidebar_default_expanded', False))
 
 @main_bp.route('/temp/<path:filename>')
 def serve_temp(filename):

@@ -156,6 +156,10 @@
                         <i class="el-icon-chat-dot-round"></i>
                         <span slot="title">聊天室</span>
                     </el-menu-item>
+                    <el-menu-item index="settings">
+                        <i class="el-icon-setting"></i>
+                        <span slot="title">系统设置</span>
+                    </el-menu-item>
                 </el-menu>
             </el-aside>
             
@@ -345,12 +349,14 @@
             delimiters: ['[[', ']]'],
             data() {
                 return {
-                    isCollapse: true,
+                    isCollapse: {% if sidebar_expanded %}false{% else %}true{% endif %},
                     activeMenu: 'passkeys',
                     displayName: '{{ current_user.display_name }}',
                     username: '{{ current_user.username }}',
                     nickname: '{{ current_user.nickname or "" }}',
                     passkeyUsed: {% if current_user.passkey_used %}'{{ current_user.passkey_used }}'{% else %}null{% endif %},
+                    isAdmin: {% if current_user.is_admin or current_user.is_super_admin %}true{% else %}false{% endif %},
+                    isSuperAdmin: {% if current_user.is_super_admin %}true{% else %}false{% endif %},
                     passkeys: [],
                     dialogVisible: false,
                     userMenuVisible: false,
@@ -447,6 +453,9 @@
                     } else if (key === 'chat') {
                         console.log('导航到聊天室');
                         window.location.href = '/board/chat';
+                    } else if (key === 'settings') {
+                        console.log('导航到系统设置');
+                        window.location.href = '/board/settings';
                     }
                 },
                 loadPasskeys() {
