@@ -167,6 +167,20 @@
             box-sizing: border-box;
         }
         
+        .page-layer > p,
+        .page-layer > div:not(.chapter-title-display):not(.continuation-content) {
+            text-indent: 2em;
+        }
+        
+        .continuation-content {
+            text-indent: 0;
+            display: block;
+        }
+        
+        .continuation-content:first-line {
+            text-indent: 0;
+        }
+        
         #page-layer-bottom {
             z-index: 1;
         }
@@ -1082,21 +1096,17 @@
             var charWidth = FONT_SIZE * 0.6;
             var charsPerLine = Math.floor(containerWidth / charWidth);
             
-            var dpr = window.devicePixelRatio || 1;
-            if (dpr >= 2) {
-                linesPerPage = Math.max(Math.floor(linesPerPage * 0.95), 5);
-                charsPerLine = Math.max(Math.floor(charsPerLine * 0.95), 10);
-            }
+            linesPerPage = Math.max(Math.floor(linesPerPage * 0.95), 5);
+            charsPerLine = Math.max(Math.floor(charsPerLine * 0.95), 10);
             
-            linesPerPage = Math.max(linesPerPage - 1, 5);
+            linesPerPage = Math.max(linesPerPage - 3, 5);
             charsPerLine = Math.max(charsPerLine - 2, 10);
             
             return {
                 linesPerPage: linesPerPage,
                 charsPerLine: charsPerLine,
                 containerWidth: containerWidth,
-                containerHeight: containerHeight,
-                isHighDPI: dpr >= 2
+                containerHeight: containerHeight
             };
         }
         
@@ -1266,8 +1276,7 @@
                 容器宽度: dimensions.containerWidth,
                 容器高度: dimensions.containerHeight,
                 每页行数: linesPerPage,
-                每行字符数: charsPerLine,
-                高DPI设备: dimensions.isHighDPI
+                每行字符数: charsPerLine
             });
             
             var titleHeight = TITLE_FONT_SIZE * TITLE_LINE_HEIGHT + TITLE_MARGIN_BOTTOM;
@@ -1278,6 +1287,7 @@
             var currentPageContent = '';
             var currentLines = 0;
             var isFirstPage = true;
+            var isContinuation = false;
             
             for (var paraIndex = 0; paraIndex < paragraphs.length; paraIndex++) {
                 var para = paragraphs[paraIndex];
@@ -1291,17 +1301,18 @@
                 if (currentLines + paraLines > effectiveLinesPerPage && currentPageContent) {
                     pages.push({
                         content: currentPageContent.trim(),
-                        isFirstPage: isFirstPage
+                        isFirstPage: isFirstPage,
+                        isContinuation: isContinuation
                     });
                     currentPageContent = para + '\n';
                     currentLines = paraLines;
                     isFirstPage = false;
+                    isContinuation = false;
                 } else {
                     currentPageContent += para + '\n';
                     currentLines += paraLines;
                 }
                 
-                // 处理内容超出当前页容量的情况
                 while (currentLines > (isFirstPage ? linesPerPage - titleLines : linesPerPage)) {
                     var totalChars = currentPageContent.replace(/\n/g, '').length;
                     var effectiveLines = isFirstPage ? linesPerPage - titleLines : linesPerPage;
@@ -1332,13 +1343,13 @@
                         if (pageContent) {
                             pages.push({
                                 content: pageContent,
-                                isFirstPage: isFirstPage
+                                isFirstPage: isFirstPage,
+                                isContinuation: isContinuation
                             });
                         }
                         currentPageContent = currentPageContent.substring(breakPoint);
-                        // 标记后续页面不再是第一页
                         isFirstPage = false;
-                        // 重新计算剩余内容的行数（后续页面不需要为标题预留空间）
+                        isContinuation = true;
                         var remainingChars = currentPageContent.replace(/\n/g, '').length;
                         currentLines = Math.ceil(remainingChars / charsPerLine);
                     } else {
@@ -1350,14 +1361,16 @@
             if (currentPageContent.trim()) {
                 pages.push({
                     content: currentPageContent.trim(),
-                    isFirstPage: isFirstPage
+                    isFirstPage: isFirstPage,
+                    isContinuation: isContinuation
                 });
             }
             
             if (pages.length === 0) {
                 pages.push({
                     content: '',
-                    isFirstPage: true
+                    isFirstPage: true,
+                    isContinuation: false
                 });
             }
             
@@ -1368,13 +1381,19 @@
             var pageData = pages[pageIndex];
             
             if (pageData !== undefined) {
+                var content = '';
+                
                 if (pageData.isFirstPage && currentChapterName) {
-                    var content = '<div class="chapter-title-display">' + currentChapterName + '</div>' + pageData.content;
-                    return content;
-                } else {
-                    var emptyContent = pageData.content || '';
-                    return emptyContent;
+                    content = '<div class="chapter-title-display">' + currentChapterName + '</div>';
                 }
+                
+                if (pageData.isContinuation) {
+                    content += '<div class="continuation-content">' + (pageData.content || '') + '</div>';
+                } else {
+                    content += pageData.content || '';
+                }
+                
+                return content;
             }
             return '';
         }

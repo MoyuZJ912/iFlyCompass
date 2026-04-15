@@ -5,7 +5,51 @@ from datetime import timedelta
 
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'instance', 'config.yml')
 
+DEFAULT_CONFIG = {
+    'flask': {
+        'secret_key': None,
+        'session_lifetime_days': 3650
+    },
+    'database': {
+        'path': 'users.db'
+    },
+    'directories': {
+        'temp': './temp',
+        'assets': './assets',
+        'stickers': './stickers',
+        'novels': './instance/novels',
+        'music_cache': './temp/music'
+    },
+    'external_api': {
+        'sticker_api': 'http://45.207.204.145:5003/api'
+    },
+    'chat': {
+        'max_message_history': 20
+    },
+    'system_settings': {
+        'home_display': 'nickname',
+        'allow_nickname': True,
+        'nickname_min_length': 2,
+        'nickname_max_length': 20,
+        'sidebar_default_expanded': False,
+        'card_layout': '1x4',
+        'username_manual_min': 3,
+        'username_manual_max': 50,
+        'username_register_min': 3,
+        'username_register_max': 50,
+        'password_strength': 1,
+        'allow_weak_password': False,
+        'allow_self_password_reset': False,
+        'allow_change_password': True
+    }
+}
+
 _config_cache = None
+
+def _ensure_instance_dir():
+    instance_dir = os.path.dirname(CONFIG_FILE)
+    if not os.path.exists(instance_dir):
+        os.makedirs(instance_dir)
 
 def _load_config():
     global _config_cache
@@ -13,12 +57,27 @@ def _load_config():
     if _config_cache is not None:
         return _config_cache
     
+    _ensure_instance_dir()
+    
     if not os.path.exists(CONFIG_FILE):
-        raise FileNotFoundError(f"配置文件不存在: {CONFIG_FILE}")
+        print("配置文件不存在，创建默认配置...")
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+            yaml.dump(DEFAULT_CONFIG, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+        _config_cache = DEFAULT_CONFIG.copy()
+        return _config_cache
     
     with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-        _config_cache = yaml.safe_load(f)
+        config = yaml.safe_load(f)
     
+    for key, value in DEFAULT_CONFIG.items():
+        if key not in config:
+            config[key] = value
+        elif isinstance(value, dict):
+            for sub_key, sub_value in value.items():
+                if sub_key not in config[key]:
+                    config[key][sub_key] = sub_value
+    
+    _config_cache = config
     return _config_cache
 
 def get_config():
@@ -26,6 +85,8 @@ def get_config():
 
 def save_config(config):
     global _config_cache
+    
+    _ensure_instance_dir()
     
     with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
         yaml.dump(config, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
