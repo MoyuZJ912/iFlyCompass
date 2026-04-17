@@ -460,6 +460,21 @@
                                         </div>
                                     </div>
                                 </el-tab-pane>
+                                
+                                <el-tab-pane label="公告管理" name="announcement">
+                                    <div class="settings-section">
+                                        <div class="settings-section-title">公告设置</div>
+                                        <div class="settings-item">
+                                            <div class="settings-item-content">
+                                                <div class="settings-item-label">公告管理</div>
+                                                <div class="settings-item-desc">管理横幅公告和通知公告，支持创建、编辑和删除公告</div>
+                                            </div>
+                                            <div class="settings-item-control">
+                                                <el-button type="primary" @click="goToAnnouncementManage">进入公告管理</el-button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </el-tab-pane>
                             </el-tabs>
                             
                             <div style="margin-top: 20px; text-align: right;" v-if="isSuperAdmin">
@@ -675,6 +690,9 @@
                 openProfileDialog() {
                     this.userMenuVisible = false;
                     window.location.href = '/board';
+                },
+                goToAnnouncementManage() {
+                    window.location.href = '/board/announcements';
                 }
             }
         });

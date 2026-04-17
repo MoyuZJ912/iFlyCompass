@@ -10,6 +10,7 @@ from modules.sticker import sticker_bp
 from modules.main import main_bp
 from modules.ncm import ncm_bp
 from modules.settings import settings_bp
+from modules.announcement import announcement_bp
 from modules.chat.websocket import register_socketio_events
 from utils import init_novel_cache, init_settings
 
@@ -46,6 +47,45 @@ def run_migrations(app):
             cursor.execute("ALTER TABLE user ADD COLUMN security_answer_hash VARCHAR(128)")
             conn.commit()
             print("数据库迁移完成！")
+        
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='announcement'")
+        if not cursor.fetchone():
+            print("正在迁移数据库：创建 announcement 表...")
+            cursor.execute('''
+                CREATE TABLE announcement (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title VARCHAR(200) NOT NULL,
+                    content TEXT NOT NULL,
+                    announcement_type VARCHAR(20) NOT NULL DEFAULT 'notification',
+                    priority VARCHAR(20) NOT NULL DEFAULT 'normal',
+                    created_by INTEGER NOT NULL,
+                    created_at DATETIME,
+                    updated_at DATETIME,
+                    is_active BOOLEAN DEFAULT 1,
+                    FOREIGN KEY (created_by) REFERENCES user(id)
+                )
+            ''')
+            conn.commit()
+            print("数据库迁移完成！")
+        
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='user_announcement_status'")
+        if not cursor.fetchone():
+            print("正在迁移数据库：创建 user_announcement_status 表...")
+            cursor.execute('''
+                CREATE TABLE user_announcement_status (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    announcement_id INTEGER NOT NULL,
+                    is_dismissed BOOLEAN DEFAULT 0,
+                    dismissed_at DATETIME,
+                    session_dismissed BOOLEAN DEFAULT 0,
+                    FOREIGN KEY (user_id) REFERENCES user(id),
+                    FOREIGN KEY (announcement_id) REFERENCES announcement(id),
+                    CONSTRAINT unique_user_announcement UNIQUE (user_id, announcement_id)
+                )
+            ''')
+            conn.commit()
+            print("数据库迁移完成！")
 
 def create_app():
     app = Flask(__name__)
@@ -64,6 +104,7 @@ def create_app():
     app.register_blueprint(main_bp)
     app.register_blueprint(ncm_bp)
     app.register_blueprint(settings_bp)
+    app.register_blueprint(announcement_bp)
     
     register_socketio_events(socketio)
     

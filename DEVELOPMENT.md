@@ -2,6 +2,70 @@
 
 ## 版本更新
 
+### REL2.3.0
+
+**公告系统**
+
+- **公告类型**：
+  - 横幅公告：在控制台首页标题栏下方显示，同时只能存在一个
+  - 通知公告：支持弹窗提醒，可存在多个
+
+- **公告优先级**：
+  - 重要：红色背景，无法关闭，每次进入控制台弹出（通知公告）
+  - 一般：黄色背景，可确认或不再提示
+  - 次要：蓝色背景，仅在公告中心显示
+
+- **样式设计**：
+  - 重要公告：背景色 `#fef0f0`，字体色 `#f56c6c`
+  - 一般公告：背景色 `#fdf6ec`，字体色 `#e6a23c`
+  - 次要公告：背景色 `#ecf5ff`，字体色 `#409eff`
+  - 使用 Element UI Tag 配色方案
+
+- **弹窗逻辑**：
+  - 多条未读通知时显示数量，点击跳转公告中心
+  - 单条通知显示完整内容，标题加粗，分隔线区分正文
+  - 重要通知可关闭但下次仍弹出
+  - 一般通知确认后本次会话不再弹出
+
+- **角标显示**：
+  - 感叹号：有重要公告
+  - 数字：有未确认的一般公告数量
+  - 红点：有未读的次要公告
+
+- **权限控制**：
+  - 超级管理员：可创建所有类型公告
+  - 管理员：可创建一般横幅、一般通知、次要通知
+  - 普通用户：无管理权限
+
+- **新增模块**：
+  - `modules/announcement/__init__.py` - 公告模块定义
+  - `modules/announcement/routes.py` - 公告页面路由
+  - `modules/announcement/api.py` - 公告 API
+
+- **新增模型**：
+  - `models/announcement.py` - Announcement, UserAnnouncementStatus 模型
+
+- **新增页面**：
+  - `templates/announcement_manage.html` - 公告管理页面
+  - `templates/announcement_center.html` - 公告中心页面
+
+- **新增 API**：
+  - `GET /api/announcements` - 获取所有公告
+  - `GET /api/announcements/banner` - 获取横幅公告
+  - `GET /api/announcements/notifications/popup` - 获取弹窗通知
+  - `GET /api/announcements/badge` - 获取公告角标状态
+  - `POST /api/announcements/<id>/dismiss` - 关闭公告
+  - `POST /api/announcements/<id>/confirm` - 确认公告
+  - `POST /api/announcements/<id>/never-show` - 不再提示
+  - `GET /api/announcements/manage` - 获取所有公告（管理）
+  - `POST /api/announcements/manage` - 创建公告
+  - `PUT /api/announcements/manage/<id>` - 更新公告
+  - `DELETE /api/announcements/manage/<id>` - 删除公告
+
+- **数据库变更**：
+  - 新增 `announcement` 表
+  - 新增 `user_announcement_status` 表
+
 ### REL2.2.1
 
 **沉浸式阅读器优化 + 音乐播放器优化**
@@ -441,6 +505,10 @@
   - routes.py：系统设置页面路由
   - api.py：系统设置 API
 
+- **announcement 模块**：公告系统
+  - routes.py：公告中心页面路由
+  - api.py：公告管理 API
+
 #### 1.3.3 数据模型层
 
 独立的数据模型层，按业务领域组织：
@@ -449,6 +517,7 @@
 - **chat.py**：ChatRoom
 - **sticker.py**：UserSticker, PackSticker
 - **novel.py**：NovelReadingProgress
+- **announcement.py**：Announcement, UserAnnouncementStatus
 
 #### 1.3.4 工具函数层
 
@@ -584,6 +653,31 @@
 | novel_filename          | String(255)   | 小说文件名           |
 | last_chapter_index      | Integer       | 最后阅读的章节索引    |
 | last_read_at            | DateTime      | 最后阅读时间         |
+
+### 2.7 公告表 (Announcement)
+
+| 字段名              | 类型          | 描述                       |
+| ------------------- | ------------- | -------------------------- |
+| id                  | Integer       | 公告 ID，主键              |
+| title               | String(200)   | 公告标题                   |
+| content             | Text          | 公告内容                   |
+| announcement_type   | String(20)    | 公告类型（'banner' 或 'notification'）|
+| priority            | String(20)    | 优先级（'important'、'normal'、'minor'）|
+| created_by          | Integer       | 创建者 ID，外键关联 User.id |
+| created_at          | DateTime      | 创建时间                   |
+| updated_at          | DateTime      | 更新时间                   |
+| is_active           | Boolean       | 是否激活                   |
+
+### 2.8 用户公告状态表 (UserAnnouncementStatus)
+
+| 字段名              | 类型          | 描述                       |
+| ------------------- | ------------- | -------------------------- |
+| id                  | Integer       | 状态 ID，主键              |
+| user_id             | Integer       | 用户 ID，外键关联 User.id   |
+| announcement_id     | Integer       | 公告 ID，外键关联 Announcement.id |
+| is_dismissed        | Boolean       | 是否永久关闭               |
+| dismissed_at        | DateTime      | 关闭时间                   |
+| session_dismissed   | Boolean       | 本次会话是否已关闭         |
 
 ## 3. API 接口
 
@@ -1006,6 +1100,96 @@
 - **方法**：GET
 - **权限**：登录用户
 - **返回**：封面图片文件
+
+### 3.9 公告相关 API
+
+#### 3.9.1 获取所有公告
+
+- **URL**：`/api/announcements`
+- **方法**：GET
+- **权限**：登录用户
+- **参数**：
+  - type: 公告类型（'all'、'banner'、'notification'，可选，默认 'all'）
+- **返回**：公告列表 JSON（包含用户阅读状态）
+
+#### 3.9.2 获取横幅公告
+
+- **URL**：`/api/announcements/banner`
+- **方法**：GET
+- **权限**：登录用户
+- **返回**：当前激活的横幅公告 JSON
+
+#### 3.9.3 获取弹窗通知
+
+- **URL**：`/api/announcements/notifications/popup`
+- **方法**：GET
+- **权限**：登录用户
+- **返回**：需要弹窗显示的通知公告列表 JSON
+
+#### 3.9.4 获取公告角标状态
+
+- **URL**：`/api/announcements/badge`
+- **方法**：GET
+- **权限**：登录用户
+- **返回**：角标状态 JSON（type: 'exclamation'/'number'/'dot'/'none'，count: 数字）
+
+#### 3.9.5 关闭公告
+
+- **URL**：`/api/announcements/<id>/dismiss`
+- **方法**：POST
+- **权限**：登录用户
+- **返回**：成功/失败信息 JSON
+
+#### 3.9.6 确认公告
+
+- **URL**：`/api/announcements/<id>/confirm`
+- **方法**：POST
+- **权限**：登录用户
+- **返回**：成功/失败信息 JSON
+
+#### 3.9.7 不再提示
+
+- **URL**：`/api/announcements/<id>/never-show`
+- **方法**：POST
+- **权限**：登录用户
+- **返回**：成功/失败信息 JSON
+
+#### 3.9.8 获取所有公告（管理）
+
+- **URL**：`/api/announcements/manage`
+- **方法**：GET
+- **权限**：管理员或超级管理员
+- **返回**：所有公告列表 JSON
+
+#### 3.9.9 创建公告
+
+- **URL**：`/api/announcements/manage`
+- **方法**：POST
+- **权限**：管理员或超级管理员
+- **参数**：
+  - title: 公告标题
+  - content: 公告内容
+  - announcement_type: 公告类型（'banner' 或 'notification'）
+  - priority: 优先级（'important'、'normal'、'minor'）
+- **返回**：新公告信息 JSON
+
+#### 3.9.10 更新公告
+
+- **URL**：`/api/announcements/manage/<id>`
+- **方法**：PUT
+- **权限**：管理员或超级管理员
+- **参数**：
+  - title: 公告标题（可选）
+  - content: 公告内容（可选）
+  - priority: 优先级（可选）
+- **返回**：更新后的公告信息 JSON
+
+#### 3.9.11 删除公告
+
+- **URL**：`/api/announcements/manage/<id>`
+- **方法**：DELETE
+- **权限**：管理员或超级管理员
+- **返回**：成功/失败信息 JSON
 
 ## 4. WebSocket 事件
 

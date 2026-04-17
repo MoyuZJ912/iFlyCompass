@@ -2,7 +2,7 @@
 
 ## 项目简介
 
-**版本：REL2.2.1**
+**版本：REL2.3.0**
 
 iFlyCompass 是一个多功能的 Web 应用平台，采用模块化架构设计，提供了多种实用工具和功能，包括：
 
@@ -11,6 +11,7 @@ iFlyCompass 是一个多功能的 Web 应用平台，采用模块化架构设计
   - **沉浸式阅读器**：主题切换、翻页动画、低版本 WebView 兼容、续段处理、边界溢出保护
 - **随身听**：网易云音乐播放器，支持搜索、推荐歌单、音乐播放（内网缓存）
 - **表情包管理**：表情商城、个人收藏、表情包合集管理
+- **公告系统**：横幅公告、通知公告、公告中心，支持多优先级和权限管理
 - **用户管理**：支持用户注册、登录、权限管理
 - **Passkey 管理**：支持生成和管理注册邀请码
 - **手势防御**：防御层 5 技术，防止宿主 App 全局手势劫持页面滚动
@@ -42,6 +43,7 @@ iFlyCompass 是一个多功能的 Web 应用平台，采用模块化架构设计
   - **ncm/** - 随身听模块（网易云音乐）
   - **main/** - 主页面模块
   - **settings/** - 系统设置模块
+  - **announcement/** - 公告系统模块
 
 ### 单一职责原则
 
@@ -144,7 +146,8 @@ iFlyCompass/
 │   ├── user.py              # User, Passkey 模型
 │   ├── chat.py              # ChatRoom 模型
 │   ├── sticker.py           # UserSticker, PackSticker 模型
-│   └── novel.py             # NovelReadingProgress 模型
+│   ├── novel.py             # NovelReadingProgress 模型
+│   └── announcement.py      # Announcement, UserAnnouncementStatus 模型
 ├── utils/                    # 工具函数层
 │   ├── __init__.py
 │   ├── common.py            # 通用工具函数
@@ -175,9 +178,13 @@ iFlyCompass/
 │   │   ├── __init__.py
 │   │   ├── routes.py        # 播放器路由
 │   │   └── api.py           # NCM API
-│   └── main/                # 主页面模块
+│   ├── main/                # 主页面模块
+│   │   ├── __init__.py
+│   │   └── routes.py        # 主页面路由
+│   └── announcement/        # 公告系统模块
 │       ├── __init__.py
-│       └── routes.py        # 主页面路由
+│       ├── routes.py        # 公告页面路由
+│       └── api.py           # 公告 API
 ├── assets/                   # 静态资源
 │   ├── css/                 # CSS 文件
 │   ├── js/                  # JavaScript 文件
@@ -197,7 +204,9 @@ iFlyCompass/
 │   ├── swipe_test.html      # 滑动测试页面
 │   ├── tools.html           # 工具页面
 │   ├── system_settings.html # 系统设置页面
-│   └── forgot_password.html # 忘记密码页面
+│   ├── forgot_password.html # 忘记密码页面
+│   ├── announcement_manage.html # 公告管理页面
+│   └── announcement_center.html # 公告中心页面
 ├── instance/                 # 数据文件目录
 │   ├── config.yml           # 配置文件（YAML格式）
 │   ├── users.db             # 用户数据库

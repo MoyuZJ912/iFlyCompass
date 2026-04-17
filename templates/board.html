@@ -105,6 +105,174 @@
         .profile-dialog-form .el-form-item {
             margin-bottom: 18px;
         }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 16px;
+        }
+        
+        .header-right .announcement-icon-wrapper {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+            width: 36px;
+            height: 36px;
+        }
+        
+        .header-right .announcement-icon-wrapper:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .header-right .announcement-icon-wrapper .material-icons {
+            font-family: 'Material Icons' !important;
+            font-size: 20px !important;
+            color: #606266 !important;
+            display: inline-block !important;
+            line-height: 1 !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+        
+        .banner-announcement {
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: relative;
+            z-index: 100;
+            width: 100%;
+        }
+        
+        .banner-announcement.important {
+            background-color: #ff4d4f;
+            color: #a8071a;
+        }
+        
+        .banner-announcement.normal {
+            background-color: #91d5ff;
+            color: #0050b3;
+        }
+        
+        .banner-announcement .banner-content {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .banner-announcement .banner-title {
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        
+        .banner-announcement .banner-text {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .announcement-badge {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            min-width: 16px;
+            height: 16px;
+            border-radius: 8px;
+            background-color: #ff4d4f;
+            color: #fff;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 4px;
+        }
+        
+        .announcement-badge.exclamation {
+            background-color: #ff4d4f;
+            font-weight: bold;
+        }
+        
+        .announcement-badge.dot {
+            width: 8px;
+            min-width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            padding: 0;
+        }
+        
+        .notification-dialog .notification-content {
+            padding: 16px;
+            border-radius: 4px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .notification-dialog .notification-content.important {
+            background-color: #fef0f0;
+            color: #f56c6c;
+        }
+        
+        .notification-dialog .notification-content.normal {
+            background-color: #fdf6ec;
+            color: #e6a23c;
+        }
+        
+        .notification-dialog .notification-content.minor {
+            background-color: #ecf5ff;
+            color: #409eff;
+        }
+        
+        .notification-dialog .notification-title {
+            font-weight: bold;
+            font-size: 18px;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid;
+        }
+        
+        .notification-dialog .notification-content.important .notification-title {
+            border-color: #f9c0c0;
+        }
+        
+        .notification-dialog .notification-content.normal .notification-title {
+            border-color: #f0d9a8;
+        }
+        
+        .notification-dialog .notification-content.minor .notification-title {
+            border-color: #a0cfff;
+        }
+        
+        .notification-dialog .notification-text {
+            font-size: 14px;
+            line-height: 1.8;
+        }
+        
+        .notification-dialog .multi-notification-content {
+            text-align: center;
+            padding: 32px 16px;
+        }
+        
+        .notification-dialog .multi-notification-count {
+            font-size: 48px;
+            font-weight: bold;
+            color: #ff4d4f;
+            margin-bottom: 16px;
+        }
+        
+        .notification-dialog .multi-notification-text {
+            font-size: 16px;
+            color: #606266;
+        }
     </style>
 </head>
 <body class="touch-defense-5">
@@ -115,7 +283,6 @@
     </div>
     <div id="app">
         <el-container class="console-container">
-            <!-- 侧边栏 -->
             <el-aside width="64px" class="console-sidebar" :width="isCollapse ? '64px' : '200px'">
                 <div class="sidebar-header" @click="toggleCollapse">
                     <img src="/assets/images/logo-trans-white.png" alt="Logo" class="sidebar-logo">
@@ -163,43 +330,54 @@
                 </el-menu>
             </el-aside>
             
-            <!-- 主内容区域 -->
             <el-container>
-                <!-- 顶部导航 -->
                 <el-header class="console-header">
                     <div class="header-left">
                         <h1>控制台</h1>
                     </div>
                     <div class="header-right">
-                    <div class="user-menu-container" @click="toggleUserMenu">
-                        <span class="user-info">
-                            您好，[[ displayName ]]
-                            <i class="el-icon-arrow-down" :class="{ 'rotated': userMenuVisible }"></i>
-                        </span>
-                        <div class="user-dropdown-menu" v-show="userMenuVisible" @click.stop>
-                            <div class="user-dropdown-header">
-                                <div class="display-name">[[ displayName ]]</div>
-                                <div class="username-label">@[[ username ]]</div>
-                            </div>
-                            <div class="user-dropdown-item" @click="openProfileDialog">
-                                <i class="el-icon-user"></i>
-                                <span>个人设置</span>
-                            </div>
-                            <div class="user-dropdown-item" @click="goSwipeTest" v-if="isAdmin">
-                                <i class="el-icon-mobile-phone"></i>
-                                <span>滑动测试</span>
-                            </div>
-                            <div class="user-dropdown-divider"></div>
-                            <div class="user-dropdown-item logout-item" @click="confirmLogout">
-                                <i class="el-icon-switch-button"></i>
-                                <span>退出登录</span>
+                        <div class="announcement-icon-wrapper" @click="goToAnnouncementCenter" title="公告中心">
+                            <i class="material-icons" style="font-size: 20px; color: #fff;">notifications</i>
+                            <span class="announcement-badge" v-if="announcementBadge.type !== 'none'" :class="announcementBadge.type">
+                                <template v-if="announcementBadge.type === 'exclamation'">!</template>
+                                <template v-else-if="announcementBadge.type === 'number'">[[ announcementBadge.count > 99 ? '99+' : announcementBadge.count ]]</template>
+                            </span>
+                        </div>
+                        <div class="user-menu-container" @click="toggleUserMenu">
+                            <span class="user-info">
+                                您好，[[ displayName ]]
+                                <i class="el-icon-arrow-down" :class="{ 'rotated': userMenuVisible }"></i>
+                            </span>
+                            <div class="user-dropdown-menu" v-show="userMenuVisible" @click.stop>
+                                <div class="user-dropdown-header">
+                                    <div class="display-name">[[ displayName ]]</div>
+                                    <div class="username-label">@[[ username ]]</div>
+                                </div>
+                                <div class="user-dropdown-item" @click="openProfileDialog">
+                                    <i class="el-icon-user"></i>
+                                    <span>个人设置</span>
+                                </div>
+                                <div class="user-dropdown-item" @click="goSwipeTest" v-if="isAdmin">
+                                    <i class="el-icon-mobile-phone"></i>
+                                    <span>滑动测试</span>
+                                </div>
+                                <div class="user-dropdown-divider"></div>
+                                <div class="user-dropdown-item logout-item" @click="confirmLogout">
+                                    <i class="el-icon-switch-button"></i>
+                                    <span>退出登录</span>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
                 </el-header>
                 
-                <!-- 内容区域 -->
+                <div v-if="bannerAnnouncement" class="banner-announcement" :class="bannerAnnouncement.priority">
+                    <div class="banner-content">
+                        <span class="banner-title">[[ bannerAnnouncement.title ]]</span>
+                        <span class="banner-text">[[ bannerAnnouncement.content ]]</span>
+                    </div>
+                </div>
+                
                 <el-main class="console-content">
                     <div class="content-wrapper">
                         <el-card class="welcome-card">
@@ -248,7 +426,6 @@
             </el-container>
         </el-container>
         
-        <!-- 个人设置对话框 -->
         <el-dialog
             title="个人设置"
             :visible.sync="profileDialogVisible"
@@ -292,13 +469,46 @@
                 <el-button type="primary" @click="saveProfile">保存</el-button>
             </span>
         </el-dialog>
+        
+        <el-dialog
+            title="通知公告"
+            :visible.sync="notificationDialogVisible"
+            width="500px"
+            class="notification-dialog"
+            :close-on-click-modal="false"
+            :show-close="true"
+            @close="onNotificationDialogClose"
+        >
+            <template v-if="popupNotifications.length > 1">
+                <div class="multi-notification-content">
+                    <div class="multi-notification-count">[[ popupNotifications.length ]]</div>
+                    <div class="multi-notification-text">您有 [[ popupNotifications.length ]] 条通知公告未读</div>
+                </div>
+            </template>
+            <template v-else-if="currentNotification">
+                <div class="notification-content" :class="currentNotification.priority">
+                    <div class="notification-title">[[ currentNotification.title ]]</div>
+                    <div class="notification-text">[[ currentNotification.content ]]</div>
+                </div>
+            </template>
+            <span slot="footer" class="dialog-footer">
+                <template v-if="popupNotifications.length > 1">
+                    <el-button type="primary" @click="goToAnnouncementCenter">查看公告中心</el-button>
+                </template>
+                <template v-else-if="currentNotification && currentNotification.priority === 'normal'">
+                    <el-button @click="neverShowNotification">不再提示</el-button>
+                    <el-button type="primary" @click="confirmNotification">确认</el-button>
+                </template>
+                <template v-else-if="currentNotification && currentNotification.priority === 'important'">
+                    <el-button type="primary" @click="closeImportantNotification">我知道了</el-button>
+                </template>
+            </span>
+        </el-dialog>
     </div>
 
     <script src="/assets/js/vue.min.js"></script>
     <script src="/assets/js/element-ui.js"></script>
     <script>
-        // 防御层 5 滚动处理（四方向支持）
-        // 主容器跟随 body 滚动，侧边栏和标题栏通过反向 transform 固定
         var defenseLayer5ScrollHandler = null;
         
         function enableDefenseLayer5() {
@@ -307,19 +517,16 @@
                     var scrollLeft = document.documentElement.scrollLeft || document.body.scrollLeft;
                     var scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
                     
-                    // 主容器跟随滚动
                     var container = document.querySelector('.console-container');
                     if (container) {
                         container.style.transform = 'translate(' + (-scrollLeft) + 'px, ' + (-scrollTop) + 'px)';
                     }
                     
-                    // 侧边栏反向固定
                     var sidebar = document.querySelector('.console-sidebar');
                     if (sidebar) {
                         sidebar.style.transform = 'translate(' + scrollLeft + 'px, ' + scrollTop + 'px)';
                     }
                     
-                    // 标题栏反向固定
                     var header = document.querySelector('.console-header');
                     if (header) {
                         header.style.transform = 'translate(' + scrollLeft + 'px, ' + scrollTop + 'px)';
@@ -329,10 +536,8 @@
             }
         }
         
-        // 页面加载完成日志
         console.log('=== iFlyCompass 控制台页面加载完成 ===');
         
-        // 启用防御层 5
         enableDefenseLayer5();
         
         new Vue({
@@ -363,8 +568,24 @@
                         nicknameMaxLength: 20,
                         allowChangePassword: true,
                         allowSelfPasswordReset: false
+                    },
+                    bannerAnnouncement: null,
+                    popupNotifications: [],
+                    currentNotificationIndex: 0,
+                    notificationDialogVisible: false,
+                    announcementBadge: {
+                        type: 'none',
+                        count: 0
                     }
                 };
+            },
+            computed: {
+                currentNotification() {
+                    if (this.popupNotifications.length > 0 && this.currentNotificationIndex < this.popupNotifications.length) {
+                        return this.popupNotifications[this.currentNotificationIndex];
+                    }
+                    return null;
+                }
             },
             mounted() {
                 console.log('Vue 实例挂载完成，用户信息:', {
@@ -374,21 +595,60 @@
                     isSuperAdmin: this.isSuperAdmin
                 });
                 this.loadProfileSettings();
+                this.loadBannerAnnouncement();
+                this.loadPopupNotifications();
+                this.loadAnnouncementBadge();
             },
             methods: {
                 loadProfileSettings() {
                     fetch('/api/user/profile')
-                        .then(response => response.json())
-                        .then(data => {
+                        .then(function(response) { return response.json(); })
+                        .then(function(data) {
                             this.profileSettings.allowNickname = data.allow_nickname;
                             this.profileSettings.nicknameMinLength = data.nickname_min_length;
                             this.profileSettings.nicknameMaxLength = data.nickname_max_length;
                             this.profileSettings.allowChangePassword = data.allow_change_password;
                             this.profileSettings.allowSelfPasswordReset = data.allow_self_password_reset;
                             this.profileForm.securityQuestion = data.security_question || '';
-                        })
-                        .catch(error => {
+                        }.bind(this))
+                        .catch(function(error) {
                             console.error('加载个人设置失败:', error);
+                        });
+                },
+                loadBannerAnnouncement() {
+                    fetch('/api/announcements/banner')
+                        .then(function(response) { return response.json(); })
+                        .then(function(data) {
+                            if (data && data.id) {
+                                this.bannerAnnouncement = data;
+                            }
+                        }.bind(this))
+                        .catch(function(error) {
+                            console.error('加载横幅公告失败:', error);
+                        });
+                },
+                loadPopupNotifications() {
+                    fetch('/api/announcements/notifications/popup')
+                        .then(function(response) { return response.json(); })
+                        .then(function(data) {
+                            this.popupNotifications = data;
+                            if (data.length > 0) {
+                                this.currentNotificationIndex = 0;
+                                this.notificationDialogVisible = true;
+                            }
+                        }.bind(this))
+                        .catch(function(error) {
+                            console.error('加载通知公告失败:', error);
+                        });
+                },
+                loadAnnouncementBadge() {
+                    fetch('/api/announcements/badge')
+                        .then(function(response) { return response.json(); })
+                        .then(function(data) {
+                            this.announcementBadge = data;
+                        }.bind(this))
+                        .catch(function(error) {
+                            console.error('加载公告角标失败:', error);
                         });
                 },
                 toggleCollapse() {
@@ -408,6 +668,9 @@
                 goSwipeTest() {
                     this.userMenuVisible = false;
                     window.location.href = '/board/swipe-test';
+                },
+                goToAnnouncementCenter() {
+                    window.location.href = '/announcements';
                 },
                 saveProfile() {
                     var dataToSend = {};
@@ -434,8 +697,8 @@
                         },
                         body: JSON.stringify(dataToSend)
                     })
-                    .then(response => response.json())
-                    .then(data => {
+                    .then(function(response) { return response.json(); })
+                    .then(function(data) {
                         if (data.error) {
                             this.$message.error(data.error);
                         } else {
@@ -446,11 +709,60 @@
                                 this.nickname = this.profileForm.nickname;
                             }
                         }
-                    })
-                    .catch(error => {
+                    }.bind(this))
+                    .catch(function(error) {
                         console.error('保存失败:', error);
                         this.$message.error('保存失败');
-                    });
+                    }.bind(this));
+                },
+                confirmNotification() {
+                    if (!this.currentNotification) return;
+                    
+                    fetch('/api/announcements/' + this.currentNotification.id + '/confirm', {
+                        method: 'POST'
+                    })
+                    .then(function(response) { return response.json(); })
+                    .then(function(data) {
+                        this.showNextNotification();
+                    }.bind(this))
+                    .catch(function(error) {
+                        console.error('确认失败:', error);
+                        this.showNextNotification();
+                    }.bind(this));
+                },
+                neverShowNotification() {
+                    if (!this.currentNotification) return;
+                    
+                    fetch('/api/announcements/' + this.currentNotification.id + '/never-show', {
+                        method: 'POST'
+                    })
+                    .then(function(response) { return response.json(); })
+                    .then(function(data) {
+                        if (data.success) {
+                            this.$message.success('已设置不再提示');
+                        }
+                        this.showNextNotification();
+                        this.loadAnnouncementBadge();
+                    }.bind(this))
+                    .catch(function(error) {
+                        console.error('设置失败:', error);
+                        this.showNextNotification();
+                    }.bind(this));
+                },
+                closeImportantNotification() {
+                    this.notificationDialogVisible = false;
+                    this.loadAnnouncementBadge();
+                },
+                showNextNotification() {
+                    this.currentNotificationIndex++;
+                    if (this.currentNotificationIndex >= this.popupNotifications.length) {
+                        this.notificationDialogVisible = false;
+                        this.loadAnnouncementBadge();
+                    }
+                },
+                onNotificationDialogClose() {
+                    this.notificationDialogVisible = false;
+                    this.loadAnnouncementBadge();
                 },
                 confirmLogout() {
                     this.userMenuVisible = false;
@@ -459,10 +771,10 @@
                         cancelButtonText: '取消',
                         type: 'warning'
                     })
-                    .then(() => {
+                    .then(function() {
                         this.logout();
-                    })
-                    .catch(() => {
+                    }.bind(this))
+                    .catch(function() {
                         console.log('取消退出登录');
                     });
                 },

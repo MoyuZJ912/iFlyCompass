@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="touch-defense-5">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>公告管理 - iFlyCompass</title>
+    <link rel="stylesheet" href="/assets/css/loading.css">
+    <link rel="stylesheet" href="/assets/css/material-icons.css">
+    <link rel="stylesheet" href="/assets/css/element-ui.css">
+    <link rel="stylesheet" href="/assets/css/console.css">
+    <style>
+        .user-menu-container {
+            position: relative;
+            cursor: pointer;
+            z-index: 1000;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        
+        .user-info:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .user-info .el-icon-arrow-down {
+            margin-left: 8px;
+            transition: transform 0.3s;
+        }
+        
+        .user-info .el-icon-arrow-down.rotated {
+            transform: rotate(180deg);
+        }
+        
+        .user-dropdown-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 4px;
+            background: #fff;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            min-width: 200px;
+            overflow: hidden;
+        }
+        
+        .user-dropdown-header {
+            padding: 12px 16px;
+            background: #f5f7fa;
+            border-bottom: 1px solid #e8e8e8;
+        }
+        
+        .user-dropdown-header .display-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .user-dropdown-header .username-label {
+            font-size: 12px;
+            color: #999;
+            margin-top: 2px;
+        }
+        
+        .user-dropdown-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            color: #333;
+        }
+        
+        .user-dropdown-item:hover:not(.disabled) {
+            background-color: #f5f7fa;
+        }
+        
+        .user-dropdown-divider {
+            height: 1px;
+            background-color: #e8e8e8;
+            margin: 4px 0;
+        }
+        
+        .user-dropdown-item.logout-item {
+            color: #ff4d4f;
+        }
+        
+        .user-dropdown-item.logout-item:hover {
+            background-color: #fff1f0;
+        }
+        
+        .user-dropdown-item i {
+            margin-right: 8px;
+        }
+        
+        .announcement-tabs {
+            margin-bottom: 20px;
+        }
+        
+        .announcement-card {
+            margin-bottom: 16px;
+            transition: all 0.3s;
+        }
+        
+        .announcement-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .announcement-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .announcement-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #303133;
+        }
+        
+        .announcement-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 8px;
+        }
+        
+        .announcement-type-tag {
+            font-size: 12px;
+        }
+        
+        .announcement-priority-tag {
+            font-size: 12px;
+        }
+        
+        .announcement-content {
+            margin-top: 12px;
+            padding: 12px;
+            background: #f5f7fa;
+            border-radius: 4px;
+            color: #606266;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+        
+        .announcement-actions {
+            margin-top: 12px;
+            display: flex;
+            gap: 8px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #909399;
+        }
+        
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        .form-tip {
+            font-size: 12px;
+            color: #909399;
+            margin-top: 4px;
+        }
+        
+        .permission-hint {
+            font-size: 12px;
+            color: #e6a23c;
+            margin-left: 8px;
+        }
+    </style>
+</head>
+<body class="touch-defense-5">
+    <div id="touch-buffer"></div>
+    <div id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">加载中...</div>
+    </div>
+    <div id="app">
+        <el-container class="console-container">
+            <el-aside width="64px" class="console-sidebar" :width="isCollapse ? '64px' : '200px'">
+                <div class="sidebar-header" @click="toggleCollapse">
+                    <img src="/assets/images/logo-trans-white.png" alt="Logo" class="sidebar-logo">
+                    <span v-show="!isCollapse" class="sidebar-brand">iFlyCompass</span>
+                    <i v-show="!isCollapse" class="el-icon-s-fold sidebar-toggle" :class="{ 'rotated': !isCollapse }"></i>
+                </div>
+                
+                <el-menu
+                    :default-active="activeMenu"
+                    class="el-menu-vertical-demo"
+                    background-color="#1a365d"
+                    text-color="#ffffff"
+                    active-text-color="#409EFF"
+                    :collapse="isCollapse"
+                    @select="handleMenuClick"
+                >
+                    <el-menu-item index="dashboard">
+                        <i class="el-icon-s-home"></i>
+                        <span slot="title">首页</span>
+                    </el-menu-item>
+                    <el-menu-item index="tools">
+                        <i class="el-icon-s-tools"></i>
+                        <span slot="title">小工具</span>
+                    </el-menu-item>
+                    <el-menu-item index="games">
+                        <i class="el-icon-s-marketing"></i>
+                        <span slot="title">小游戏</span>
+                    </el-menu-item>
+                    <el-menu-item index="users" v-if="isAdmin">
+                        <i class="el-icon-s-custom"></i>
+                        <span slot="title">用户管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="passkeys" v-if="isSuperAdmin">
+                        <i class="el-icon-key"></i>
+                        <span slot="title">Passkey 管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="chat">
+                        <i class="el-icon-chat-dot-round"></i>
+                        <span slot="title">聊天室</span>
+                    </el-menu-item>
+                    <el-menu-item index="settings">
+                        <i class="el-icon-setting"></i>
+                        <span slot="title">系统设置</span>
+                    </el-menu-item>
+                </el-menu>
+            </el-aside>
+            
+            <el-container>
+                <el-header class="console-header">
+                    <div class="header-left">
+                        <h1>公告管理</h1>
+                    </div>
+                    <div class="header-right">
+                        <div class="user-menu-container" @click="toggleUserMenu">
+                            <span class="user-info">
+                                您好，[[ displayName ]]
+                                <i class="el-icon-arrow-down" :class="{ 'rotated': userMenuVisible }"></i>
+                            </span>
+                            <div class="user-dropdown-menu" v-show="userMenuVisible" @click.stop>
+                                <div class="user-dropdown-header">
+                                    <div class="display-name">[[ displayName ]]</div>
+                                    <div class="username-label">@[[ username ]]</div>
+                                </div>
+                                <div class="user-dropdown-item" @click="goToBoard">
+                                    <i class="el-icon-s-home"></i>
+                                    <span>返回首页</span>
+                                </div>
+                                <div class="user-dropdown-divider"></div>
+                                <div class="user-dropdown-item logout-item" @click="confirmLogout">
+                                    <i class="el-icon-switch-button"></i>
+                                    <span>退出登录</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </el-header>
+                
+                <el-main class="console-content">
+                    <div class="content-wrapper">
+                        <el-card>
+                            <div slot="header" style="display: flex; justify-content: space-between; align-items: center;">
+                                <span>公告列表</span>
+                                <el-button type="primary" size="small" @click="openCreateDialog">
+                                    <i class="el-icon-plus"></i> 发布公告
+                                </el-button>
+                            </div>
+                            
+                            <el-tabs v-model="activeTab" class="announcement-tabs">
+                                <el-tab-pane label="横幅公告" name="banner">
+                                    <div v-if="bannerAnnouncements.length === 0" class="empty-state">
+                                        <i class="el-icon-info"></i>
+                                        <p>暂无横幅公告</p>
+                                    </div>
+                                    <el-card v-for="ann in bannerAnnouncements" :key="ann.id" class="announcement-card">
+                                        <div class="announcement-header">
+                                            <span class="announcement-title">[[ ann.title ]]</span>
+                                            <div>
+                                                <el-tag :type="ann.priority === 'important' ? 'danger' : 'primary'" size="small">
+                                                    [[ ann.priority === 'important' ? '重要' : '一般' ]]
+                                                </el-tag>
+                                            </div>
+                                        </div>
+                                        <div class="announcement-meta">
+                                            <span class="announcement-type-tag">类型：横幅公告</span>
+                                            <span>创建时间：[[ formatDate(ann.created_at) ]]</span>
+                                        </div>
+                                        <div class="announcement-content">[[ ann.content ]]</div>
+                                        <div class="announcement-actions">
+                                            <el-button size="mini" @click="openEditDialog(ann)">编辑</el-button>
+                                            <el-button size="mini" type="danger" @click="deleteAnnouncement(ann)">删除</el-button>
+                                        </div>
+                                    </el-card>
+                                </el-tab-pane>
+                                
+                                <el-tab-pane label="通知公告" name="notification">
+                                    <div v-if="notificationAnnouncements.length === 0" class="empty-state">
+                                        <i class="el-icon-info"></i>
+                                        <p>暂无通知公告</p>
+                                    </div>
+                                    <el-card v-for="ann in notificationAnnouncements" :key="ann.id" class="announcement-card">
+                                        <div class="announcement-header">
+                                            <span class="announcement-title">[[ ann.title ]]</span>
+                                            <div>
+                                                <el-tag :type="getPriorityType(ann.priority)" size="small">
+                                                    [[ getPriorityLabel(ann.priority) ]]
+                                                </el-tag>
+                                            </div>
+                                        </div>
+                                        <div class="announcement-meta">
+                                            <span class="announcement-type-tag">类型：通知公告</span>
+                                            <span>创建时间：[[ formatDate(ann.created_at) ]]</span>
+                                        </div>
+                                        <div class="announcement-content">[[ ann.content ]]</div>
+                                        <div class="announcement-actions">
+                                            <el-button size="mini" @click="openEditDialog(ann)">编辑</el-button>
+                                            <el-button size="mini" type="danger" @click="deleteAnnouncement(ann)">删除</el-button>
+                                        </div>
+                                    </el-card>
+                                </el-tab-pane>
+                            </el-tabs>
+                        </el-card>
+                    </div>
+                </el-main>
+            </el-container>
+        </el-container>
+        
+        <el-dialog
+            :title="dialogType === 'create' ? '发布公告' : '编辑公告'"
+            :visible.sync="dialogVisible"
+            width="600px"
+        >
+            <el-form :model="announcementForm" label-width="100px">
+                <el-form-item label="公告类型">
+                    <el-radio-group v-model="announcementForm.announcement_type" @change="onTypeChange">
+                        <el-radio label="banner">横幅公告</el-radio>
+                        <el-radio label="notification">通知公告</el-radio>
+                    </el-radio-group>
+                    <div class="form-tip" v-if="announcementForm.announcement_type === 'banner'">
+                        横幅公告同时只能存在一个，发布新公告将自动下架旧公告
+                    </div>
+                </el-form-item>
+                
+                <el-form-item label="重要性">
+                    <el-radio-group v-model="announcementForm.priority">
+                        <el-radio label="important" v-if="canCreateImportant">
+                            [[ announcementForm.announcement_type === 'banner' ? '重要' : '重要' ]]
+                            <span class="permission-hint" v-if="!isSuperAdmin">(仅超级管理员)</span>
+                        </el-radio>
+                        <el-radio label="normal">
+                            [[ announcementForm.announcement_type === 'banner' ? '一般' : '一般' ]]
+                        </el-radio>
+                        <el-radio label="minor" v-if="announcementForm.announcement_type === 'notification'">
+                            次要
+                        </el-radio>
+                    </el-radio-group>
+                    <div class="form-tip">
+                        <template v-if="announcementForm.announcement_type === 'banner'">
+                            <template v-if="announcementForm.priority === 'important'">
+                                重要横幅：红色背景，无法关闭
+                            </template>
+                            <template v-else>
+                                一般横幅：蓝色背景，无法关闭
+                            </template>
+                        </template>
+                        <template v-else>
+                            <template v-if="announcementForm.priority === 'important'">
+                                重要通知：红色背景，每次进入控制台弹出，无法关闭
+                            </template>
+                            <template v-else-if="announcementForm.priority === 'normal'">
+                                一般通知：黄色背景，弹出后可确认或不再提示
+                            </template>
+                            <template v-else>
+                                次要通知：蓝色背景，仅在公告中心显示
+                            </template>
+                        </template>
+                    </div>
+                </el-form-item>
+                
+                <el-form-item label="标题">
+                    <el-input v-model="announcementForm.title" placeholder="请输入公告标题" maxlength="200" show-word-limit></el-input>
+                </el-form-item>
+                
+                <el-form-item label="内容">
+                    <el-input 
+                        type="textarea" 
+                        v-model="announcementForm.content" 
+                        placeholder="请输入公告内容"
+                        :rows="5"
+                        maxlength="2000"
+                        show-word-limit
+                    ></el-input>
+                </el-form-item>
+            </el-form>
+            <span slot="footer" class="dialog-footer">
+                <el-button @click="dialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="submitAnnouncement">确定</el-button>
+            </span>
+        </el-dialog>
+    </div>
+
+    <script src="/assets/js/vue.min.js"></script>
+    <script src="/assets/js/element-ui.js"></script>
+    <script>
+        var defenseLayer5ScrollHandler = null;
+        
+        function enableDefenseLayer5() {
+            if (!defenseLayer5ScrollHandler) {
+                defenseLayer5ScrollHandler = function() {
+                    var scrollLeft = document.documentElement.scrollLeft || document.body.scrollLeft;
+                    var scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+                    
+                    var container = document.querySelector('.console-container');
+                    if (container) {
+                        container.style.transform = 'translate(' + (-scrollLeft) + 'px, ' + (-scrollTop) + 'px)';
+                    }
+                    
+                    var sidebar = document.querySelector('.console-sidebar');
+                    if (sidebar) {
+                        sidebar.style.transform = 'translate(' + scrollLeft + 'px, ' + scrollTop + 'px)';
+                    }
+                    
+                    var header = document.querySelector('.console-header');
+                    if (header) {
+                        header.style.transform = 'translate(' + scrollLeft + 'px, ' + scrollTop + 'px)';
+                    }
+                };
+                window.addEventListener('scroll', defenseLayer5ScrollHandler, { passive: true });
+            }
+        }
+        
+        enableDefenseLayer5();
+        
+        new Vue({
+            el: '#app',
+            delimiters: ['[[', ']]'],
+            data() {
+                return {
+                    isCollapse: true,
+                    activeMenu: 'settings',
+                    activeTab: 'banner',
+                    displayName: '{{ current_user.display_name }}',
+                    username: '{{ current_user.username }}',
+                    isAdmin: {% if current_user.is_admin or current_user.is_super_admin %}true{% else %}false{% endif %},
+                    isSuperAdmin: {% if current_user.is_super_admin %}true{% else %}false{% endif %},
+                    userMenuVisible: false,
+                    announcements: [],
+                    dialogVisible: false,
+                    dialogType: 'create',
+                    editingId: null,
+                    announcementForm: {
+                        title: '',
+                        content: '',
+                        announcement_type: 'notification',
+                        priority: 'normal'
+                    }
+                };
+            },
+            computed: {
+                bannerAnnouncements() {
+                    return this.announcements.filter(function(a) { return a.announcement_type === 'banner'; });
+                },
+                notificationAnnouncements() {
+                    return this.announcements.filter(function(a) { return a.announcement_type === 'notification'; });
+                },
+                canCreateImportant() {
+                    return this.isSuperAdmin;
+                }
+            },
+            mounted() {
+                this.loadAnnouncements();
+            },
+            methods: {
+                toggleCollapse() {
+                    this.isCollapse = !this.isCollapse;
+                },
+                toggleUserMenu() {
+                    this.userMenuVisible = !this.userMenuVisible;
+                },
+                loadAnnouncements() {
+                    fetch('/api/announcements/manage')
+                        .then(function(response) { return response.json(); })
+                        .then(function(data) {
+                            if (data.error) {
+                                this.$message.error(data.error);
+                            } else {
+                                this.announcements = data;
+                            }
+                        }.bind(this))
+                        .catch(function(error) {
+                            console.error('加载公告失败:', error);
+                            this.$message.error('加载公告失败');
+                        }.bind(this));
+                },
+                openCreateDialog() {
+                    this.dialogType = 'create';
+                    this.editingId = null;
+                    this.announcementForm = {
+                        title: '',
+                        content: '',
+                        announcement_type: 'notification',
+                        priority: 'normal'
+                    };
+                    this.dialogVisible = true;
+                },
+                openEditDialog(ann) {
+                    if (ann.priority === 'important' && !this.isSuperAdmin) {
+                        this.$message.error('只有超级管理员可以编辑重要公告');
+                        return;
+                    }
+                    this.dialogType = 'edit';
+                    this.editingId = ann.id;
+                    this.announcementForm = {
+                        title: ann.title,
+                        content: ann.content,
+                        announcement_type: ann.announcement_type,
+                        priority: ann.priority
+                    };
+                    this.dialogVisible = true;
+                },
+                onTypeChange() {
+                    if (this.announcementForm.announcement_type === 'banner') {
+                        if (this.announcementForm.priority === 'minor') {
+                            this.announcementForm.priority = 'normal';
+                        }
+                    }
+                },
+                submitAnnouncement() {
+                    if (!this.announcementForm.title.trim()) {
+                        this.$message.warning('请输入公告标题');
+                        return;
+                    }
+                    if (!this.announcementForm.content.trim()) {
+                        this.$message.warning('请输入公告内容');
+                        return;
+                    }
+                    
+                    var url = '/api/announcements/manage';
+                    var method = 'POST';
+                    
+                    if (this.dialogType === 'edit') {
+                        url = '/api/announcements/manage/' + this.editingId;
+                        method = 'PUT';
+                    }
+                    
+                    fetch(url, {
+                        method: method,
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(this.announcementForm)
+                    })
+                    .then(function(response) { return response.json(); })
+                    .then(function(data) {
+                        if (data.error) {
+                            this.$message.error(data.error);
+                        } else {
+                            this.$message.success(this.dialogType === 'create' ? '公告发布成功' : '公告更新成功');
+                            this.dialogVisible = false;
+                            this.loadAnnouncements();
+                        }
+                    }.bind(this))
+                    .catch(function(error) {
+                        console.error('操作失败:', error);
+                        this.$message.error('操作失败');
+                    }.bind(this));
+                },
+                deleteAnnouncement(ann) {
+                    if (ann.priority === 'important' && !this.isSuperAdmin) {
+                        this.$message.error('只有超级管理员可以删除重要公告');
+                        return;
+                    }
+                    
+                    this.$confirm('确定要删除该公告吗？', '提示', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    })
+                    .then(function() {
+                        fetch('/api/announcements/manage/' + ann.id, {
+                            method: 'DELETE'
+                        })
+                        .then(function(response) { return response.json(); })
+                        .then(function(data) {
+                            if (data.error) {
+                                this.$message.error(data.error);
+                            } else {
+                                this.$message.success('公告已删除');
+                                this.loadAnnouncements();
+                            }
+                        }.bind(this))
+                        .catch(function(error) {
+                            console.error('删除失败:', error);
+                            this.$message.error('删除失败');
+                        }.bind(this));
+                    }.bind(this))
+                    .catch(function() {});
+                },
+                getPriorityType(priority) {
+                    var types = {
+                        'important': 'danger',
+                        'normal': 'warning',
+                        'minor': 'primary'
+                    };
+                    return types[priority] || 'info';
+                },
+                getPriorityLabel(priority) {
+                    var labels = {
+                        'important': '重要',
+                        'normal': '一般',
+                        'minor': '次要'
+                    };
+                    return labels[priority] || priority;
+                },
+                formatDate(dateStr) {
+                    if (!dateStr) return '';
+                    var date = new Date(dateStr);
+                    return date.toLocaleString('zh-CN');
+                },
+                goToBoard() {
+                    this.userMenuVisible = false;
+                    window.location.href = '/board';
+                },
+                confirmLogout() {
+                    this.userMenuVisible = false;
+                    this.$confirm('确定要退出登录吗？', '提示', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    })
+                    .then(function() {
+                        window.location.href = '/logout';
+                    })
+                    .catch(function() {});
+                },
+                handleMenuClick(key) {
+                    this.userMenuVisible = false;
+                    if (key === 'dashboard') {
+                        window.location.href = '/board';
+                    } else if (key === 'tools') {
+                        window.location.href = '/board/tools';
+                    } else if (key === 'users') {
+                        window.location.href = '/board/users';
+                    } else if (key === 'passkeys') {
+                        window.location.href = '/board/passkeys';
+                    } else if (key === 'chat') {
+                        window.location.href = '/board/chat';
+                    } else if (key === 'settings') {
+                        window.location.href = '/board/settings';
+                    }
+                }
+            }
+        });
+    </script>
+    <script src="/assets/js/loading.js"></script>
+</body>
+</html>
