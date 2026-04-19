@@ -8,3 +8,4 @@ class ChatRoom(db.Model):
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     is_active = db.Column(db.Boolean, default=True)
+    multi_user_mode = db.Column(db.Boolean, default=False)

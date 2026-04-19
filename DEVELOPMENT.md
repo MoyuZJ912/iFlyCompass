@@ -2,6 +2,60 @@
 
 ## 版本更新
 
+### REL2.3.1
+
+**Drop 功能 + 聊天室多人优化 + 导航配置**
+
+- **Drop 功能**：
+  - 允许用户向所有用户发送 Drop 消息（气泡形式弹出）
+  - 个人冷却 10 分钟，全服冷却 1 分钟
+  - HTTP 轮询每 10 秒查询一次最新 Drop
+  - 气泡显示发送者昵称和消息内容
+  - 支持屏蔽用户（黑名单管理）
+  - Drop 设置页面：开关接收、黑名单管理、快捷发送
+  - 使用 localStorage 记录 lastId，切换页面不重复显示
+- **聊天室多人优化模式**：
+  - 聊天室创建者可开启"多人优化"模式
+  - 列表模式显示：所有发言人都在左侧，消息内容对齐
+  - 交替背景色区分不同消息行
+  - 连续同用户消息隐藏昵称（保留占位）
+  - 自己发送的消息用户名标蓝加粗
+  - 引用消息格式：`[用户名] 消息内容`
+  - 表情包和引用消息适配列表模式
+- **导航配置功能**：
+  - 启动时自动创建 `instance/nav.yml` 配置文件
+  - 支持通过 YAML 配置添加自定义导航项
+  - 导航项自动显示在小工具/小游戏页面
+  - 支持外部链接（新标签页打开）和相对链接
+- **新增模块**：
+  - `modules/drop/__init__.py` - Drop 模块定义
+  - `modules/drop/routes.py` - Drop 设置页面路由
+  - `modules/drop/api.py` - Drop API
+- **新增模型**：
+  - `models/drop.py` - DropMessage, DropSettings, DropBlacklist 模型
+- **新增页面**：
+  - `templates/drop_settings.html` - Drop 设置页面
+- **新增工具**：
+  - `utils/nav.py` - 导航配置工具
+- **新增文件**：
+  - `assets/js/drop.js` - Drop 前端脚本
+  - `assets/css/drop.css` - Drop 样式
+- **新增 API**：
+  - `POST /api/drop/send` - 发送 Drop
+  - `GET /api/drop/poll` - 轮询 Drop
+  - `GET /api/drop/status` - 获取冷却状态
+  - `GET /api/drop/settings` - 获取 Drop 设置
+  - `PUT /api/drop/settings` - 更新 Drop 设置
+  - `POST /api/drop/blacklist` - 添加黑名单
+  - `DELETE /api/drop/blacklist` - 移除黑名单
+  - `GET /api/drop/users/search` - 搜索用户
+  - `GET /api/nav/items` - 获取导航项
+- **数据库变更**：
+  - 新增 `drop_message` 表
+  - 新增 `drop_settings` 表
+  - 新增 `drop_blacklist` 表
+  - ChatRoom 表新增 `multi_user_mode` 字段
+
 ### REL2.3.0
 
 **公告系统**
@@ -9,46 +63,37 @@
 - **公告类型**：
   - 横幅公告：在控制台首页标题栏下方显示，同时只能存在一个
   - 通知公告：支持弹窗提醒，可存在多个
-
 - **公告优先级**：
   - 重要：红色背景，无法关闭，每次进入控制台弹出（通知公告）
   - 一般：黄色背景，可确认或不再提示
   - 次要：蓝色背景，仅在公告中心显示
-
 - **样式设计**：
   - 重要公告：背景色 `#fef0f0`，字体色 `#f56c6c`
   - 一般公告：背景色 `#fdf6ec`，字体色 `#e6a23c`
   - 次要公告：背景色 `#ecf5ff`，字体色 `#409eff`
   - 使用 Element UI Tag 配色方案
-
 - **弹窗逻辑**：
   - 多条未读通知时显示数量，点击跳转公告中心
   - 单条通知显示完整内容，标题加粗，分隔线区分正文
   - 重要通知可关闭但下次仍弹出
   - 一般通知确认后本次会话不再弹出
-
 - **角标显示**：
   - 感叹号：有重要公告
   - 数字：有未确认的一般公告数量
   - 红点：有未读的次要公告
-
 - **权限控制**：
   - 超级管理员：可创建所有类型公告
   - 管理员：可创建一般横幅、一般通知、次要通知
   - 普通用户：无管理权限
-
 - **新增模块**：
   - `modules/announcement/__init__.py` - 公告模块定义
   - `modules/announcement/routes.py` - 公告页面路由
   - `modules/announcement/api.py` - 公告 API
-
 - **新增模型**：
   - `models/announcement.py` - Announcement, UserAnnouncementStatus 模型
-
 - **新增页面**：
   - `templates/announcement_manage.html` - 公告管理页面
   - `templates/announcement_center.html` - 公告中心页面
-
 - **新增 API**：
   - `GET /api/announcements` - 获取所有公告
   - `GET /api/announcements/banner` - 获取横幅公告
@@ -61,7 +106,6 @@
   - `POST /api/announcements/manage` - 创建公告
   - `PUT /api/announcements/manage/<id>` - 更新公告
   - `DELETE /api/announcements/manage/<id>` - 删除公告
-
 - **数据库变更**：
   - 新增 `announcement` 表
   - 新增 `user_announcement_status` 表
@@ -76,7 +120,6 @@
   - 添加续段处理：被截断到新页面的内容标记为续段
   - 续段内容不缩进，直接紧贴开头显示
   - 正常段落保持首行缩进 2em（空两格）
-
 - **音乐播放器搜索优化**：
   - 搜索结果即时显示，无需等待封面加载
   - 封面图片后台异步分批加载（每批 10 张）
@@ -91,43 +134,35 @@
   - 新增 `modules/settings/` 系统设置模块
   - 管理员/超级管理员可在系统设置页面配置各项功能
   - 支持通用设置和安全设置两大分类
-
 - **通用设置**：
   - 首页显示设置：切换显示昵称或用户名
   - 用户设置：允许设置昵称、昵称长度限制（5-20字）
   - 导航设置：导航栏默认展开、工具/游戏卡片布局（1×3、1×4、2×3）
-
 - **安全设置**：
   - 用户名设置：手动添加和自助注册的用户名长度限制
   - 密码设置：密码强度要求（4个等级）、允许弱密码、允许改密码
   - 安全问题：允许自助找回密码、设置安全问题
-
 - **忘记密码功能**：
   - 登录页面添加"忘记密码"链接
   - 三步验证流程：输入用户名 → 回答安全问题 → 重置密码
   - 支持通过安全问题自助重置密码
-
 - **个人设置增强**：
   - 根据系统设置动态显示/隐藏昵称输入框
   - 根据系统设置控制密码修改权限
   - 安全问题设置（启用自助找回密码后可见）
-
 - **注册验证增强**：
   - 用户名长度验证（根据系统设置）
   - 密码强度验证（根据系统设置）
   - 弱密码检测
-
 - **用户管理验证**：
   - 手动添加用户时的用户名长度验证
   - 昵称设置验证
-
 - **配置文件重构**：
   - 删除 `config.py` 中的硬编码配置
   - 新增 `instance/config.yml` YAML 配置文件
   - 系统设置与 Flask 配置统一存储在 YAML 文件中
   - 删除 `instance/system_settings.json`，合并到 config.yml
   - 添加 PyYAML 依赖
-
 - **新增文件**：
   - `modules/settings/__init__.py` - 系统设置模块定义
   - `modules/settings/routes.py` - 系统设置页面路由
@@ -137,7 +172,6 @@
   - `utils/system_settings.py` - 系统设置工具（从 YAML 读取）
   - `utils/validators.py` - 验证工具（密码强度、用户名、昵称）
   - `instance/config.yml` - YAML 配置文件
-
 - **新增 API**：
   - `GET /api/settings` - 获取所有系统设置
   - `PUT /api/settings/general` - 更新通用设置
@@ -146,7 +180,6 @@
   - `POST /api/auth/forgot-password/check` - 检查用户名
   - `POST /api/auth/forgot-password/verify` - 验证安全问题答案
   - `POST /api/auth/forgot-password/reset` - 重置密码
-
 - **数据库变更**：
   - User 表新增 `security_question` 字段
   - User 表新增 `security_answer_hash` 字段
@@ -161,35 +194,29 @@
   - 欺骗浏览器认为页面可滚动，从而让内部内容区域正常滚动
   - 支持四方向滚动（上、下、左、右）
   - 侧边栏和标题栏通过反向 transform 固定位置
-
 - **CSS 实现**：
   - `html.touch-defense-5`：禁用 overscroll-behavior
   - `body.touch-defense-5`：设置 overflow: auto，允许滚动
   - `.touch-defense-5 #scroll-wrap`：absolute 定位，跟随 body 滚动
   - `.touch-defense-5 .console-content`：设置 touch-action: pan-x pan-y
-
 - **JavaScript 滚动同步**：
   - 监听 window scroll 事件
   - 主容器通过 transform 跟随 body 滚动
   - 侧边栏和标题栏通过反向 transform 固定位置
-
 - **滑动测试页面**：
   - 新增 `/board/swipe-test` 路由
   - 仅管理员和超级管理员可访问
   - 从用户下拉菜单进入（个人设置下方）
   - 测试四方向滑动功能
-
 - **随身听优化**：
   - 搜索结果调用 `/api/ncm/song/detail` 获取完整歌曲信息
   - 修复搜索结果封面显示默认图片、歌手显示未知的问题
   - 新增封面缓存 API `/api/ncm/cache-cover`
   - 移除播放列表功能，改为单曲播放模式
   - 点击新歌曲时替换当前播放的歌曲
-
 - **新增 API**：
   - `POST /api/ncm/cache-cover` - 缓存封面图片
   - `GET /music/cache/covers/<filename>` - 提供缓存的封面文件
-
 - **新增文件**：
   - `templates/swipe_test.html` - 滑动测试页面
 
@@ -201,13 +228,11 @@
   - 修复第一章第一页标题和正文重叠的问题
   - 优化 `while` 循环中的分页逻辑，正确处理标题占用空间
   - 分页后正确计算剩余内容行数
-
 - **低版本 WebView 兼容性处理**：
   - 检测 `localStorage` 是否存在，不存在则创建 mock 对象
   - 检测 `localStorage` 是否可用，失败则替换为 mock
   - 提供 `getItem`, `setItem`, `removeItem`, `clear` 方法
   - 解决旧版 WebView 中 `Cannot read property 'getItem' of null` 错误
-
 - **ES5 语法兼容**：
   - 将所有箭头函数 `=>` 替换为传统 `function` 语法
   - 将 `const`/`let` 替换为 `var`
@@ -223,24 +248,20 @@
 - **修复 APlayer API 错误**：
   - 将 `this.aplayer.skip(index)` 改为 `this.aplayer.list.switch(index) + this.aplayer.play()`
   - APlayer 正确的方法是使用 `list.switch(index)` 切换歌曲
-
 - **添加旧版 WebView 兼容性处理**：
   - 检测 `localStorage` 是否存在，不存在则创建 mock 对象
   - 检测 `localStorage` 是否可用，失败则替换为 mock
   - 提供 `getItem`, `setItem`, `removeItem`, `clear` 方法
   - 解决旧版 WebView 中 `Cannot read property 'getItem' of null` 错误
-
 - **播放器操作容错处理**：
   - 添加空值检查：`this.aplayer.list` 和 `this.aplayer.list.audios`
   - 添加 try-catch 保护，播放器操作失败时自动尝试重新创建
   - 双重保护机制，即使初始化失败也会尝试再次创建
-
 - **错误提示优化**：
   - 播放失败时显示具体原因
   - `无法获取播放地址: 歌曲暂无播放地址` / `API返回错误码: xxx`
   - `缓存音乐失败: xxx`（后端返回的具体错误信息）
   - `播放失败: xxx`（JavaScript 异常的消息）
-
 - **添加详尽的日志记录**：
   - 前端日志：`[NCM]` 前缀的各步骤日志
   - 后端日志：`[NCM API]` / `[MusicCache]` 前缀的详细日志
@@ -254,14 +275,12 @@
   - 启动时预扫描所有小说，缓存书名、作者、最新章节
   - API 响应从数秒优化到毫秒级
   - 支持手动刷新缓存 `/api/novels/refresh-cache`
-
 - **随身听功能**：
   - 新增 `modules/ncm/` 随身听模块
   - 网易云音乐播放器，支持搜索、推荐歌单、热门搜索
   - 内网缓存播放：音乐文件先缓存到本地 `temp/music/`
   - APlayer 播放器本地化部署，无需外网 CDN
   - 与聊天室、小说阅读器保持一致的设计风格
-
 - **新增文件**：
   - `utils/novel_cache.py` - 小说缓存服务
   - `utils/music_cache.py` - 音乐缓存服务
@@ -272,7 +291,6 @@
   - `templates/ncm_player.html` - 播放器前端页面
   - `assets/css/aplayer.min.css` - APlayer 样式
   - `assets/js/aplayer.min.js` - APlayer 脚本
-
 - **新增 API**：
   - `GET /api/ncm/search` - 搜索歌曲
   - `GET /api/ncm/song/url` - 获取歌曲播放地址
@@ -290,20 +308,16 @@
   - 取消编辑用户对话框，管理员开关直接在表格中切换
   - 用户名不可修改，仅作为登录标识
   - 密码修改通过"重置密码"按钮单独操作
-
 - **昵称功能**：
   - 新增 `nickname` 字段，用户可设置昵称
   - 所有页面优先显示昵称，无昵称时显示用户名
   - 用户可在"个人设置"中修改自己的昵称
-
 - **超级管理员密码修改**：
   - 超级管理员可在"个人设置"中修改自己的密码
-
 - **下拉菜单优化**：
   - 所有页面下拉菜单统一风格
   - 显示大字昵称 + 小字用户名
   - 添加"个人设置"入口
-
 - **Bug修复**：
   - 修复控制台欢迎页面用户名不显示的问题
   - 数据库自动迁移：启动时检查并添加 `nickname` 字段
@@ -322,13 +336,11 @@
   - 支持中英文多种章节格式（第一章、Chapter 1、1. 等）
   - 章节标题前空行强制校验，避免正文中关键词误识别
   - 新增 `utils/chapter_parser.py` 作为独立章节解析库
-
 - **沉浸式阅读器主题系统**：
   - 日间模式 5 种主题：牛奶白、卷轴黄、小草绿、基佬紫、云雾蓝
   - 夜间模式 2 种主题：星空黑、玄素灰
   - 一键切换日间/夜间模式
   - 设置面板风格与阅读器主题同步
-
 - **翻页动画系统重构**：
   - 双层页面结构，动画过程中可同时看到两页
   - 滑动动画：当前页向左滑出，下一页从右边滑入
@@ -346,13 +358,11 @@
   - 创建 utils/ 目录，统一管理工具函数
   - 创建 modules/ 目录，按业务领域组织功能模块
   - app.py 从 1680 行减少到 43 行（减少 97.4%）
-
 - **架构改进**：
   - 采用 Flask Blueprint 进行模块化设计
   - 遵循单一职责原则，每个模块专注于单一业务领域
   - 提高代码的可维护性、可测试性和可扩展性
   - 改善多人协作，减少合并冲突
-
 - **新增模块**：
   - **models/** - 数据库模型层
     - user.py：User, Passkey 模型
@@ -362,20 +372,20 @@
   - **utils/** - 工具函数层
     - common.py：通用工具函数（壁纸、诗词、Passkey 生成等）
     - file.py：文件处理工具（编码检测、文件读取、图片下载等）
-  - **modules/** - 业务模块层
+  - **modules/** - modules/ - 业务模块层
     - auth/：用户认证模块（登录、注册、用户管理、Passkey 管理）
     - chat/：聊天室模块（聊天室管理、WebSocket 事件处理）
     - novel/：小说阅读器模块（小说列表、章节解析、阅读进度）
     - sticker/：表情包管理模块（表情商城、个人收藏、表情包合集）
     - main/：主页面模块（首页、控制面板、工具页面）
-
+    - drop/：Drop 消息模块（Drop 消息发送、接收、设置）
 - **代码质量提升**：
   - 配置集中管理（config.py）
   - 扩展统一初始化（extensions.py）
   - 清晰的模块边界和职责划分
   - 更好的代码复用性
 
-### REL1.3.4_fix1
+### REL1.3.4\_fix1
 
 - **修复**：沉浸式阅读器章节切换bug
   - 修复章节结尾快速点击导致跳过多章的问题
@@ -483,28 +493,22 @@
 - **auth 模块**：用户认证和管理
   - routes.py：登录、注册、用户管理页面
   - api.py：用户和 Passkey 管理 API
-
 - **chat 模块**：聊天室功能
   - routes.py：聊天室页面路由
   - api.py：聊天室管理 API
   - websocket.py：WebSocket 事件处理
-
 - **novel 模块**：小说阅读器
   - routes.py：小说阅读器页面路由
   - api.py：小说和章节 API
   - parser.py：章节解析器（支持高级/简单两种模式）
-
 - **sticker 模块**：表情包管理
   - routes.py：表情包文件服务
   - api.py：表情包管理 API
-
 - **main 模块**：主页面
   - routes.py：首页、控制面板、工具页面
-
 - **settings 模块**：系统设置
   - routes.py：系统设置页面路由
   - api.py：系统设置 API
-
 - **announcement 模块**：公告系统
   - routes.py：公告中心页面路由
   - api.py：公告管理 API
@@ -518,38 +522,38 @@
 - **sticker.py**：UserSticker, PackSticker
 - **novel.py**：NovelReadingProgress
 - **announcement.py**：Announcement, UserAnnouncementStatus
+- **drop.py**：DropMessage, DropSettings, DropBlacklist
 
 #### 1.3.4 工具函数层
 
 统一的工具函数层，提供通用功能：
 
 - **common.py**：
-  - get_bing_wallpaper()：获取必应壁纸
-  - get_poetry()：获取今日诗词
-  - generate_passkey()：生成 Passkey
-  - get_utc_plus_8_time()：获取 UTC+8 时间
-
+  - get\_bing\_wallpaper()：获取必应壁纸
+  - get\_poetry()：获取今日诗词
+  - generate\_passkey()：生成 Passkey
+  - get\_utc\_plus\_8\_time()：获取 UTC+8 时间
 - **file.py**：
-  - detect_file_encoding()：检测文件编码
-  - read_novel_content()：读取小说内容
-  - download_sticker_image()：下载表情包图片
-
-- **chapter_parser.py**：
-  - parse_chapters_advanced()：高级章节解析，返回章节列表
-  - detect_chapters()：从文件检测章节位置
-  - detect_chapters_from_lines()：从行列表检测章节
+  - detect\_file\_encoding()：检测文件编码
+  - read\_novel\_content()：读取小说内容
+  - download\_sticker\_image()：下载表情包图片
+- **chapter\_parser.py**：
+  - parse\_chapters\_advanced()：高级章节解析，返回章节列表
+  - detect\_chapters()：从文件检测章节位置
+  - detect\_chapters\_from\_lines()：从行列表检测章节
   - V3.1 锚点学习 + 统计验证算法
-
-- **system_settings.py**：
-  - get_settings()：获取系统设置
-  - update_settings()：更新系统设置
+- **system\_settings.py**：
+  - get\_settings()：获取系统设置
+  - update\_settings()：更新系统设置
   - 从 YAML 配置文件读取系统设置
-
 - **validators.py**：
-  - validate_password_strength()：验证密码强度
-  - is_weak_password()：检查是否为弱密码
-  - validate_username()：验证用户名
-  - validate_nickname()：验证昵称
+  - validate\_password\_strength()：验证密码强度
+  - is\_weak\_password()：检查是否为弱密码
+  - validate\_username()：验证用户名
+  - validate\_nickname()：验证昵称
+- **nav.py**：
+  - init\_nav\_file()：初始化导航配置文件
+  - get\_nav\_items()：获取导航项列表
 
 ### 1.4 架构优势
 
@@ -581,103 +585,131 @@
 
 ### 2.1 用户表 (User)
 
-| 字段名              | 类型          | 描述             |
-| ------------------- | ------------- | ---------------- |
-| id                  | Integer       | 用户 ID，主键     |
-| username            | String(50)    | 用户名，唯一      |
-| nickname            | String(50)    | 昵称（可选）      |
-| password_hash       | String(128)   | 密码哈希值        |
-| is_super_admin      | Boolean       | 是否为超级管理员  |
-| is_admin            | Boolean       | 是否为管理员      |
-| passkey_used        | String(6)     | 注册时使用的 Passkey |
-| security_question   | String(255)   | 安全问题（可选）  |
-| security_answer_hash| String(128)   | 安全问题答案哈希（可选）|
-| created_at          | DateTime      | 创建时间          |
+| 字段名                    | 类型          | 描述             |
+| ---------------------- | ----------- | -------------- |
+| id                     | Integer     | 用户 ID，主键       |
+| username               | String(50)  | 用户名，唯一         |
+| nickname               | String(50)  | 昵称（可选）         |
+| password\_hash         | String(128) | 密码哈希值          |
+| is\_super\_admin       | Boolean     | 是否为超级管理员       |
+| is\_admin              | Boolean     | 是否为管理员         |
+| passkey\_used          | String(6)   | 注册时使用的 Passkey |
+| security\_question     | String(255) | 安全问题（可选）       |
+| security\_answer\_hash | String(128) | 安全问题答案哈希（可选）   |
+| created\_at            | DateTime    | 创建时间           |
 
 ### 2.2 Passkey 表 (Passkey)
 
 | 字段名            | 类型        | 描述                |
-| ----------------- | ----------- | ------------------- |
-| id                | Integer     | Passkey ID，主键     |
-| key               | String(6)   | Passkey 值，唯一     |
-| duration_days     | Integer     | 有效期（天数），None 表示无限 |
-| max_uses          | Integer     | 最大使用次数，None 表示无限  |
-| current_uses      | Integer     | 当前使用次数         |
-| is_active         | Boolean     | 是否激活             |
-| expires_at        | DateTime    | 过期时间             |
-| created_at        | DateTime    | 创建时间             |
+| -------------- | --------- | ----------------- |
+| id             | Integer   | Passkey ID，主键     |
+| key            | String(6) | Passkey 值，唯一      |
+| duration\_days | Integer   | 有效期（天数），None 表示无限 |
+| max\_uses      | Integer   | 最大使用次数，None 表示无限  |
+| current\_uses  | Integer   | 当前使用次数            |
+| is\_active     | Boolean   | 是否激活              |
+| expires\_at    | DateTime  | 过期时间              |
+| created\_at    | DateTime  | 创建时间              |
 
 ### 2.3 聊天室表 (ChatRoom)
 
 | 字段名         | 类型          | 描述                  |
-| -------------- | ------------- | --------------------- |
-| id             | Integer       | 聊天室 ID，主键        |
-| name           | String(50)    | 聊天室名称，唯一       |
-| password       | String(128)   | 密码哈希值，None 表示无密码 |
-| created_by     | Integer       | 创建者 ID，外键关联 User.id |
-| created_at     | DateTime      | 创建时间              |
-| is_active      | Boolean       | 是否激活              |
+| ----------- | ----------- | ------------------- |
+| id          | Integer     | 聊天室 ID，主键           |
+| name        | String(50)  | 聊天室名称，唯一            |
+| password    | String(128) | 密码哈希值，None 表示无密码    |
+| created\_by | Integer     | 创建者 ID，外键关联 User.id |
+| created\_at | DateTime    | 创建时间                |
+| is\_active  | Boolean     | 是否激活                |
 
 ### 2.4 用户表情包表 (UserSticker)
 
 | 字段名           | 类型          | 描述                       |
-| ---------------- | ------------- | -------------------------- |
-| id               | Integer       | 表情包 ID，主键             |
-| user_id          | Integer       | 用户 ID，外键关联 User.id   |
-| sticker_code     | String(20)    | 表情码                     |
-| sticker_type     | String(20)    | 表情类型 ('single' 或 'pack') |
-| sticker_name     | String(100)   | 表情名称                   |
-| description      | String(255)   | 表情描述                   |
-| local_path       | String(255)   | 本地缓存路径               |
-| created_at       | DateTime      | 创建时间                   |
+| ------------- | ----------- | ------------------------ |
+| id            | Integer     | 表情包 ID，主键                |
+| user\_id      | Integer     | 用户 ID，外键关联 User.id       |
+| sticker\_code | String(20)  | 表情码                      |
+| sticker\_type | String(20)  | 表情类型 ('single' 或 'pack') |
+| sticker\_name | String(100) | 表情名称                     |
+| description   | String(255) | 表情描述                     |
+| local\_path   | String(255) | 本地缓存路径                   |
+| created\_at   | DateTime    | 创建时间                     |
 
 ### 2.5 表情包合集中的表情表 (PackSticker)
 
 | 字段名           | 类型          | 描述                 |
-| ---------------- | ------------- | -------------------- |
-| id               | Integer       | 表情 ID，主键         |
-| user_id          | Integer       | 用户 ID，外键关联 User.id |
-| pack_code        | String(20)    | 所属表情包合集码      |
-| sticker_code     | String(50)    | 表情码               |
-| sticker_name     | String(100)   | 表情名称             |
-| description      | String(255)   | 表情描述             |
-| local_path       | String(255)   | 本地缓存路径         |
-| created_at       | DateTime      | 创建时间             |
+| ------------- | ----------- | ------------------ |
+| id            | Integer     | 表情 ID，主键           |
+| user\_id      | Integer     | 用户 ID，外键关联 User.id |
+| pack\_code    | String(20)  | 所属表情包合集码           |
+| sticker\_code | String(50)  | 表情码                |
+| sticker\_name | String(100) | 表情名称               |
+| description   | String(255) | 表情描述               |
+| local\_path   | String(255) | 本地缓存路径             |
+| created\_at   | DateTime    | 创建时间               |
 
 ### 2.6 小说阅读进度表 (NovelReadingProgress)
 
 | 字段名                  | 类型          | 描述                 |
-| ----------------------- | ------------- | -------------------- |
-| id                      | Integer       | 进度 ID，主键         |
-| user_id                 | Integer       | 用户 ID，外键关联 User.id |
-| novel_filename          | String(255)   | 小说文件名           |
-| last_chapter_index      | Integer       | 最后阅读的章节索引    |
-| last_read_at            | DateTime      | 最后阅读时间         |
+| -------------------- | ----------- | ------------------ |
+| id                   | Integer     | 进度 ID，主键           |
+| user\_id             | Integer     | 用户 ID，外键关联 User.id |
+| novel\_filename      | String(255) | 小说文件名              |
+| last\_chapter\_index | Integer     | 最后阅读的章节索引          |
+| last\_read\_at       | DateTime    | 最后阅读时间             |
 
 ### 2.7 公告表 (Announcement)
 
-| 字段名              | 类型          | 描述                       |
-| ------------------- | ------------- | -------------------------- |
-| id                  | Integer       | 公告 ID，主键              |
-| title               | String(200)   | 公告标题                   |
-| content             | Text          | 公告内容                   |
-| announcement_type   | String(20)    | 公告类型（'banner' 或 'notification'）|
-| priority            | String(20)    | 优先级（'important'、'normal'、'minor'）|
-| created_by          | Integer       | 创建者 ID，外键关联 User.id |
-| created_at          | DateTime      | 创建时间                   |
-| updated_at          | DateTime      | 更新时间                   |
-| is_active           | Boolean       | 是否激活                   |
+| 字段名                | 类型          | 描述                                |
+| ------------------ | ----------- | --------------------------------- |
+| id                 | Integer     | 公告 ID，主键                          |
+| title              | String(200) | 公告标题                              |
+| content            | Text        | 公告内容                              |
+| announcement\_type | String(20)  | 公告类型（'banner' 或 'notification'）   |
+| priority           | String(20)  | 优先级（'important'、'normal'、'minor'） |
+| created\_by        | Integer     | 创建者 ID，外键关联 User.id               |
+| created\_at        | DateTime    | 创建时间                              |
+| updated\_at        | DateTime    | 更新时间                              |
+| is\_active         | Boolean     | 是否激活                              |
 
 ### 2.8 用户公告状态表 (UserAnnouncementStatus)
 
-| 字段名              | 类型          | 描述                       |
-| ------------------- | ------------- | -------------------------- |
-| id                  | Integer       | 状态 ID，主键              |
-| user_id             | Integer       | 用户 ID，外键关联 User.id   |
-| announcement_id     | Integer       | 公告 ID，外键关联 Announcement.id |
-| is_dismissed        | Boolean       | 是否永久关闭               |
-| dismissed_at        | DateTime      | 关闭时间                   |
-| session_dismissed   | Boolean       | 本次会话是否已关闭         |
+| 字段名                | 类型       | 描述                         |
+| ------------------ | -------- | -------------------------- |
+| id                 | Integer  | 状态 ID，主键                   |
+| user\_id           | Integer  | 用户 ID，外键关联 User.id         |
+| announcement\_id   | Integer  | 公告 ID，外键关联 Announcement.id |
+| is\_dismissed      | Boolean  | 是否永久关闭                     |
+| dismissed\_at      | DateTime | 关闭时间                       |
+| session\_dismissed | Boolean  | 本次会话是否已关闭                  |
+
+### 2.9 Drop 消息表 (DropMessage)
+
+| 字段名          | 类型          | 描述                  |
+| ------------ | ----------- | ------------------- |
+| id           | Integer     | 消息 ID，主键            |
+| sender\_id   | Integer     | 发送者 ID，外键关联 User.id |
+| sender\_name | String(50)  | 发送者昵称               |
+| content      | String(200) | 消息内容                |
+| created\_at  | DateTime    | 创建时间                |
+
+### 2.10 Drop 设置表 (DropSettings)
+
+| 字段名            | 类型       | 描述                 |
+| -------------- | -------- | ------------------ |
+| id             | Integer  | 设置 ID，主键           |
+| user\_id       | Integer  | 用户 ID，外键关联 User.id |
+| enabled        | Boolean  | 是否接收 Drop 消息       |
+| last\_drop\_at | DateTime | 最后发送时间             |
+
+### 2.11 Drop 黑名单表 (DropBlacklist)
+
+| 字段名               | 类型       | 描述                    |
+| ----------------- | -------- | --------------------- |
+| id                | Integer  | 记录 ID，主键              |
+| user\_id          | Integer  | 用户 ID，外键关联 User.id    |
+| blocked\_user\_id | Integer  | 被屏蔽用户 ID，外键关联 User.id |
+| created\_at       | DateTime | 创建时间                  |
 
 ## 3. API 接口
 
@@ -690,7 +722,7 @@
 - **参数**：
   - username: 用户名
   - password: 密码
-  - confirm_password: 确认密码
+  - confirm\_password: 确认密码
   - passkey: 邀请码（可选，首个用户不需要）
 - **返回**：重定向到登录页面
 
@@ -726,7 +758,7 @@
 - **参数**：
   - username: 用户名
   - password: 密码
-  - is_admin: 是否为管理员（仅超级管理员可设置）
+  - is\_admin: 是否为管理员（仅超级管理员可设置）
 - **返回**：新用户信息 JSON
 
 #### 3.2.3 更新用户
@@ -737,7 +769,7 @@
 - **参数**：
   - id: 用户 ID
   - password: 密码（可选）
-  - is_admin: 是否为管理员（仅超级管理员可设置）
+  - is\_admin: 是否为管理员（仅超级管理员可设置）
 - **返回**：更新后的用户信息 JSON
 
 #### 3.2.4 删除用户
@@ -764,8 +796,8 @@
 - **参数**：
   - nickname: 昵称（可选）
   - password: 新密码（可选）
-  - security_question: 安全问题（可选）
-  - security_answer: 安全问题答案（可选）
+  - security\_question: 安全问题（可选）
+  - security\_answer: 安全问题答案（可选）
 - **返回**：成功/失败信息 JSON
 
 #### 3.2.7 忘记密码 - 检查用户名
@@ -795,7 +827,7 @@
 - **参数**：
   - username: 用户名
   - answer: 安全问题答案
-  - new_password: 新密码
+  - new\_password: 新密码
 - **返回**：成功/失败信息 JSON
 
 ### 3.3 Passkey 管理 API
@@ -813,8 +845,8 @@
 - **方法**：POST
 - **权限**：超级管理员
 - **参数**：
-  - duration_days: 有效期（天数，可选）
-  - max_uses: 最大使用次数（可选）
+  - duration\_days: 有效期（天数，可选）
+  - max\_uses: 最大使用次数（可选）
 - **返回**：新 Passkey 信息 JSON
 
 #### 3.3.3 删除 Passkey
@@ -869,7 +901,7 @@
 - **方法**：POST
 - **权限**：登录用户
 - **参数**：
-  - room_id: 聊天室 ID
+  - room\_id: 聊天室 ID
   - password: 密码（如果需要）
 - **返回**：成功/失败信息 JSON
 
@@ -902,7 +934,7 @@
 - **方法**：POST
 - **权限**：登录用户
 - **参数**：
-  - chapter_index: 章节索引
+  - chapter\_index: 章节索引
 - **返回**：成功/失败信息 JSON
 
 #### 3.5.5 获取阅读进度
@@ -975,7 +1007,7 @@
 - **URL**：`/api/settings`
 - **方法**：GET
 - **权限**：管理员或超级管理员
-- **返回**：系统设置 JSON（包含 general、security、password_strength_options、card_layout_options）
+- **返回**：系统设置 JSON（包含 general、security、password\_strength\_options、card\_layout\_options）
 
 #### 3.7.2 更新通用设置
 
@@ -983,12 +1015,12 @@
 - **方法**：PUT
 - **权限**：管理员或超级管理员
 - **参数**：
-  - home_display: 首页显示（'nickname' 或 'username'）
-  - allow_nickname: 是否允许设置昵称
-  - nickname_min_length: 昵称最小长度
-  - nickname_max_length: 昵称最大长度
-  - sidebar_default_expanded: 导航栏默认展开
-  - card_layout: 卡片布局（'1x3'、'1x4'、'2x3'）
+  - home\_display: 首页显示（'nickname' 或 'username'）
+  - allow\_nickname: 是否允许设置昵称
+  - nickname\_min\_length: 昵称最小长度
+  - nickname\_max\_length: 昵称最大长度
+  - sidebar\_default\_expanded: 导航栏默认展开
+  - card\_layout: 卡片布局（'1x3'、'1x4'、'2x3'）
 - **返回**：成功/失败信息 JSON
 
 #### 3.7.3 更新安全设置
@@ -997,14 +1029,14 @@
 - **方法**：PUT
 - **权限**：管理员或超级管理员（超级管理员可修改所有设置，管理员只能修改部分）
 - **参数**：
-  - username_manual_min: 手动添加用户名最小长度（仅超管）
-  - username_manual_max: 手动添加用户名最大长度（仅超管）
-  - username_register_min: 自助注册用户名最小长度
-  - username_register_max: 自助注册用户名最大长度
-  - password_strength: 密码强度（1-4）
-  - allow_weak_password: 是否允许弱密码
-  - allow_self_password_reset: 是否允许自助找回密码
-  - allow_change_password: 是否允许改密码
+  - username\_manual\_min: 手动添加用户名最小长度（仅超管）
+  - username\_manual\_max: 手动添加用户名最大长度（仅超管）
+  - username\_register\_min: 自助注册用户名最小长度
+  - username\_register\_max: 自助注册用户名最大长度
+  - password\_strength: 密码强度（1-4）
+  - allow\_weak\_password: 是否允许弱密码
+  - allow\_self\_password\_reset: 是否允许自助找回密码
+  - allow\_change\_password: 是否允许改密码
 - **返回**：成功/失败信息 JSON
 
 #### 3.7.4 重置系统设置
@@ -1169,7 +1201,7 @@
 - **参数**：
   - title: 公告标题
   - content: 公告内容
-  - announcement_type: 公告类型（'banner' 或 'notification'）
+  - announcement\_type: 公告类型（'banner' 或 'notification'）
   - priority: 优先级（'important'、'normal'、'minor'）
 - **返回**：新公告信息 JSON
 
@@ -1190,6 +1222,87 @@
 - **方法**：DELETE
 - **权限**：管理员或超级管理员
 - **返回**：成功/失败信息 JSON
+
+### 3.10 Drop 相关 API
+
+#### 3.10.1 发送 Drop
+
+- **URL**：`/api/drop/send`
+- **方法**：POST
+- **权限**：登录用户
+- **参数**：
+  - content: 消息内容（最多 200 字）
+- **返回**：Drop 信息 JSON
+
+#### 3.10.2 轮询 Drop
+
+- **URL**：`/api/drop/poll`
+- **方法**：GET
+- **权限**：登录用户
+- **参数**：
+  - last\_id: 上次获取的最后 ID（可选）
+- **返回**：新 Drop 列表 JSON
+
+#### 3.10.3 获取冷却状态
+
+- **URL**：`/api/drop/status`
+- **方法**：GET
+- **权限**：登录用户
+- **返回**：冷却状态 JSON（global\_cooldown, user\_cooldown, can\_send）
+
+#### 3.10.4 获取 Drop 设置
+
+- **URL**：`/api/drop/settings`
+- **方法**：GET
+- **权限**：登录用户
+- **返回**：Drop 设置 JSON（enabled, blocked\_users）
+
+#### 3.10.5 更新 Drop 设置
+
+- **URL**：`/api/drop/settings`
+- **方法**：PUT
+- **权限**：登录用户
+- **参数**：
+  - enabled: 是否接收 Drop 消息
+- **返回**：成功/失败信息 JSON
+
+#### 3.10.6 添加黑名单
+
+- **URL**：`/api/drop/blacklist`
+- **方法**：POST
+- **权限**：登录用户
+- **参数**：
+  - user\_id: 要屏蔽的用户 ID
+- **返回**：成功/失败信息 JSON
+
+#### 3.10.7 移除黑名单
+
+- **URL**：`/api/drop/blacklist`
+- **方法**：DELETE
+- **权限**：登录用户
+- **参数**：
+  - user\_id: 要解除屏蔽的用户 ID
+- **返回**：成功/失败信息 JSON
+
+#### 3.10.8 搜索用户
+
+- **URL**：`/api/drop/users/search`
+- **方法**：GET
+- **权限**：登录用户
+- **参数**：
+  - keyword: 搜索关键词
+- **返回**：用户列表 JSON
+
+### 3.11 导航相关 API
+
+#### 3.11.1 获取导航项
+
+- **URL**：`/api/nav/items`
+- **方法**：GET
+- **权限**：登录用户
+- **参数**：
+  - category: 分类（'tools' 或 'games'）
+- **返回**：导航项列表 JSON
 
 ## 4. WebSocket 事件
 
@@ -1233,7 +1346,7 @@
   - username: 发送者用户名
   - message: 消息内容
   - timestamp: 时间戳
-  - is_self: 是否为自己发送的消息
+  - is\_self: 是否为自己发送的消息
 
 #### 4.2.2 用户加入
 
@@ -1364,7 +1477,7 @@ gunicorn -w 4 -b 0.0.0.0:5002 app:app
 ### 6.6 Blueprint 路由冲突
 
 - **问题**：路由冲突或 404 错误
-- **解决方案**：检查 Blueprint 的 url_prefix 设置，确保路由定义正确
+- **解决方案**：检查 Blueprint 的 url\_prefix 设置，确保路由定义正确
 
 ## 7. 贡献指南
 
@@ -1386,3 +1499,4 @@ gunicorn -w 4 -b 0.0.0.0:5002 app:app
 - 遵循语义化版本规范
 - 更新 CHANGELOG
 - 创建 Git 标签
+

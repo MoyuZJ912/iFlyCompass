@@ -849,6 +849,150 @@
                 font-size: 12px;
             }
         }
+        
+        /* 多人优化模式 - 列表样式 */
+        .messages-container.multi-user-mode {
+            padding: 0;
+        }
+        
+        .messages-container.multi-user-mode .message-item {
+            margin-bottom: 0;
+            display: block;
+            width: 100%;
+            padding: 2px 12px;
+            position: relative;
+        }
+        
+        .messages-container.multi-user-mode .message-item.row-odd {
+            background-color: #ffffff;
+        }
+        
+        .messages-container.multi-user-mode .message-item.row-even {
+            background-color: #f5f7fa;
+        }
+        
+        .messages-container.multi-user-mode .message-item.system {
+            background: transparent;
+            margin: 6px 0;
+            padding: 2px 12px;
+        }
+        
+        .messages-container.multi-user-mode .message-content-wrapper {
+            display: block;
+            width: 100%;
+        }
+        
+        .messages-container.multi-user-mode .message-content {
+            max-width: 100%;
+            background: transparent;
+            color: #303133;
+            border-radius: 0;
+            padding: 0;
+            box-shadow: none;
+            display: flex;
+            flex-wrap: nowrap;
+            align-items: flex-start;
+            line-height: 1.6;
+        }
+        
+        .messages-container.multi-user-mode .message-item.own-message .message-content,
+        .messages-container.multi-user-mode .message-item.other-message .message-content {
+            background: transparent;
+            color: #303133;
+            border-radius: 0;
+            box-shadow: none;
+        }
+        
+        .messages-container.multi-user-mode .message-header {
+            display: inline;
+            margin-bottom: 0;
+            margin-right: 0;
+        }
+        
+        .messages-container.multi-user-mode .message-username {
+            font-weight: 600;
+            font-size: 14px;
+            display: inline-block;
+            min-width: 80px;
+            max-width: 120px;
+            flex-shrink: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            vertical-align: top;
+        }
+        
+        .messages-container.multi-user-mode .message-username.hidden {
+            visibility: hidden;
+        }
+        
+        .messages-container.multi-user-mode .message-item.own-message .message-username {
+            color: #409EFF;
+            font-weight: 700;
+        }
+        
+        .messages-container.multi-user-mode .message-item.other-message .message-username {
+            color: #606266;
+        }
+        
+        .messages-container.multi-user-mode .message-time {
+            display: none;
+        }
+        
+        .messages-container.multi-user-mode .message-text {
+            display: inline;
+            word-break: break-word;
+            flex: 1;
+            padding-left: 8px;
+        }
+        
+        .messages-container.multi-user-mode .quote-button {
+            display: none;
+        }
+        
+        .messages-container.multi-user-mode .message-item:hover .quote-button {
+            display: inline-block;
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        
+        /* 列表模式下的表情包样式 */
+        .messages-container.multi-user-mode .message-sticker {
+            display: block;
+            margin-top: 2px;
+            margin-left: 8px;
+            max-width: 100px;
+            max-height: 100px;
+        }
+        
+        /* 列表模式下的引用消息样式 */
+        .messages-container.multi-user-mode .quoted-message {
+            max-width: 100%;
+            margin: 2px 0 0 88px;
+            padding: 2px 8px;
+            font-size: 12px;
+            border-left: 2px solid #409EFF;
+            background: rgba(64, 158, 255, 0.1);
+        }
+        
+        .messages-container.multi-user-mode .message-item.own-message .quoted-message,
+        .messages-container.multi-user-mode .message-item.other-message .quoted-message {
+            margin-left: 88px;
+            margin-right: 0;
+            align-self: flex-start;
+        }
+        
+        /* 列表模式下的系统消息 */
+        .messages-container.multi-user-mode .message-item.system .message-content {
+            display: inline-flex;
+            background: rgba(0,0,0,0.05);
+            color: #909399;
+            font-size: 12px;
+            padding: 4px 12px;
+            border-radius: 12px;
+        }
     </style>
 </head>
 <body>
@@ -947,6 +1091,7 @@
         const roomName = '{{ room.name }}';
         const username = '{{ username }}';
         const hasPassword = {{ 'true' if room.password else 'false' }};
+        const multiUserMode = {{ 'true' if multi_user_mode else 'false' }};
         
         let socket = null;
         let currentUsers = [];
@@ -1136,6 +1281,10 @@
             const container = document.getElementById('messages-container');
             const noMessages = document.getElementById('no-messages');
             
+            // 重置上一条消息的用户名和行计数
+            lastMessageUsername = null;
+            messageRowCount = 0;
+            
             if (messages.length === 0) {
                 noMessages.style.display = 'block';
                 container.innerHTML = '';
@@ -1155,6 +1304,8 @@
         }
         
         let quotedMessages = [];
+        let lastMessageUsername = null; // 跟踪上一条消息的用户名
+        let messageRowCount = 0; // 跟踪消息行数（用于交替背景色）
         
         // 检查消息是否为表情包
         function isStickerMessage(message) {
@@ -1182,87 +1333,128 @@
             const isSticker = isStickerMessage(msg.message);
             const stickerUrl = isSticker ? extractStickerUrl(msg.message) : null;
             
-            // 创建消息内容包装器
-            const contentWrapper = document.createElement('div');
-            contentWrapper.className = 'message-content-wrapper';
-            
-            const content = document.createElement('div');
-            content.className = 'message-content';
-            
-            if (msg.username) {
-                const header = document.createElement('div');
-                header.className = 'message-header';
-                header.innerHTML = 
-                    '<span class="message-username">' + escapeHtml(msg.username) + '</span>' +
-                    '<span class="message-time">' + (msg.timestamp || '') + '</span>';
-                content.appendChild(header);
-            }
-            
-            if (isSticker && stickerUrl) {
-                // 表情包消息 - 显示图片
-                const stickerImg = document.createElement('img');
-                stickerImg.src = stickerUrl;
-                stickerImg.className = 'message-sticker';
-                stickerImg.alt = '表情包';
-                content.appendChild(stickerImg);
+            if (multiUserMode) {
+                // 列表模式 - 设置交替背景色
+                messageRowCount++;
+                div.classList.add(messageRowCount % 2 === 1 ? 'row-odd' : 'row-even');
+                
+                const content = document.createElement('div');
+                content.className = 'message-content';
+                
+                // 检查是否与上一条消息是同一用户
+                const isSameUserAsLast = (lastMessageUsername === msg.username);
+                
+                // 用户名
+                if (msg.username) {
+                    const usernameSpan = document.createElement('span');
+                    usernameSpan.className = 'message-username' + (isSameUserAsLast ? ' hidden' : '');
+                    usernameSpan.textContent = msg.username;
+                    content.appendChild(usernameSpan);
+                }
+                
+                // 消息内容
+                if (isSticker && stickerUrl) {
+                    const stickerImg = document.createElement('img');
+                    stickerImg.src = stickerUrl;
+                    stickerImg.className = 'message-sticker';
+                    stickerImg.alt = '表情包';
+                    content.appendChild(stickerImg);
+                } else {
+                    const textSpan = document.createElement('span');
+                    textSpan.className = 'message-text';
+                    textSpan.textContent = msg.message;
+                    content.appendChild(textSpan);
+                }
+                
+                div.appendChild(content);
+                
+                // 引用按钮
+                const quoteBtn = document.createElement('button');
+                quoteBtn.className = 'quote-button';
+                quoteBtn.innerHTML = '<span class="material-icons" style="font-size: 16px;">format_quote</span>';
+                quoteBtn.title = '引用这条消息';
+                quoteBtn.onclick = () => quoteMessage(msg);
+                div.appendChild(quoteBtn);
+                
+                // 更新上一条消息的用户名
+                lastMessageUsername = msg.username;
+                
             } else {
-                // 普通文本消息
-                const text = document.createElement('div');
-                text.textContent = msg.message;
-                content.appendChild(text);
+                // 气泡模式（原有逻辑）
+                const contentWrapper = document.createElement('div');
+                contentWrapper.className = 'message-content-wrapper';
+                
+                const content = document.createElement('div');
+                content.className = 'message-content';
+                
+                if (msg.username) {
+                    const header = document.createElement('div');
+                    header.className = 'message-header';
+                    header.innerHTML = 
+                        '<span class="message-username">' + escapeHtml(msg.username) + '</span>' +
+                        '<span class="message-time">' + (msg.timestamp || '') + '</span>';
+                    content.appendChild(header);
+                }
+                
+                if (isSticker && stickerUrl) {
+                    const stickerImg = document.createElement('img');
+                    stickerImg.src = stickerUrl;
+                    stickerImg.className = 'message-sticker';
+                    stickerImg.alt = '表情包';
+                    content.appendChild(stickerImg);
+                } else {
+                    const text = document.createElement('div');
+                    text.textContent = msg.message;
+                    content.appendChild(text);
+                }
+                
+                const quoteBtn = document.createElement('button');
+                quoteBtn.className = 'quote-button';
+                quoteBtn.innerHTML = '<span class="material-icons" style="font-size: 16px;">format_quote</span>';
+                quoteBtn.title = '引用这条消息';
+                quoteBtn.onclick = () => quoteMessage(msg);
+                
+                if (msg.is_self) {
+                    contentWrapper.appendChild(quoteBtn);
+                    contentWrapper.appendChild(content);
+                } else {
+                    contentWrapper.appendChild(content);
+                    contentWrapper.appendChild(quoteBtn);
+                }
+                
+                div.appendChild(contentWrapper);
             }
             
-            // 添加引用按钮 - 所有消息都可以被引用
-            const quoteBtn = document.createElement('button');
-            quoteBtn.className = 'quote-button';
-            quoteBtn.innerHTML = '<span class="material-icons" style="font-size: 16px;">format_quote</span>';
-            quoteBtn.title = '引用这条消息';
-            quoteBtn.onclick = () => quoteMessage(msg);
-            
-            if (msg.is_self) {
-                // 自己发的消息，引用按钮在左侧
-                contentWrapper.appendChild(quoteBtn);
-                contentWrapper.appendChild(content);
-            } else {
-                // 别人发的消息，引用按钮在右侧
-                contentWrapper.appendChild(content);
-                contentWrapper.appendChild(quoteBtn);
-            }
-            
-            div.appendChild(contentWrapper);
-            
-            // 显示引用的消息 - 在消息气泡下方外面
+            // 显示引用的消息
             if (msg.quoted_messages && msg.quoted_messages.length > 0) {
                 msg.quoted_messages.forEach(quotedMsg => {
                     const quotedDiv = document.createElement('div');
                     quotedDiv.className = 'quoted-message';
                     
-                    // 检查引用的消息是否为表情包
                     if (isStickerMessage(quotedMsg.message)) {
                         const quotedStickerUrl = extractStickerUrl(quotedMsg.message);
                         quotedDiv.innerHTML = 
-                            '<span class="quoted-username">' + escapeHtml(quotedMsg.username) + ':</span> ' +
+                            '<span class="quoted-username">[' + escapeHtml(quotedMsg.username) + ']</span> ' +
                             '<img src="' + quotedStickerUrl + '" class="quoted-sticker" alt="表情包">';
                     } else {
                         quotedDiv.innerHTML = 
-                            '<span class="quoted-username">' + escapeHtml(quotedMsg.username) + ':</span> ' +
+                            '<span class="quoted-username">[' + escapeHtml(quotedMsg.username) + ']</span> ' +
                             escapeHtml(quotedMsg.message);
                     }
                     div.appendChild(quotedDiv);
                 });
             } else if (msg.quoted_message) {
-                // 兼容旧格式
                 const quotedDiv = document.createElement('div');
                 quotedDiv.className = 'quoted-message';
                 
                 if (isStickerMessage(msg.quoted_message.message)) {
                     const quotedStickerUrl = extractStickerUrl(msg.quoted_message.message);
                     quotedDiv.innerHTML = 
-                        '<span class="quoted-username">' + escapeHtml(msg.quoted_message.username) + ':</span> ' +
+                        '<span class="quoted-username">[' + escapeHtml(msg.quoted_message.username) + ']</span> ' +
                         '<img src="' + quotedStickerUrl + '" class="quoted-sticker" alt="表情包">';
                 } else {
                     quotedDiv.innerHTML = 
-                        '<span class="quoted-username">' + escapeHtml(msg.quoted_message.username) + ':</span> ' +
+                        '<span class="quoted-username">[' + escapeHtml(msg.quoted_message.username) + ']</span> ' +
                         escapeHtml(msg.quoted_message.message);
                 }
                 div.appendChild(quotedDiv);
@@ -1931,6 +2123,9 @@
         document.addEventListener('DOMContentLoaded', () => {
             initWebSocket();
             initSidebarState();
+            if (multiUserMode) {
+                document.getElementById('messages-container').classList.add('multi-user-mode');
+            }
         });
     </script>
     <script src="/assets/js/loading.js"></script>

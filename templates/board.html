@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/assets/css/material-icons.css">
     <link rel="stylesheet" href="/assets/css/element-ui.css">
     <link rel="stylesheet" href="/assets/css/console.css">
+    <link rel="stylesheet" href="/assets/css/drop.css">
     <style>
         .user-menu-container {
             position: relative;
@@ -357,6 +358,14 @@
                                     <i class="el-icon-user"></i>
                                     <span>个人设置</span>
                                 </div>
+                                <div class="user-dropdown-item" @click="openDropDialog">
+                                    <i class="el-icon-message"></i>
+                                    <span>发送 Drop</span>
+                                </div>
+                                <div class="user-dropdown-item" @click="goDropSettings">
+                                    <i class="el-icon-setting"></i>
+                                    <span>Drop 设置</span>
+                                </div>
                                 <div class="user-dropdown-item" @click="goSwipeTest" v-if="isAdmin">
                                     <i class="el-icon-mobile-phone"></i>
                                     <span>滑动测试</span>
@@ -508,6 +517,7 @@
 
     <script src="/assets/js/vue.min.js"></script>
     <script src="/assets/js/element-ui.js"></script>
+    <script src="/assets/js/drop.js"></script>
     <script>
         var defenseLayer5ScrollHandler = null;
         
@@ -668,6 +678,16 @@
                 goSwipeTest() {
                     this.userMenuVisible = false;
                     window.location.href = '/board/swipe-test';
+                },
+                goDropSettings() {
+                    this.userMenuVisible = false;
+                    window.location.href = '/drop/settings';
+                },
+                openDropDialog() {
+                    this.userMenuVisible = false;
+                    if (window.DropSender) {
+                        window.DropSender.openDialog();
+                    }
                 },
                 goToAnnouncementCenter() {
                     window.location.href = '/announcements';

@@ -11,8 +11,9 @@ from modules.main import main_bp
 from modules.ncm import ncm_bp
 from modules.settings import settings_bp
 from modules.announcement import announcement_bp
+from modules.drop import drop_bp
 from modules.chat.websocket import register_socketio_events
-from utils import init_novel_cache, init_settings
+from utils import init_novel_cache, init_settings, init_nav_file
 
 for directory in [Config.TEMP_DIR, Config.INSTANCE_DIR, Config.STICKERS_DIR, Config.NOVELS_DIR]:
     if not os.path.exists(directory):
@@ -86,6 +87,63 @@ def run_migrations(app):
             ''')
             conn.commit()
             print("数据库迁移完成！")
+        
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='drop_message'")
+        if not cursor.fetchone():
+            print("正在迁移数据库：创建 drop_message 表...")
+            cursor.execute('''
+                CREATE TABLE drop_message (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    sender_id INTEGER NOT NULL,
+                    sender_name VARCHAR(50) NOT NULL,
+                    content VARCHAR(200) NOT NULL,
+                    created_at DATETIME,
+                    FOREIGN KEY (sender_id) REFERENCES user(id)
+                )
+            ''')
+            conn.commit()
+            print("数据库迁移完成！")
+        
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='drop_settings'")
+        if not cursor.fetchone():
+            print("正在迁移数据库：创建 drop_settings 表...")
+            cursor.execute('''
+                CREATE TABLE drop_settings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL UNIQUE,
+                    enabled BOOLEAN DEFAULT 1,
+                    last_drop_at DATETIME,
+                    FOREIGN KEY (user_id) REFERENCES user(id)
+                )
+            ''')
+            conn.commit()
+            print("数据库迁移完成！")
+        
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='drop_blacklist'")
+        if not cursor.fetchone():
+            print("正在迁移数据库：创建 drop_blacklist 表...")
+            cursor.execute('''
+                CREATE TABLE drop_blacklist (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    blocked_user_id INTEGER NOT NULL,
+                    created_at DATETIME,
+                    FOREIGN KEY (user_id) REFERENCES user(id),
+                    FOREIGN KEY (blocked_user_id) REFERENCES user(id),
+                    CONSTRAINT unique_blacklist UNIQUE (user_id, blocked_user_id)
+                )
+            ''')
+            conn.commit()
+            print("数据库迁移完成！")
+        
+        cursor.execute("PRAGMA table_info(chat_room)")
+        chat_room_columns = [column[1] for column in cursor.fetchall()]
+        
+        if 'multi_user_mode' not in chat_room_columns:
+            print("正在迁移数据库：添加 chat_room.multi_user_mode 字段...")
+            cursor.execute("ALTER TABLE chat_room ADD COLUMN multi_user_mode BOOLEAN DEFAULT 0")
+            conn.commit()
+            print("数据库迁移完成！")
 
 def create_app():
     app = Flask(__name__)
@@ -105,6 +163,7 @@ def create_app():
     app.register_blueprint(ncm_bp)
     app.register_blueprint(settings_bp)
     app.register_blueprint(announcement_bp)
+    app.register_blueprint(drop_bp)
     
     register_socketio_events(socketio)
     
@@ -114,6 +173,7 @@ def create_app():
     
     init_novel_cache()
     init_settings()
+    init_nav_file()
     
     return app
 

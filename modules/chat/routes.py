@@ -30,4 +30,5 @@ def chat_test(room_name):
                          room=chat_room, 
                          is_admin=current_user.is_admin, 
                          is_super_admin=current_user.is_super_admin,
-                         sidebar_expanded=settings.get('sidebar_default_expanded', False))
+                         sidebar_expanded=settings.get('sidebar_default_expanded', False),
+                         multi_user_mode=chat_room.multi_user_mode or False)

@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/assets/css/material-icons.css">
     <link rel="stylesheet" href="/assets/css/element-ui.css">
     <link rel="stylesheet" href="/assets/css/console.css">
+    <link rel="stylesheet" href="/assets/css/drop.css">
     <style>
         .user-menu-container {
             position: relative;
@@ -372,6 +373,14 @@
                                     <i class="el-icon-user"></i>
                                     <span>个人设置</span>
                                 </div>
+                                <div class="user-dropdown-item" @click="openDropDialog">
+                                    <i class="el-icon-message"></i>
+                                    <span>发送 Drop</span>
+                                </div>
+                                <div class="user-dropdown-item" @click="goDropSettings">
+                                    <i class="el-icon-setting"></i>
+                                    <span>Drop 设置</span>
+                                </div>
                                 <div class="user-dropdown-divider"></div>
                                 <div class="user-dropdown-item logout-item" @click="confirmLogout">
                                     <i class="el-icon-switch-button"></i>
@@ -422,11 +431,11 @@
                                     v-for="tool in paginatedTools" 
                                     :key="tool.id"
                                     class="tool-card"
-                                    @click="navigateToTool(tool.path)"
+                                    @click="navigateToToolExternal(tool)"
                                 >
                                     <div class="tool-card-body">
                                         <div class="tool-icon">
-                                            <i class="material-icons">menu_book</i>
+                                            <i class="material-icons">[[ tool.icon ]]</i>
                                         </div>
                                         <div class="tool-name">[[ tool.name ]]</div>
                                         <div class="tool-provider">提供者: [[ tool.provider ]]</div>
@@ -472,6 +481,7 @@
 
     <script src="/assets/js/vue.min.js"></script>
     <script src="/assets/js/element-ui.js"></script>
+    <script src="/assets/js/drop.js"></script>
     <script>
         // 页面加载完成日志
         console.log('=== iFlyCompass 小工具页面加载完成 ===');
@@ -540,8 +550,30 @@
                     isSuperAdmin: this.isSuperAdmin
                 });
                 console.log('工具列表:', this.tools);
+                this.loadNavItems();
             },
             methods: {
+                loadNavItems() {
+                    var self = this;
+                    fetch('/api/nav/items?category=tools')
+                        .then(function(response) { return response.json(); })
+                        .then(function(data) {
+                            data.forEach(function(item) {
+                                self.tools.push({
+                                    id: 'nav_' + item.id,
+                                    name: item.name,
+                                    provider: 'External',
+                                    description: '外部链接',
+                                    path: item.link,
+                                    icon: 'link',
+                                    isExternal: true
+                                });
+                            });
+                        })
+                        .catch(function(error) {
+                            console.error('加载导航项失败:', error);
+                        });
+                },
                 toggleCollapse() {
                     console.log('切换侧边栏折叠状态:', !this.isCollapse);
                     this.isCollapse = !this.isCollapse;
@@ -554,6 +586,16 @@
                     this.profileForm.nickname = this.nickname;
                     this.profileForm.password = '';
                     this.profileDialogVisible = true;
+                },
+                goDropSettings() {
+                    this.userMenuVisible = false;
+                    window.location.href = '/drop/settings';
+                },
+                openDropDialog() {
+                    this.userMenuVisible = false;
+                    if (window.DropSender) {
+                        window.DropSender.openDialog();
+                    }
                 },
                 saveProfile() {
                     fetch('/api/user/profile', {
@@ -634,6 +676,13 @@
                 navigateToTool(path) {
                     console.log('导航到工具:', path);
                     window.location.href = path;
+                },
+                navigateToToolExternal(tool) {
+                    if (tool.isExternal && tool.path.startsWith('http')) {
+                        window.open(tool.path, '_blank');
+                    } else {
+                        window.location.href = tool.path;
+                    }
                 }
             }
         });

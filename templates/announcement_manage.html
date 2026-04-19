@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/assets/css/material-icons.css">
     <link rel="stylesheet" href="/assets/css/element-ui.css">
     <link rel="stylesheet" href="/assets/css/console.css">
+    <link rel="stylesheet" href="/assets/css/drop.css">
     <style>
         .user-menu-container {
             position: relative;
@@ -253,6 +254,14 @@
                                     <i class="el-icon-s-home"></i>
                                     <span>返回首页</span>
                                 </div>
+                                <div class="user-dropdown-item" @click="openDropDialog">
+                                    <i class="el-icon-message"></i>
+                                    <span>发送 Drop</span>
+                                </div>
+                                <div class="user-dropdown-item" @click="goDropSettings">
+                                    <i class="el-icon-setting"></i>
+                                    <span>Drop 设置</span>
+                                </div>
                                 <div class="user-dropdown-divider"></div>
                                 <div class="user-dropdown-item logout-item" @click="confirmLogout">
                                     <i class="el-icon-switch-button"></i>
@@ -408,6 +417,7 @@
 
     <script src="/assets/js/vue.min.js"></script>
     <script src="/assets/js/element-ui.js"></script>
+    <script src="/assets/js/drop.js"></script>
     <script>
         var defenseLayer5ScrollHandler = null;
         
@@ -627,6 +637,16 @@
                 goToBoard() {
                     this.userMenuVisible = false;
                     window.location.href = '/board';
+                },
+                goDropSettings() {
+                    this.userMenuVisible = false;
+                    window.location.href = '/drop/settings';
+                },
+                openDropDialog() {
+                    this.userMenuVisible = false;
+                    if (window.DropSender) {
+                        window.DropSender.openDialog();
+                    }
                 },
                 confirmLogout() {
                     this.userMenuVisible = false;

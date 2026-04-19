@@ -19,7 +19,8 @@ def manage_chatrooms():
             'created_by': room.created_by,
             'creator': User.query.get(room.created_by).username if room.created_by else '未知',
             'created_at': room.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-            'is_owner': room.created_by == current_user.id
+            'is_owner': room.created_by == current_user.id,
+            'multi_user_mode': room.multi_user_mode or False
         } for room in chat_rooms])
     
     elif request.method == 'POST':
@@ -52,7 +53,8 @@ def manage_chatrooms():
             'created_by': chat_room.created_by,
             'creator': current_user.username,
             'created_at': chat_room.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-            'is_owner': True
+            'is_owner': True,
+            'multi_user_mode': False
         })
     
     elif request.method == 'PUT':
@@ -60,6 +62,7 @@ def manage_chatrooms():
         room_id = data['id']
         name = data['name']
         password = data.get('password')
+        multi_user_mode = data.get('multi_user_mode')
         
         chat_room = ChatRoom.query.get(room_id)
         if not chat_room or not chat_room.is_active:
@@ -81,6 +84,9 @@ def manage_chatrooms():
         elif password == '':
             chat_room.password = None
         
+        if multi_user_mode is not None:
+            chat_room.multi_user_mode = bool(multi_user_mode)
+        
         db.session.commit()
         
         return jsonify({
@@ -90,7 +96,8 @@ def manage_chatrooms():
             'created_by': chat_room.created_by,
             'creator': User.query.get(chat_room.created_by).username if chat_room.created_by else '未知',
             'created_at': chat_room.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-            'is_owner': chat_room.created_by == current_user.id
+            'is_owner': chat_room.created_by == current_user.id,
+            'multi_user_mode': chat_room.multi_user_mode or False
         })
     
     elif request.method == 'DELETE':

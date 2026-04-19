@@ -2,20 +2,22 @@
 
 ## 项目简介
 
-**版本：REL2.3.0**
+**版本：REL2.3.1**
 
 iFlyCompass 是一个多功能的 Web 应用平台，采用模块化架构设计，提供了多种实用工具和功能，包括：
 
-- **聊天室功能**：支持创建、加入、管理聊天室，实时消息通信
+- **聊天室功能**：支持创建、加入、管理聊天室，实时消息通信，多人优化模式
 - **小说阅读器**：支持多种编码格式，智能章节解析，阅读进度保存，启动时预扫描缓存
   - **沉浸式阅读器**：主题切换、翻页动画、低版本 WebView 兼容、续段处理、边界溢出保护
 - **随身听**：网易云音乐播放器，支持搜索、推荐歌单、音乐播放（内网缓存）
 - **表情包管理**：表情商城、个人收藏、表情包合集管理
 - **公告系统**：横幅公告、通知公告、公告中心，支持多优先级和权限管理
+- **Drop 功能**：向所有用户发送 Drop 消息，支持黑名单管理
 - **用户管理**：支持用户注册、登录、权限管理
 - **Passkey 管理**：支持生成和管理注册邀请码
 - **手势防御**：防御层 5 技术，防止宿主 App 全局手势劫持页面滚动
 - **系统设置**：管理员可配置首页显示、昵称设置、导航栏、密码强度、安全问题等
+- **导航配置**：支持通过 nav.yml 自定义添加小工具/小游戏导航项
 
 ## 技术栈
 
@@ -147,14 +149,18 @@ iFlyCompass/
 │   ├── chat.py              # ChatRoom 模型
 │   ├── sticker.py           # UserSticker, PackSticker 模型
 │   ├── novel.py             # NovelReadingProgress 模型
-│   └── announcement.py      # Announcement, UserAnnouncementStatus 模型
+│   ├── announcement.py      # Announcement, UserAnnouncementStatus 模型
+│   └── drop.py              # DropMessage, DropSettings, DropBlacklist 模型
 ├── utils/                    # 工具函数层
 │   ├── __init__.py
 │   ├── common.py            # 通用工具函数
 │   ├── file.py              # 文件处理工具
 │   ├── chapter_parser.py    # 章节解析器（V3.1算法）
 │   ├── novel_cache.py       # 小说缓存服务
-│   └── music_cache.py       # 音乐缓存服务
+│   ├── music_cache.py       # 音乐缓存服务
+│   ├── system_settings.py   # 系统设置工具
+│   ├── validators.py        # 验证工具
+│   └── nav.py               # 导航配置工具
 ├── modules/                  # 业务模块层
 │   ├── auth/                # 用户认证模块
 │   │   ├── __init__.py
@@ -181,13 +187,23 @@ iFlyCompass/
 │   ├── main/                # 主页面模块
 │   │   ├── __init__.py
 │   │   └── routes.py        # 主页面路由
-│   └── announcement/        # 公告系统模块
+│   ├── settings/            # 系统设置模块
+│   │   ├── __init__.py
+│   │   ├── routes.py        # 系统设置路由
+│   │   └── api.py           # 系统设置 API
+│   ├── announcement/        # 公告系统模块
+│   │   ├── __init__.py
+│   │   ├── routes.py        # 公告页面路由
+│   │   └── api.py           # 公告 API
+│   └── drop/                # Drop 消息模块
 │       ├── __init__.py
-│       ├── routes.py        # 公告页面路由
-│       └── api.py           # 公告 API
+│       ├── routes.py        # Drop 设置路由
+│       └── api.py           # Drop API
 ├── assets/                   # 静态资源
 │   ├── css/                 # CSS 文件
+│   │   └── drop.css         # Drop 样式
 │   ├── js/                  # JavaScript 文件
+│   │   └── drop.js          # Drop 脚本
 │   └── images/              # 图片文件
 ├── templates/                # HTML 模板
 │   ├── chat.html            # 聊天室页面
@@ -206,9 +222,11 @@ iFlyCompass/
 │   ├── system_settings.html # 系统设置页面
 │   ├── forgot_password.html # 忘记密码页面
 │   ├── announcement_manage.html # 公告管理页面
-│   └── announcement_center.html # 公告中心页面
+│   ├── announcement_center.html # 公告中心页面
+│   └── drop_settings.html   # Drop 设置页面
 ├── instance/                 # 数据文件目录
 │   ├── config.yml           # 配置文件（YAML格式）
+│   ├── nav.yml              # 导航配置文件
 │   ├── users.db             # 用户数据库
 │   └── novels/              # 小说文件目录
 ├── stickers/                 # 表情包缓存目录

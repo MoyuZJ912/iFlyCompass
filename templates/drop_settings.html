@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="touch-defense-5">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drop 设置 - iFlyCompass</title>
+    <link rel="stylesheet" href="/assets/css/loading.css">
+    <link rel="stylesheet" href="/assets/css/material-icons.css">
+    <link rel="stylesheet" href="/assets/css/element-ui.css">
+    <link rel="stylesheet" href="/assets/css/console.css">
+    <link rel="stylesheet" href="/assets/css/drop.css">
+    <style>
+        .user-menu-container {
+            position: relative;
+            cursor: pointer;
+            z-index: 1000;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        
+        .user-info:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .user-info .el-icon-arrow-down {
+            margin-left: 8px;
+            transition: transform 0.3s;
+        }
+        
+        .user-info .el-icon-arrow-down.rotated {
+            transform: rotate(180deg);
+        }
+        
+        .user-dropdown-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 4px;
+            background: #fff;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            min-width: 200px;
+            overflow: hidden;
+        }
+        
+        .user-dropdown-header {
+            padding: 12px 16px;
+            background: #f5f7fa;
+            border-bottom: 1px solid #e8e8e8;
+        }
+        
+        .user-dropdown-header .display-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .user-dropdown-header .username-label {
+            font-size: 12px;
+            color: #999;
+            margin-top: 2px;
+        }
+        
+        .user-dropdown-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            color: #333;
+        }
+        
+        .user-dropdown-item:hover:not(.disabled) {
+            background-color: #f5f7fa;
+        }
+        
+        .user-dropdown-item.disabled {
+            cursor: default;
+        }
+        
+        .user-dropdown-divider {
+            height: 1px;
+            background-color: #e8e8e8;
+            margin: 4px 0;
+        }
+        
+        .user-dropdown-item.logout-item {
+            color: #ff4d4f;
+        }
+        
+        .user-dropdown-item.logout-item:hover {
+            background-color: #fff1f0;
+        }
+        
+        .user-dropdown-item i {
+            margin-right: 8px;
+        }
+        
+        .settings-section {
+            margin-bottom: 24px;
+        }
+        
+        .settings-section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #303133;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #ebeef5;
+        }
+        
+        .settings-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .settings-item:last-child {
+            border-bottom: none;
+        }
+        
+        .settings-item-label {
+            font-size: 14px;
+            color: #606266;
+        }
+        
+        .settings-item-desc {
+            font-size: 12px;
+            color: #909399;
+            margin-top: 4px;
+        }
+        
+        .settings-item-control {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .settings-item-content {
+            flex: 1;
+        }
+        
+        .blacklist-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: #f5f7fa;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            border: 1px solid #ebeef5;
+        }
+        
+        .blacklist-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .blacklist-user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .blacklist-user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #409eff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .blacklist-user-name {
+            font-size: 14px;
+            color: #303133;
+        }
+        
+        .blacklist-user-username {
+            font-size: 12px;
+            color: #909399;
+        }
+        
+        .blacklist-empty {
+            text-align: center;
+            padding: 32px;
+            color: #909399;
+        }
+        
+        .blacklist-empty i {
+            font-size: 48px;
+            color: #c0c4cc;
+        }
+        
+        .blacklist-empty p {
+            margin-top: 12px;
+        }
+    </style>
+</head>
+<body class="touch-defense-5">
+    <div id="touch-buffer"></div>
+    <div id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">加载中...</div>
+    </div>
+    <div id="app">
+        <el-container class="console-container">
+            <el-aside width="64px" class="console-sidebar" :width="isCollapse ? '64px' : '200px'">
+                <div class="sidebar-header" @click="toggleCollapse">
+                    <img src="/assets/images/logo-trans-white.png" alt="Logo" class="sidebar-logo">
+                    <span v-show="!isCollapse" class="sidebar-brand">iFlyCompass</span>
+                    <i v-show="!isCollapse" class="el-icon-s-fold sidebar-toggle" :class="{ 'rotated': !isCollapse }"></i>
+                </div>
+                
+                <el-menu
+                    :default-active="activeMenu"
+                    class="el-menu-vertical-demo"
+                    background-color="#1a365d"
+                    text-color="#ffffff"
+                    active-text-color="#409EFF"
+                    :collapse="isCollapse"
+                    @select="handleMenuClick"
+                >
+                    <el-menu-item index="dashboard">
+                        <i class="el-icon-s-home"></i>
+                        <span slot="title">首页</span>
+                    </el-menu-item>
+                    <el-menu-item index="tools">
+                        <i class="el-icon-s-tools"></i>
+                        <span slot="title">小工具</span>
+                    </el-menu-item>
+                    <el-menu-item index="games">
+                        <i class="el-icon-s-marketing"></i>
+                        <span slot="title">小游戏</span>
+                    </el-menu-item>
+                    <el-menu-item index="users" v-if="isAdmin">
+                        <i class="el-icon-s-custom"></i>
+                        <span slot="title">用户管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="passkeys" v-if="isSuperAdmin">
+                        <i class="el-icon-key"></i>
+                        <span slot="title">Passkey 管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="chat">
+                        <i class="el-icon-chat-dot-round"></i>
+                        <span slot="title">聊天室</span>
+                    </el-menu-item>
+                    <el-menu-item index="settings" v-if="isAdmin">
+                        <i class="el-icon-setting"></i>
+                        <span slot="title">系统设置</span>
+                    </el-menu-item>
+                </el-menu>
+            </el-aside>
+            
+            <el-container>
+                <el-header class="console-header">
+                    <div class="header-left">
+                        <h1>Drop 设置</h1>
+                    </div>
+                    <div class="header-right">
+                        <div class="user-menu-container" @click="toggleUserMenu">
+                            <span class="user-info">
+                                您好，[[ displayName ]]
+                                <i class="el-icon-arrow-down" :class="{ 'rotated': userMenuVisible }"></i>
+                            </span>
+                            <div class="user-dropdown-menu" v-show="userMenuVisible" @click.stop>
+                                <div class="user-dropdown-header">
+                                    <div class="display-name">[[ displayName ]]</div>
+                                    <div class="username-label">@[[ username ]]</div>
+                                </div>
+                                <div class="user-dropdown-item" @click="goToBoard">
+                                    <i class="el-icon-s-home"></i>
+                                    <span>返回首页</span>
+                                </div>
+                                <div class="user-dropdown-divider"></div>
+                                <div class="user-dropdown-item logout-item" @click="confirmLogout">
+                                    <i class="el-icon-switch-button"></i>
+                                    <span>退出登录</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </el-header>
+                
+                <el-main class="console-content">
+                    <div class="content-wrapper">
+                        <el-card>
+                            <div class="settings-section">
+                                <div class="settings-section-title">基本设置</div>
+                                <div class="settings-item">
+                                    <div class="settings-item-content">
+                                        <div class="settings-item-label">接收 Drop 消息</div>
+                                        <div class="settings-item-desc">关闭后将不会收到任何用户发送的 Drop 消息</div>
+                                    </div>
+                                    <div class="settings-item-control">
+                                        <el-switch v-model="settings.enabled" @change="saveSettings"></el-switch>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="settings-section">
+                                <div class="settings-section-title">黑名单管理</div>
+                                <div class="settings-item">
+                                    <div class="settings-item-content">
+                                        <div class="settings-item-label">添加用户到黑名单</div>
+                                        <div class="settings-item-desc">屏蔽后将不再收到该用户的 Drop 消息</div>
+                                    </div>
+                                    <div class="settings-item-control">
+                                        <el-autocomplete
+                                            v-model="searchKeyword"
+                                            :fetch-suggestions="searchUsers"
+                                            placeholder="搜索用户"
+                                            @select="handleSelectUser"
+                                            value-key="display_name"
+                                            style="width: 200px;"
+                                        >
+                                            <template slot-scope="props">
+                                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                                    <div>
+                                                        <div style="font-size: 14px;">[[ props.item.display_name ]]</div>
+                                                        <div style="font-size: 12px; color: #909399;">@[[ props.item.username ]]</div>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </el-autocomplete>
+                                    </div>
+                                </div>
+                                
+                                <div style="margin-top: 16px;">
+                                    <div v-if="settings.blockedUsers.length > 0">
+                                        <div class="blacklist-item" v-for="user in settings.blockedUsers" :key="user.id">
+                                            <div class="blacklist-user-info">
+                                                <div class="blacklist-user-avatar">[[ user.display_name.charAt(0) ]]</div>
+                                                <div>
+                                                    <div class="blacklist-user-name">[[ user.display_name ]]</div>
+                                                    <div class="blacklist-user-username">@[[ user.username ]]</div>
+                                                </div>
+                                            </div>
+                                            <el-button type="text" @click="unblockUser(user.id)" style="color: #f56c6c;">解除屏蔽</el-button>
+                                        </div>
+                                    </div>
+                                    <div v-else class="blacklist-empty">
+                                        <i class="el-icon-user"></i>
+                                        <p>暂无屏蔽用户</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="settings-section">
+                                <div class="settings-section-title">发送 Drop</div>
+                                <div class="settings-item">
+                                    <div class="settings-item-content">
+                                        <div class="settings-item-label">发送 Drop 消息</div>
+                                        <div class="settings-item-desc">向所有用户发送一条 Drop 消息（个人冷却10分钟，全服冷却1分钟）</div>
+                                    </div>
+                                    <div class="settings-item-control">
+                                        <el-button type="primary" @click="openSendDialog">发送 Drop</el-button>
+                                    </div>
+                                </div>
+                            </div>
+                        </el-card>
+                    </div>
+                </el-main>
+            </el-container>
+        </el-container>
+    </div>
+
+    <script src="/assets/js/vue.min.js"></script>
+    <script src="/assets/js/element-ui.js"></script>
+    <script src="/assets/js/drop.js"></script>
+    <script>
+        var defenseLayer5ScrollHandler = null;
+        
+        function enableDefenseLayer5() {
+            if (!defenseLayer5ScrollHandler) {
+                defenseLayer5ScrollHandler = function() {
+                    var scrollLeft = document.documentElement.scrollLeft || document.body.scrollLeft;
+                    var scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+                    
+                    var container = document.querySelector('.console-container');
+                    if (container) {
+                        container.style.transform = 'translate(' + (-scrollLeft) + 'px, ' + (-scrollTop) + 'px)';
+                    }
+                    
+                    var sidebar = document.querySelector('.console-sidebar');
+                    if (sidebar) {
+                        sidebar.style.transform = 'translate(' + scrollLeft + 'px, ' + scrollTop + 'px)';
+                    }
+                    
+                    var header = document.querySelector('.console-header');
+                    if (header) {
+                        header.style.transform = 'translate(' + scrollLeft + 'px, ' + scrollTop + 'px)';
+                    }
+                };
+                window.addEventListener('scroll', defenseLayer5ScrollHandler, { passive: true });
+            }
+        }
+        
+        enableDefenseLayer5();
+        
+        new Vue({
+            el: '#app',
+            delimiters: ['[[', ']]'],
+            data() {
+                return {
+                    isCollapse: true,
+                    activeMenu: 'dashboard',
+                    displayName: '{{ current_user.display_name }}',
+                    username: '{{ current_user.username }}',
+                    isAdmin: {% if current_user.is_admin or current_user.is_super_admin %}true{% else %}false{% endif %},
+                    isSuperAdmin: {% if current_user.is_super_admin %}true{% else %}false{% endif %},
+                    userMenuVisible: false,
+                    searchKeyword: '',
+                    settings: {
+                        enabled: true,
+                        blockedUsers: []
+                    }
+                };
+            },
+            mounted() {
+                this.loadSettings();
+            },
+            methods: {
+                toggleCollapse() {
+                    this.isCollapse = !this.isCollapse;
+                },
+                toggleUserMenu() {
+                    this.userMenuVisible = !this.userMenuVisible;
+                },
+                loadSettings() {
+                    var self = this;
+                    fetch('/api/drop/settings')
+                        .then(function(response) { return response.json(); })
+                        .then(function(data) {
+                            self.settings.enabled = data.enabled;
+                            self.settings.blockedUsers = data.blocked_users || [];
+                        })
+                        .catch(function(error) {
+                            console.error('加载设置失败:', error);
+                            self.$message.error('加载设置失败');
+                        });
+                },
+                saveSettings() {
+                    var self = this;
+                    fetch('/api/drop/settings', {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            enabled: this.settings.enabled
+                        })
+                    })
+                    .then(function(response) { return response.json(); })
+                    .then(function(data) {
+                        if (data.success) {
+                            self.$message.success('设置已保存');
+                        } else {
+                            self.$message.error(data.error || '保存失败');
+                        }
+                    })
+                    .catch(function(error) {
+                        console.error('保存设置失败:', error);
+                        self.$message.error('保存设置失败');
+                    });
+                },
+                searchUsers(queryString, cb) {
+                    if (!queryString) {
+                        cb([]);
+                        return;
+                    }
+                    
+                    fetch('/api/drop/users/search?keyword=' + encodeURIComponent(queryString))
+                        .then(function(response) { return response.json(); })
+                        .then(function(data) {
+                            cb(data);
+                        })
+                        .catch(function(error) {
+                            console.error('搜索用户失败:', error);
+                            cb([]);
+                        });
+                },
+                handleSelectUser(user) {
+                    var self = this;
+                    
+                    var exists = this.settings.blockedUsers.some(function(u) {
+                        return u.id === user.id;
+                    });
+                    
+                    if (exists) {
+                        this.$message.warning('该用户已在黑名单中');
+                        this.searchKeyword = '';
+                        return;
+                    }
+                    
+                    fetch('/api/drop/blacklist', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ user_id: user.id })
+                    })
+                    .then(function(response) { return response.json(); })
+                    .then(function(data) {
+                        if (data.success) {
+                            self.settings.blockedUsers.push(data.blocked_user);
+                            self.$message.success('已添加到黑名单');
+                        } else {
+                            self.$message.error(data.error || '添加失败');
+                        }
+                        self.searchKeyword = '';
+                    })
+                    .catch(function(error) {
+                        console.error('添加黑名单失败:', error);
+                        self.$message.error('添加失败');
+                        self.searchKeyword = '';
+                    });
+                },
+                unblockUser(userId) {
+                    var self = this;
+                    
+                    fetch('/api/drop/blacklist', {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ user_id: userId })
+                    })
+                    .then(function(response) { return response.json(); })
+                    .then(function(data) {
+                        if (data.success) {
+                            self.settings.blockedUsers = self.settings.blockedUsers.filter(function(u) {
+                                return u.id !== userId;
+                            });
+                            self.$message.success('已解除屏蔽');
+                        } else {
+                            self.$message.error(data.error || '解除失败');
+                        }
+                    })
+                    .catch(function(error) {
+                        console.error('解除屏蔽失败:', error);
+                        self.$message.error('解除失败');
+                    });
+                },
+                openSendDialog() {
+                    if (window.DropSender) {
+                        window.DropSender.openDialog();
+                    }
+                },
+                goToBoard() {
+                    this.userMenuVisible = false;
+                    window.location.href = '/board';
+                },
+                confirmLogout() {
+                    this.userMenuVisible = false;
+                    this.$confirm('确定要退出登录吗？', '提示', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    })
+                    .then(function() {
+                        window.location.href = '/logout';
+                    })
+                    .catch(function() {});
+                },
+                handleMenuClick(key) {
+                    this.userMenuVisible = false;
+                    if (key === 'dashboard') {
+                        window.location.href = '/board';
+                    } else if (key === 'tools') {
+                        window.location.href = '/board/tools';
+                    } else if (key === 'users') {
+                        window.location.href = '/board/users';
+                    } else if (key === 'passkeys') {
+                        window.location.href = '/board/passkeys';
+                    } else if (key === 'chat') {
+                        window.location.href = '/board/chat';
+                    } else if (key === 'settings') {
+                        window.location.href = '/board/settings';
+                    }
+                }
+            }
+        });
+    </script>
+    <script src="/assets/js/loading.js"></script>
+</body>
+</html>

@@ -1,6 +1,6 @@
-from flask import render_template, send_from_directory
+from flask import render_template, send_from_directory, jsonify, request
 from flask_login import login_required, current_user
-from utils import get_bing_wallpaper, get_poetry, get_settings
+from utils import get_bing_wallpaper, get_poetry, get_settings, get_nav_items
 from config import Config
 from . import main_bp
 
@@ -61,3 +61,11 @@ def serve_temp(filename):
 @main_bp.route('/assets/<path:filename>')
 def serve_assets(filename):
     return send_from_directory(Config.ASSETS_DIR, filename)
+
+@main_bp.route('/api/nav/items')
+@login_required
+def get_nav_items_api():
+    category = request.args.get('category', 'tools')
+    items = get_nav_items()
+    filtered_items = [item for item in items if item.get('category') == category]
+    return jsonify(filtered_items)
