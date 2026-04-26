@@ -7,4 +7,3 @@ temp/
 __pycache__/
 *.pyc
 lib/
-tools/ffmpeg/*.exe
