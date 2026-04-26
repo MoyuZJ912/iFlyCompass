@@ -2,7 +2,7 @@
 
 ## 项目简介
 
-**版本：REL2.3.1**
+**版本：BTA2.4.0**
 
 iFlyCompass 是一个多功能的 Web 应用平台，采用模块化架构设计，提供了多种实用工具和功能，包括：
 
@@ -10,6 +10,8 @@ iFlyCompass 是一个多功能的 Web 应用平台，采用模块化架构设计
 - **小说阅读器**：支持多种编码格式，智能章节解析，阅读进度保存，启动时预扫描缓存
   - **沉浸式阅读器**：主题切换、翻页动画、低版本 WebView 兼容、续段处理、边界溢出保护
 - **随身听**：网易云音乐播放器，支持搜索、推荐歌单、音乐播放（内网缓存）
+- **视频播放器**：本地视频播放，支持多种格式，Plyr 播放器，Element UI 风格
+- **B站视频**：B站视频缓存与播放，支持首页推荐、搜索视频、搜索UP主，480P画质
 - **表情包管理**：表情商城、个人收藏、表情包合集管理
 - **公告系统**：横幅公告、通知公告、公告中心，支持多优先级和权限管理
 - **Drop 功能**：向所有用户发送 Drop 消息，支持黑名单管理
@@ -43,6 +45,8 @@ iFlyCompass 是一个多功能的 Web 应用平台，采用模块化架构设计
   - **novel/** - 小说阅读器模块
   - **sticker/** - 表情包管理模块
   - **ncm/** - 随身听模块（网易云音乐）
+  - **video/** - 视频播放器模块
+  - **bili/** - B站视频模块
   - **main/** - 主页面模块
   - **settings/** - 系统设置模块
   - **announcement/** - 公告系统模块
@@ -184,6 +188,15 @@ iFlyCompass/
 │   │   ├── __init__.py
 │   │   ├── routes.py        # 播放器路由
 │   │   └── api.py           # NCM API
+│   ├── video/               # 视频播放器模块
+│   │   ├── __init__.py
+│   │   ├── routes.py        # 播放器路由
+│   │   └── api.py           # 视频 API
+│   ├── bili/                # B站视频模块
+│   │   ├── __init__.py
+│   │   ├── routes.py        # 播放器路由
+│   │   ├── api.py           # B站 API
+│   │   └── download_service.py # 下载服务
 │   ├── main/                # 主页面模块
 │   │   ├── __init__.py
 │   │   └── routes.py        # 主页面路由
@@ -211,6 +224,8 @@ iFlyCompass/
 │   ├── novel_reader.html    # 小说阅读器页面
 │   ├── immersive_reader.html # 沉浸式阅读器页面
 │   ├── ncm_player.html      # 随身听页面
+│   ├── video_player.html    # 视频播放器页面
+│   ├── bili_player.html     # B站视频页面
 │   ├── index.html           # 首页
 │   ├── login.html           # 登录页面
 │   ├── register.html        # 注册页面
@@ -231,8 +246,9 @@ iFlyCompass/
 │   └── novels/              # 小说文件目录
 ├── stickers/                 # 表情包缓存目录
 ├── temp/                     # 临时文件目录
-│   └── music/               # 音乐缓存目录
-│       └── covers/          # 封面缓存目录
+│   ├── music/               # 音乐缓存目录
+│   │   └── covers/          # 封面缓存目录
+│   └── bili/                # B站视频缓存目录
 └── requirements.txt          # 依赖文件
 ```
 

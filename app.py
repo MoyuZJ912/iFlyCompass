@@ -12,6 +12,8 @@ from modules.ncm import ncm_bp
 from modules.settings import settings_bp
 from modules.announcement import announcement_bp
 from modules.drop import drop_bp
+from modules.video import video_bp
+from modules.bili import bili_bp
 from modules.chat.websocket import register_socketio_events
 from utils import init_novel_cache, init_settings, init_nav_file
 
@@ -164,6 +166,8 @@ def create_app():
     app.register_blueprint(settings_bp)
     app.register_blueprint(announcement_bp)
     app.register_blueprint(drop_bp)
+    app.register_blueprint(video_bp)
+    app.register_blueprint(bili_bp)
     
     register_socketio_events(socketio)
     

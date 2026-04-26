@@ -2,6 +2,63 @@
 
 ## 版本更新
 
+### BTA2.4.0
+
+**视频播放器 + B站视频缓存与播放**
+
+- **本地视频播放器**：
+  - 支持多种视频格式（MP4、WebM、OGG、MKV、AVI、MOV 等）
+  - 使用 Plyr 轻量级播放器，本地化部署
+  - Element UI 日间风格，与项目整体风格统一
+  - 视频列表、搜索过滤、自适应布局
+  - HTTP Range 请求支持，可拖拽进度条
+  - 带鱼屏适配，确保控件完整显示
+- **B站视频缓存与播放**：
+  - 首页推荐视频（热门排行榜）
+  - 搜索视频、搜索UP主
+  - 查看UP主视频列表
+  - 视频下载服务（异步多线程、进度追踪）
+  - 客户端实时显示下载进度
+  - 默认 480P 画质
+  - 音视频自动合并（使用内置 FFmpeg）
+  - 封面图片代理（解决防盗链问题）
+  - 使用 `bilibili-api-python` 库
+  - 使用 `curl_cffi` 请求库（伪装浏览器指纹）
+- **新增模块**：
+  - `modules/video/__init__.py` - 视频播放器模块定义
+  - `modules/video/routes.py` - 视频播放器路由
+  - `modules/video/api.py` - 视频 API
+  - `modules/bili/__init__.py` - B站视频模块定义
+  - `modules/bili/routes.py` - B站播放器路由
+  - `modules/bili/api.py` - B站 API
+  - `modules/bili/download_service.py` - B站视频下载服务
+- **新增页面**：
+  - `templates/video_player.html` - 视频播放器页面
+  - `templates/bili_player.html` - B站视频页面
+- **新增文件**：
+  - `assets/css/plyr.min.css` - Plyr 播放器样式
+  - `assets/js/plyr.min.js` - Plyr 播放器脚本
+  - `tools/ffmpeg/ffmpeg.exe` - FFmpeg 可执行文件
+  - `tools/ffmpeg/ffprobe.exe` - FFprobe 可执行文件
+- **新增 API**：
+  - `GET /api/videos` - 获取视频列表
+  - `GET /api/video/<filename>` - 流式播放视频
+  - `GET /api/bili/recommend` - 获取首页推荐
+  - `GET /api/bili/search` - 搜索视频
+  - `GET /api/bili/search_user` - 搜索UP主
+  - `GET /api/bili/user_videos/<mid>` - 获取UP主视频
+  - `GET /api/bili/video/<bvid>` - 获取视频详情
+  - `POST /api/bili/download/<bvid>` - 启动下载
+  - `GET /api/bili/progress/<bvid>` - 查询下载进度
+  - `GET /api/bili/downloads` - 获取所有下载任务
+  - `GET /api/bili/cached` - 获取已缓存视频
+  - `DELETE /api/bili/delete/<bvid>` - 删除缓存视频
+  - `GET /api/bili/play/<bvid>` - 播放缓存视频
+  - `GET /api/bili/cover` - 封面图片代理
+- **新增依赖**：
+  - `bilibili-api-python` - B站 API 库
+  - `curl_cffi` - 请求库（支持 TLS 指纹伪装）
+
 ### REL2.3.1
 
 **Drop 功能 + 聊天室多人优化 + 导航配置**
@@ -504,6 +561,16 @@
 - **sticker 模块**：表情包管理
   - routes.py：表情包文件服务
   - api.py：表情包管理 API
+- **ncm 模块**：随身听
+  - routes.py：播放器页面路由
+  - api.py：网易云音乐 API
+- **video 模块**：视频播放器
+  - routes.py：播放器页面路由
+  - api.py：视频流 API
+- **bili 模块**：B站视频
+  - routes.py：播放器页面路由
+  - api.py：B站 API
+  - download_service.py：视频下载服务
 - **main 模块**：主页面
   - routes.py：首页、控制面板、工具页面
 - **settings 模块**：系统设置
@@ -1133,9 +1200,122 @@
 - **权限**：登录用户
 - **返回**：封面图片文件
 
-### 3.9 公告相关 API
+### 3.9 视频播放器相关 API
 
-#### 3.9.1 获取所有公告
+#### 3.9.1 获取视频列表
+
+- **URL**：`/api/videos`
+- **方法**：GET
+- **权限**：登录用户
+- **返回**：视频列表 JSON（name, size, size\_display）
+
+#### 3.9.2 流式播放视频
+
+- **URL**：`/api/video/<filename>`
+- **方法**：GET
+- **权限**：登录用户
+- **返回**：视频文件流（支持 HTTP Range 请求）
+
+### 3.10 B站视频相关 API
+
+#### 3.10.1 获取首页推荐
+
+- **URL**：`/api/bili/recommend`
+- **方法**：GET
+- **权限**：登录用户
+- **返回**：推荐视频列表 JSON
+
+#### 3.10.2 搜索视频
+
+- **URL**：`/api/bili/search`
+- **方法**：GET
+- **权限**：登录用户
+- **参数**：
+  - keyword: 搜索关键词
+  - page: 页码（可选）
+- **返回**：搜索结果 JSON
+
+#### 3.10.3 搜索UP主
+
+- **URL**：`/api/bili/search_user`
+- **方法**：GET
+- **权限**：登录用户
+- **参数**：
+  - keyword: 搜索关键词
+  - page: 页码（可选）
+- **返回**：UP主列表 JSON
+
+#### 3.10.4 获取UP主视频
+
+- **URL**：`/api/bili/user_videos/<mid>`
+- **方法**：GET
+- **权限**：登录用户
+- **参数**：
+  - page: 页码（可选）
+  - ps: 每页数量（可选）
+- **返回**：UP主视频列表 JSON
+
+#### 3.10.5 获取视频详情
+
+- **URL**：`/api/bili/video/<bvid>`
+- **方法**：GET
+- **权限**：登录用户
+- **返回**：视频详情 JSON
+
+#### 3.10.6 启动下载
+
+- **URL**：`/api/bili/download/<bvid>`
+- **方法**：POST
+- **权限**：登录用户
+- **返回**：下载任务信息 JSON
+
+#### 3.10.7 查询下载进度
+
+- **URL**：`/api/bili/progress/<bvid>`
+- **方法**：GET
+- **权限**：登录用户
+- **返回**：下载进度 JSON
+
+#### 3.10.8 获取所有下载任务
+
+- **URL**：`/api/bili/downloads`
+- **方法**：GET
+- **权限**：登录用户
+- **返回**：下载任务列表 JSON
+
+#### 3.10.9 获取已缓存视频
+
+- **URL**：`/api/bili/cached`
+- **方法**：GET
+- **权限**：登录用户
+- **返回**：已缓存视频列表 JSON
+
+#### 3.10.10 删除缓存视频
+
+- **URL**：`/api/bili/delete/<bvid>`
+- **方法**：DELETE
+- **权限**：登录用户
+- **返回**：成功/失败信息 JSON
+
+#### 3.10.11 播放缓存视频
+
+- **URL**：`/api/bili/play/<bvid>`
+- **方法**：GET
+- **权限**：登录用户
+- **返回**：视频文件流
+
+#### 3.10.12 封面图片代理
+
+- **URL**：`/api/bili/cover`
+- **方法**：GET
+- **权限**：登录用户
+- **参数**：
+  - url: 封面图片 URL
+- **返回**：图片文件
+
+### 3.11 公告相关 API
+
+#### 3.11.1 获取所有公告
 
 - **URL**：`/api/announcements`
 - **方法**：GET
@@ -1144,56 +1324,56 @@
   - type: 公告类型（'all'、'banner'、'notification'，可选，默认 'all'）
 - **返回**：公告列表 JSON（包含用户阅读状态）
 
-#### 3.9.2 获取横幅公告
+#### 3.11.2 获取横幅公告
 
 - **URL**：`/api/announcements/banner`
 - **方法**：GET
 - **权限**：登录用户
 - **返回**：当前激活的横幅公告 JSON
 
-#### 3.9.3 获取弹窗通知
+#### 3.11.3 获取弹窗通知
 
 - **URL**：`/api/announcements/notifications/popup`
 - **方法**：GET
 - **权限**：登录用户
 - **返回**：需要弹窗显示的通知公告列表 JSON
 
-#### 3.9.4 获取公告角标状态
+#### 3.11.4 获取公告角标状态
 
 - **URL**：`/api/announcements/badge`
 - **方法**：GET
 - **权限**：登录用户
 - **返回**：角标状态 JSON（type: 'exclamation'/'number'/'dot'/'none'，count: 数字）
 
-#### 3.9.5 关闭公告
+#### 3.11.5 关闭公告
 
 - **URL**：`/api/announcements/<id>/dismiss`
 - **方法**：POST
 - **权限**：登录用户
 - **返回**：成功/失败信息 JSON
 
-#### 3.9.6 确认公告
+#### 3.11.6 确认公告
 
 - **URL**：`/api/announcements/<id>/confirm`
 - **方法**：POST
 - **权限**：登录用户
 - **返回**：成功/失败信息 JSON
 
-#### 3.9.7 不再提示
+#### 3.11.7 不再提示
 
 - **URL**：`/api/announcements/<id>/never-show`
 - **方法**：POST
 - **权限**：登录用户
 - **返回**：成功/失败信息 JSON
 
-#### 3.9.8 获取所有公告（管理）
+#### 3.11.8 获取所有公告（管理）
 
 - **URL**：`/api/announcements/manage`
 - **方法**：GET
 - **权限**：管理员或超级管理员
 - **返回**：所有公告列表 JSON
 
-#### 3.9.9 创建公告
+#### 3.11.9 创建公告
 
 - **URL**：`/api/announcements/manage`
 - **方法**：POST
@@ -1205,7 +1385,7 @@
   - priority: 优先级（'important'、'normal'、'minor'）
 - **返回**：新公告信息 JSON
 
-#### 3.9.10 更新公告
+#### 3.11.10 更新公告
 
 - **URL**：`/api/announcements/manage/<id>`
 - **方法**：PUT
@@ -1216,16 +1396,16 @@
   - priority: 优先级（可选）
 - **返回**：更新后的公告信息 JSON
 
-#### 3.9.11 删除公告
+#### 3.11.11 删除公告
 
 - **URL**：`/api/announcements/manage/<id>`
 - **方法**：DELETE
 - **权限**：管理员或超级管理员
 - **返回**：成功/失败信息 JSON
 
-### 3.10 Drop 相关 API
+### 3.12 Drop 相关 API
 
-#### 3.10.1 发送 Drop
+#### 3.12.1 发送 Drop
 
 - **URL**：`/api/drop/send`
 - **方法**：POST
@@ -1234,7 +1414,7 @@
   - content: 消息内容（最多 200 字）
 - **返回**：Drop 信息 JSON
 
-#### 3.10.2 轮询 Drop
+#### 3.12.2 轮询 Drop
 
 - **URL**：`/api/drop/poll`
 - **方法**：GET
@@ -1243,21 +1423,21 @@
   - last\_id: 上次获取的最后 ID（可选）
 - **返回**：新 Drop 列表 JSON
 
-#### 3.10.3 获取冷却状态
+#### 3.12.3 获取冷却状态
 
 - **URL**：`/api/drop/status`
 - **方法**：GET
 - **权限**：登录用户
 - **返回**：冷却状态 JSON（global\_cooldown, user\_cooldown, can\_send）
 
-#### 3.10.4 获取 Drop 设置
+#### 3.12.4 获取 Drop 设置
 
 - **URL**：`/api/drop/settings`
 - **方法**：GET
 - **权限**：登录用户
 - **返回**：Drop 设置 JSON（enabled, blocked\_users）
 
-#### 3.10.5 更新 Drop 设置
+#### 3.12.5 更新 Drop 设置
 
 - **URL**：`/api/drop/settings`
 - **方法**：PUT
@@ -1266,7 +1446,7 @@
   - enabled: 是否接收 Drop 消息
 - **返回**：成功/失败信息 JSON
 
-#### 3.10.6 添加黑名单
+#### 3.12.6 添加黑名单
 
 - **URL**：`/api/drop/blacklist`
 - **方法**：POST
@@ -1275,7 +1455,7 @@
   - user\_id: 要屏蔽的用户 ID
 - **返回**：成功/失败信息 JSON
 
-#### 3.10.7 移除黑名单
+#### 3.12.7 移除黑名单
 
 - **URL**：`/api/drop/blacklist`
 - **方法**：DELETE
@@ -1284,7 +1464,7 @@
   - user\_id: 要解除屏蔽的用户 ID
 - **返回**：成功/失败信息 JSON
 
-#### 3.10.8 搜索用户
+#### 3.12.8 搜索用户
 
 - **URL**：`/api/drop/users/search`
 - **方法**：GET
@@ -1293,9 +1473,9 @@
   - keyword: 搜索关键词
 - **返回**：用户列表 JSON
 
-### 3.11 导航相关 API
+### 3.13 导航相关 API
 
-#### 3.11.1 获取导航项
+#### 3.13.1 获取导航项
 
 - **URL**：`/api/nav/items`
 - **方法**：GET

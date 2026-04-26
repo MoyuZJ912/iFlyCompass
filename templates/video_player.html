@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="touch-defense-5">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>视频播放器 - iFlyCompass</title>
+    <link rel="stylesheet" href="/assets/css/loading.css">
+    <link rel="stylesheet" href="/assets/css/material-icons.css">
+    <link rel="stylesheet" href="/assets/css/element-ui.css">
+    <link rel="stylesheet" href="/assets/css/console.css">
+    <link rel="stylesheet" href="/assets/css/drop.css">
+    <link rel="stylesheet" href="/assets/css/plyr.min.css">
+    <style>
+        .video-container {
+            display: flex;
+            flex-direction: column;
+            background: #f5f7fa;
+            overflow: hidden;
+        }
+
+        .video-main {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .video-sidebar {
+            width: 300px;
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-right: 1px solid #e6e6e6;
+        }
+
+        .video-sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid #e6e6e6;
+            background: #fafafa;
+        }
+
+        .video-sidebar-header .sidebar-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #303133;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .video-sidebar-header .sidebar-title .count {
+            font-size: 12px;
+            color: #909399;
+            font-weight: normal;
+        }
+
+        .video-sidebar-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .video-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 4px;
+            gap: 10px;
+        }
+
+        .video-item:hover {
+            background: #f5f7fa;
+        }
+
+        .video-item.active {
+            background: #ecf5ff;
+        }
+
+        .video-item .video-item-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 6px;
+            background: #f0f2f5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .video-item .video-item-icon i {
+            font-size: 20px;
+            color: #909399;
+        }
+
+        .video-item.active .video-item-icon {
+            background: #409eff;
+        }
+
+        .video-item.active .video-item-icon i {
+            color: #fff;
+        }
+
+        .video-item .video-item-info {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .video-item .video-item-name {
+            font-size: 13px;
+            color: #303133;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .video-item .video-item-size {
+            font-size: 11px;
+            color: #909399;
+            margin-top: 2px;
+        }
+
+        .video-item.active .video-item-name {
+            color: #409eff;
+        }
+
+        .video-player-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .video-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            min-height: 280px;
+        }
+
+        .video-title-bar {
+            padding: 12px 16px;
+            border-bottom: 1px solid #ebeef5;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #fafafa;
+            flex-shrink: 0;
+        }
+
+        .video-title-bar .video-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: #303133;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            flex: 1;
+        }
+
+        .video-title-bar .video-size {
+            font-size: 12px;
+            color: #909399;
+            margin-left: 12px;
+            flex-shrink: 0;
+        }
+
+        .player-container {
+            flex: 1;
+            position: relative;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 200px;
+        }
+
+        #video-player {
+            width: 100%;
+            height: 100%;
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        .plyr {
+            width: 100%;
+            height: 100%;
+            min-height: 180px;
+        }
+
+        .plyr__video-wrapper {
+            height: calc(100% - 50px);
+            min-height: 130px;
+        }
+
+        .plyr video {
+            object-fit: contain;
+        }
+
+        .plyr__controls {
+            flex-shrink: 0;
+            height: 50px;
+        }
+
+        .plyr--full-ui .plyr__control--overlaid {
+            display: flex;
+        }
+
+        .empty-video-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #909399;
+            gap: 16px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+        }
+
+        .empty-video-area .empty-icon {
+            font-size: 80px;
+            color: #dcdfe6;
+        }
+
+        .empty-video-area .empty-text {
+            font-size: 16px;
+            color: #909399;
+        }
+
+        .empty-video-area .empty-hint {
+            font-size: 13px;
+            color: #c0c4cc;
+        }
+
+        .back-btn {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            color: #409eff;
+            font-size: 14px;
+        }
+
+        .back-btn:hover {
+            color: #66b1ff;
+        }
+
+        @media (max-width: 768px) {
+            .video-sidebar {
+                position: absolute;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                z-index: 100;
+                transform: translateX(-100%);
+                transition: transform 0.3s;
+                width: 280px;
+            }
+
+            .video-sidebar.mobile-open {
+                transform: translateX(0);
+            }
+
+            .video-player-area {
+                padding: 10px;
+            }
+
+            .mobile-sidebar-toggle {
+                display: inline-flex !important;
+            }
+        }
+
+        .mobile-sidebar-toggle {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 4px;
+            cursor: pointer;
+            color: #606266;
+            margin-right: 12px;
+        }
+
+        .mobile-sidebar-toggle:hover {
+            background: #f5f7fa;
+        }
+    </style>
+</head>
+<body class="touch-defense-5">
+    <div id="touch-buffer"></div>
+    <div id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">加载中...</div>
+    </div>
+    <div id="app">
+        <el-container class="console-container">
+            <el-aside width="64px" class="console-sidebar" :width="isCollapse ? '64px' : '200px'">
+                <div class="sidebar-header" @click="toggleCollapse">
+                    <img src="/assets/images/logo-trans-white.png" alt="Logo" class="sidebar-logo">
+                    <span v-show="!isCollapse" class="sidebar-brand">iFlyCompass</span>
+                    <i v-show="!isCollapse" class="el-icon-s-fold sidebar-toggle"></i>
+                </div>
+                <el-menu
+                    :default-active="activeMenu"
+                    class="el-menu-vertical-demo"
+                    background-color="#1a365d"
+                    text-color="#ffffff"
+                    active-text-color="#409EFF"
+                    :collapse="isCollapse"
+                    @select="handleMenuClick"
+                >
+                    <el-menu-item index="dashboard">
+                        <i class="el-icon-s-home"></i>
+                        <span slot="title">首页</span>
+                    </el-menu-item>
+                    <el-menu-item index="tools">
+                        <i class="el-icon-s-tools"></i>
+                        <span slot="title">小工具</span>
+                    </el-menu-item>
+                    <el-menu-item index="games">
+                        <i class="el-icon-s-marketing"></i>
+                        <span slot="title">小游戏</span>
+                    </el-menu-item>
+                    <el-menu-item index="users" v-if="isAdmin">
+                        <i class="el-icon-s-custom"></i>
+                        <span slot="title">用户管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="passkeys" v-if="isSuperAdmin">
+                        <i class="el-icon-key"></i>
+                        <span slot="title">Passkey 管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="chat">
+                        <i class="el-icon-chat-dot-round"></i>
+                        <span slot="title">聊天室</span>
+                    </el-menu-item>
+                    <el-menu-item index="settings" v-if="isAdmin">
+                        <i class="el-icon-setting"></i>
+                        <span slot="title">系统设置</span>
+                    </el-menu-item>
+                </el-menu>
+            </el-aside>
+
+            <el-container>
+                <el-header class="console-header">
+                    <div class="header-left">
+                        <span class="mobile-sidebar-toggle" @click="toggleMobileSidebar">
+                            <i class="el-icon-menu"></i>
+                        </span>
+                        <div class="back-btn" @click="goBack">
+                            <i class="el-icon-arrow-left"></i>
+                            <span style="margin-left: 4px;">返回</span>
+                        </div>
+                    </div>
+                    <div class="header-right">
+                        <h1 style="font-size: 18px;">视频播放器</h1>
+                    </div>
+                </el-header>
+
+                <div class="video-container">
+                    <div class="video-main">
+                        <div class="video-sidebar" :class="{ 'mobile-open': mobileSidebarOpen }">
+                            <div class="video-sidebar-header">
+                                <div class="sidebar-title">
+                                    <i class="el-icon-video-camera-solid"></i>
+                                    <span>视频列表</span>
+                                    <span class="count">([[ videos.length ]])</span>
+                                </div>
+                                <el-input
+                                    v-model="searchKeyword"
+                                    placeholder="搜索视频..."
+                                    size="small"
+                                    prefix-icon="el-icon-search"
+                                    clearable
+                                ></el-input>
+                            </div>
+                            <div class="video-sidebar-body">
+                                <div
+                                    v-for="video in filteredVideos"
+                                    :key="video.name"
+                                    class="video-item"
+                                    :class="{ active: currentVideo && currentVideo.name === video.name }"
+                                    @click="playVideo(video)"
+                                >
+                                    <div class="video-item-icon">
+                                        <i class="el-icon-video-play"></i>
+                                    </div>
+                                    <div class="video-item-info">
+                                        <div class="video-item-name">[[ video.name ]]</div>
+                                        <div class="video-item-size">[[ video.size_display ]]</div>
+                                    </div>
+                                </div>
+                                <div v-if="filteredVideos.length === 0" style="text-align: center; padding: 40px 16px; color: #909399;">
+                                    <div style="font-size: 48px; margin-bottom: 12px; color: #dcdfe6;">
+                                        <i class="el-icon-folder-opened"></i>
+                                    </div>
+                                    <div style="font-size: 14px;">[[ searchKeyword ? '未找到匹配视频' : '暂无视频文件' ]]</div>
+                                    <div style="font-size: 12px; color: #c0c4cc; margin-top: 8px;" v-if="!searchKeyword">
+                                        请将视频文件放入 instance/videos 目录
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="video-player-area" @click="closeMobileSidebar">
+                            <template v-if="currentVideo">
+                                <div class="video-wrapper">
+                                    <div class="video-title-bar">
+                                        <span class="video-name">[[ currentVideo.name ]]</span>
+                                        <span class="video-size">[[ currentVideo.size_display ]]</span>
+                                    </div>
+                                    <div class="player-container">
+                                        <video
+                                            id="video-player"
+                                            playsinline
+                                            controls
+                                            data-plyr-config='{"controls": ["play-large", "play", "progress", "current-time", "duration", "mute", "volume", "settings", "fullscreen"], "i18n": {"play": "播放", "pause": "暂停", "mute": "静音", "unmute": "取消静音", "fullscreen": "全屏", "exitFullscreen": "退出全屏", "settings": "设置", "speed": "速度", "normal": "正常"}}'
+                                        ></video>
+                                    </div>
+                                </div>
+                            </template>
+                            <template v-else>
+                                <div class="empty-video-area">
+                                    <div class="empty-icon">
+                                        <i class="el-icon-video-camera"></i>
+                                    </div>
+                                    <div class="empty-text">请在左侧选择视频播放</div>
+                                    <div class="empty-hint">支持 MP4、WebM、OGG、MKV、AVI、MOV 等格式</div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </el-container>
+        </el-container>
+
+        <el-dialog
+            title="个人设置"
+            :visible.sync="profileDialogVisible"
+            width="450px"
+        >
+            <el-form :model="profileForm" label-width="80px" class="profile-dialog-form">
+                <el-form-item label="用户名">
+                    <el-input :value="username" disabled></el-input>
+                </el-form-item>
+                <el-form-item label="昵称">
+                    <el-input v-model="profileForm.nickname" placeholder="请输入昵称"></el-input>
+                </el-form-item>
+                <el-form-item label="新密码" v-if="isSuperAdmin">
+                    <el-input v-model="profileForm.password" type="password" placeholder="留空则不修改密码"></el-input>
+                </el-form-item>
+            </el-form>
+            <span slot="footer" class="dialog-footer">
+                <el-button @click="profileDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="saveProfile">保存</el-button>
+            </span>
+        </el-dialog>
+    </div>
+
+    <script src="/assets/js/vue.min.js"></script>
+    <script src="/assets/js/element-ui.js"></script>
+    <script src="/assets/js/drop.js"></script>
+    <script src="/assets/js/plyr.min.js"></script>
+    <script>
+        var defenseLayer5ScrollHandler = null;
+
+        function enableDefenseLayer5() {
+            if (!defenseLayer5ScrollHandler) {
+                defenseLayer5ScrollHandler = function() {
+                    var scrollLeft = document.documentElement.scrollLeft || document.body.scrollLeft;
+                    var scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+
+                    var container = document.querySelector('.console-container');
+                    if (container) {
+                        container.style.transform = 'translate(' + (-scrollLeft) + 'px, ' + (-scrollTop) + 'px)';
+                    }
+
+                    var sidebar = document.querySelector('.console-sidebar');
+                    if (sidebar) {
+                        sidebar.style.transform = 'translate(' + scrollLeft + 'px, ' + scrollTop + 'px)';
+                    }
+
+                    var header = document.querySelector('.console-header');
+                    if (header) {
+                        header.style.transform = 'translate(' + scrollLeft + 'px, ' + scrollTop + 'px)';
+                    }
+                };
+                window.addEventListener('scroll', defenseLayer5ScrollHandler, { passive: true });
+            }
+        }
+
+        console.log('=== iFlyCompass 视频播放器页面加载完成 ===');
+
+        enableDefenseLayer5();
+
+        new Vue({
+            el: '#app',
+            delimiters: ['[[', ']]'],
+            data() {
+                return {
+                    isCollapse: {% if sidebar_expanded %}false{% else %}true{% endif %},
+                    activeMenu: 'tools',
+                    displayName: '{{ current_user.display_name }}',
+                    username: '{{ current_user.username }}',
+                    nickname: '{{ current_user.nickname or "" }}',
+                    passkeyUsed: {% if current_user.passkey_used %}'{{ current_user.passkey_used }}'{% else %}null{% endif %},
+                    isAdmin: {% if current_user.is_admin or current_user.is_super_admin %}true{% else %}false{% endif %},
+                    isSuperAdmin: {% if current_user.is_super_admin %}true{% else %}false{% endif %},
+                    userMenuVisible: false,
+                    profileDialogVisible: false,
+                    profileForm: {
+                        nickname: '',
+                        password: ''
+                    },
+                    mobileSidebarOpen: false,
+                    searchKeyword: '',
+                    videos: [],
+                    currentVideo: null,
+                    player: null
+                };
+            },
+            computed: {
+                filteredVideos() {
+                    var self = this;
+                    if (!this.searchKeyword) {
+                        return this.videos;
+                    }
+                    return this.videos.filter(function(video) {
+                        return video.name.toLowerCase().indexOf(self.searchKeyword.toLowerCase()) !== -1;
+                    });
+                }
+            },
+            mounted() {
+                var self = this;
+                console.log('Vue 实例挂载完成，用户信息:', {
+                    username: this.username,
+                    isAdmin: this.isAdmin,
+                    isSuperAdmin: this.isSuperAdmin
+                });
+                this.loadVideos();
+                this.updateContainerHeight();
+                window.addEventListener('resize', this.updateContainerHeight);
+            },
+            beforeDestroy() {
+                window.removeEventListener('resize', this.updateContainerHeight);
+            },
+            methods: {
+                updateContainerHeight() {
+                    var header = document.querySelector('.console-header');
+                    var container = document.querySelector('.video-container');
+                    if (header && container) {
+                        var headerHeight = header.offsetHeight || 60;
+                        var availableHeight = window.innerHeight - headerHeight;
+                        container.style.height = availableHeight + 'px';
+                    }
+                },
+                loadVideos() {
+                    var self = this;
+                    fetch('/api/videos')
+                        .then(function(response) { return response.json(); })
+                        .then(function(data) {
+                            self.videos = data;
+                            console.log('视频列表加载完成，共 ' + data.length + ' 个视频');
+                        })
+                        .catch(function(error) {
+                            console.error('加载视频列表失败:', error);
+                            self.$message.error('加载视频列表失败');
+                        });
+                },
+                playVideo(video) {
+                    var self = this;
+                    this.currentVideo = video;
+                    this.mobileSidebarOpen = false;
+                    console.log('播放视频:', video.name);
+
+                    this.$nextTick(function() {
+                        self.initPlayer(video);
+                    });
+                },
+                initPlayer(video) {
+                    var self = this;
+                    var videoElement = document.getElementById('video-player');
+                    if (!videoElement) {
+                        console.error('Video 元素未找到');
+                        return;
+                    }
+
+                    videoElement.src = '/api/video/' + encodeURIComponent(video.name);
+
+                    if (this.player) {
+                        this.player.destroy();
+                    }
+
+                    this.player = new Plyr(videoElement, {
+                        controls: [
+                            'play-large',
+                            'play',
+                            'progress',
+                            'current-time',
+                            'duration',
+                            'mute',
+                            'volume',
+                            'settings',
+                            'fullscreen'
+                        ],
+                        i18n: {
+                            play: '播放',
+                            pause: '暂停',
+                            mute: '静音',
+                            unmute: '取消静音',
+                            fullscreen: '全屏',
+                            exitFullscreen: '退出全屏',
+                            settings: '设置',
+                            speed: '速度',
+                            normal: '正常'
+                        },
+                        speed: {
+                            selected: 1,
+                            options: [0.5, 0.75, 1, 1.25, 1.5, 2]
+                        }
+                    });
+
+                    this.player.on('error', function(e) {
+                        console.error('视频播放错误:', e);
+                        self.$message.error('视频播放失败，可能格式不支持');
+                    });
+
+                    this.player.on('ready', function() {
+                        console.log('Plyr 播放器准备就绪');
+                        self.player.play();
+                    });
+
+                    this.player.on('ended', function() {
+                        console.log('视频播放结束');
+                    });
+                },
+                toggleMobileSidebar() {
+                    this.mobileSidebarOpen = !this.mobileSidebarOpen;
+                },
+                closeMobileSidebar() {
+                    if (this.mobileSidebarOpen) {
+                        this.mobileSidebarOpen = false;
+                    }
+                },
+                toggleCollapse() {
+                    this.isCollapse = !this.isCollapse;
+                },
+                toggleUserMenu() {
+                    this.userMenuVisible = !this.userMenuVisible;
+                },
+                openProfileDialog() {
+                    this.userMenuVisible = false;
+                    this.profileForm.nickname = this.nickname;
+                    this.profileForm.password = '';
+                    this.profileDialogVisible = true;
+                },
+                goDropSettings() {
+                    this.userMenuVisible = false;
+                    window.location.href = '/drop/settings';
+                },
+                openDropDialog() {
+                    this.userMenuVisible = false;
+                    if (window.DropSender) {
+                        window.DropSender.openDialog();
+                    }
+                },
+                saveProfile() {
+                    var self = this;
+                    fetch('/api/user/profile', {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(this.profileForm)
+                    })
+                    .then(function(response) { return response.json(); })
+                    .then(function(data) {
+                        if (data.error) {
+                            self.$message.error(data.error);
+                        } else {
+                            self.$message.success('保存成功');
+                            self.profileDialogVisible = false;
+                            if (data.display_name) {
+                                self.displayName = data.display_name;
+                                self.nickname = self.profileForm.nickname;
+                            }
+                        }
+                    })
+                    .catch(function(error) {
+                        console.error('保存失败:', error);
+                        self.$message.error('保存失败');
+                    });
+                },
+                confirmLogout() {
+                    this.userMenuVisible = false;
+                    this.$confirm('确定要退出登录吗？', '提示', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    })
+                    .then(function() {
+                        window.location.href = '/logout';
+                    })
+                    .catch(function() {
+                        console.log('取消退出登录');
+                    });
+                },
+                goBack() {
+                    window.location.href = '/board/tools';
+                },
+                handleMenuClick(key) {
+                    this.userMenuVisible = false;
+                    if (key === 'dashboard') {
+                        window.location.href = '/board';
+                    } else if (key === 'users') {
+                        window.location.href = '/board/users';
+                    } else if (key === 'passkeys') {
+                        window.location.href = '/board/passkeys';
+                    } else if (key === 'chat') {
+                        window.location.href = '/board/chat';
+                    } else if (key === 'tools') {
+                        window.location.href = '/board/tools';
+                    } else if (key === 'games') {
+                        window.location.href = '/board/games';
+                    } else if (key === 'settings') {
+                        window.location.href = '/board/settings';
+                    }
+                }
+            }
+        });
+    </script>
+    <script src="/assets/js/loading.js"></script>
+</body>
+</html>
