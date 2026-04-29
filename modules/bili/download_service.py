@@ -2,7 +2,10 @@ import os
 import asyncio
 import threading
 import subprocess
+import time
+import requests
 from concurrent.futures import ThreadPoolExecutor
+from queue import Queue
 from config import Config
 
 try:
@@ -13,9 +16,8 @@ except Exception as e:
 
 BILI_DIR = os.path.join(Config.TEMP_DIR, 'bili') if Config.TEMP_DIR else os.path.join(os.path.dirname(__file__), '..', 'temp', 'bili')
 
-FFMPEG_PATH = os.path.join(os.path.dirname(__file__), '..', 'tools', 'ffmpeg', 'ffmpeg.exe')
-if not os.path.exists(FFMPEG_PATH):
-    FFMPEG_PATH = 'ffmpeg'
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+FFMPEG_PATH = os.path.join(PROJECT_ROOT, 'tools', 'ffmpeg', 'ffmpeg.exe')
 
 QUALITY_MAP = {
     16: '360P',
@@ -29,11 +31,47 @@ QUALITY_MAP = {
 }
 
 DEFAULT_QUALITY = 32
+MAX_CONCURRENT_DOWNLOADS = 2
 
 download_tasks = {}
 download_lock = threading.Lock()
-executor = ThreadPoolExecutor(max_workers=3)
+active_downloads = 0
+download_semaphore = threading.Semaphore(MAX_CONCURRENT_DOWNLOADS)
+download_queue = Queue()
+executor = ThreadPoolExecutor(max_workers=5)
 
+def check_ffmpeg():
+    global FFMPEG_PATH
+    
+    if os.path.exists(FFMPEG_PATH):
+        print(f'[Bili] FFmpeg路径: {FFMPEG_PATH}')
+        
+        try:
+            result = subprocess.run([FFMPEG_PATH, '-version'], capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                version_line = result.stdout.split('\n')[0] if result.stdout else ''
+                print(f'[Bili] FFmpeg版本: {version_line}')
+                return True
+            else:
+                print(f'[Bili] FFmpeg执行失败，返回码: {result.returncode}')
+        except Exception as e:
+            print(f'[Bili] FFmpeg测试失败: {e}')
+    
+    FFMPEG_PATH = 'ffmpeg'
+    
+    try:
+        result = subprocess.run([FFMPEG_PATH, '-version'], capture_output=True, text=True, timeout=10)
+        if result.returncode == 0:
+            print(f'[Bili] 使用系统PATH中的FFmpeg')
+            return True
+    except:
+        pass
+    
+    print('[Bili] 警告: FFmpeg未找到，视频转换功能将不可用')
+    FFMPEG_PATH = None
+    return False
+
+check_ffmpeg()
 
 def ensure_bili_dir():
     if not os.path.exists(BILI_DIR):
@@ -136,6 +174,8 @@ class DownloadTask:
         self.start_time = None
         self.last_update = None
         self.last_downloaded = 0
+        self.converting_progress = 0
+        self.queue_position = 0
 
     def to_dict(self):
         return {
@@ -149,34 +189,37 @@ class DownloadTask:
             'total_display': format_size(self.total),
             'speed': self.speed,
             'speed_display': format_size(self.speed) + '/s' if self.speed > 0 else '0 B/s',
-            'error': self.error
+            'error': self.error,
+            'converting_progress': self.converting_progress,
+            'queue_position': self.queue_position
         }
 
 
-def download_file_with_progress(url, filepath, task, headers=None):
-    import requests
-    import time
-    
+def download_file(url, filepath, task, headers=None):
     req_headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Referer': 'https://www.bilibili.com/',
     }
     if headers:
         req_headers.update(headers)
     
-    resp = requests.get(url, headers=req_headers, stream=True, timeout=30)
+    print(f'[Bili] 开始下载: {url[:100]}...')
+    
+    resp = requests.get(url, headers=req_headers, stream=True, timeout=30, allow_redirects=True)
     total_size = int(resp.headers.get('content-length', 0))
+    task.total = total_size
+    print(f'[Bili] 文件总大小: {format_size(total_size) if total_size > 0 else "未知"}')
     
     downloaded = 0
     last_check = time.time()
     last_downloaded = 0
     
     with open(filepath, 'wb') as f:
-        for chunk in resp.iter_content(chunk_size=8192):
+        for chunk in resp.iter_content(chunk_size=65536):
             if chunk:
                 f.write(chunk)
                 downloaded += len(chunk)
-                task.downloaded += len(chunk)
+                task.downloaded = downloaded
                 
                 now = time.time()
                 if now - last_check >= 0.3:
@@ -184,126 +227,391 @@ def download_file_with_progress(url, filepath, task, headers=None):
                     task.speed = int((downloaded - last_downloaded) / elapsed) if elapsed > 0 else 0
                     if task.total > 0:
                         task.progress = int(task.downloaded / task.total * 100)
+                    else:
+                        task.progress = min(99, int(downloaded / (1024 * 1024) * 10))
                     last_check = now
                     last_downloaded = downloaded
+                    
+                    print(f'[Bili] 下载进度: {task.progress}% ({format_size(downloaded)}) 速度: {format_size(task.speed)}/s')
     
-    return downloaded
+    actual_size = os.path.getsize(filepath) if os.path.exists(filepath) else 0
+    task.downloaded = actual_size
+    task.total = actual_size if actual_size > total_size else total_size
+    task.progress = 100
+    print(f'[Bili] 下载完成: {filepath}, 实际大小: {format_size(actual_size)}')
+    return actual_size
 
 
-def merge_video_audio(video_path, audio_path, output_path):
+def convert_to_h264(input_path, output_path, task):
+    if not FFMPEG_PATH or not os.path.exists(input_path):
+        print(f'[Bili] FFmpeg未找到或输入文件不存在，跳过转换')
+        if os.path.exists(input_path):
+            os.rename(input_path, output_path)
+            return True
+        return False
+    
+    input_size = os.path.getsize(input_path)
+    print(f'[Bili] 开始转换视频为H264格式: {input_path} -> {output_path} ({format_size(input_size)})')
+    
+    try:
+        cmd = [
+            FFMPEG_PATH, '-y',
+            '-i', input_path,
+            '-c:v', 'libx264',
+            '-preset', 'fast',
+            '-crf', '23',
+            '-c:a', 'aac',
+            '-b:a', '128k',
+            '-movflags', '+faststart',
+            output_path
+        ]
+        
+        print(f'[Bili] FFmpeg命令: {" ".join(cmd)}')
+        
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
+        
+        duration = None
+        error_output = []
+        while True:
+            line = process.stderr.readline()
+            if not line and process.poll() is not None:
+                break
+            
+            if line:
+                error_output.append(line.strip())
+                
+                if 'Duration:' in line:
+                    import re
+                    match = re.search(r'Duration: (\d{2}):(\d{2}):(\d{2})\.(\d{2})', line)
+                    if match:
+                        h, m, s, ms = int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4))
+                        duration = h * 3600 + m * 60 + s + ms / 100
+                        print(f'[Bili] 视频时长: {duration}秒')
+                
+                if 'time=' in line and duration:
+                    import re
+                    match = re.search(r'time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})', line)
+                    if match:
+                        h, m, s, ms = int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4))
+                        current_time = h * 3600 + m * 60 + s + ms / 100
+                        if duration > 0:
+                            task.converting_progress = int((current_time / duration) * 100)
+                            print(f'[Bili] 转换进度: {task.converting_progress}%')
+                
+                if 'Error' in line or 'error' in line:
+                    print(f'[Bili] FFmpeg输出: {line.strip()}')
+        
+        process.wait()
+        
+        if process.returncode == 0:
+            output_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
+            print(f'[Bili] 视频转换完成: {output_path} ({format_size(output_size)})')
+            return True
+        else:
+            print(f'[Bili] FFmpeg转换失败，返回码: {process.returncode}')
+            print(f'[Bili] 错误输出:')
+            for line in error_output[-20:]:
+                print(f'    {line}')
+            return False
+            
+    except FileNotFoundError:
+        print('[Bili] FFmpeg未找到，跳过转换')
+        if os.path.exists(input_path):
+            os.rename(input_path, output_path)
+            return True
+        return False
+    except Exception as e:
+        print(f'[Bili] 转换异常: {e}')
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+def merge_and_convert_video_audio(video_path, audio_path, output_path, task):
+    if not FFMPEG_PATH:
+        print('[Bili] FFmpeg未找到，跳过合并转换')
+        return False
+    
+    video_exists = os.path.exists(video_path)
+    audio_exists = os.path.exists(audio_path)
+    video_size = os.path.getsize(video_path) if video_exists else 0
+    audio_size = os.path.getsize(audio_path) if audio_exists else 0
+    
+    print(f'[Bili] 开始合并并转换视频: video={video_path}({format_size(video_size)}), audio={audio_path}({format_size(audio_size)}), output={output_path}')
+    
+    if not video_exists:
+        print(f'[Bili] 视频文件不存在: {video_path}')
+        return False
+    
     try:
         cmd = [
             FFMPEG_PATH, '-y',
             '-i', video_path,
-            '-i', audio_path,
-            '-c:v', 'copy',
-            '-c:a', 'aac',
-            '-strict', 'experimental',
-            output_path
         ]
-        result = subprocess.run(cmd, capture_output=True, timeout=300)
-        if result.returncode != 0:
-            print(f'[Bili] FFmpeg合并失败: {result.stderr.decode("utf-8", errors="ignore")}')
+        
+        if audio_exists:
+            cmd.extend(['-i', audio_path])
+        
+        cmd.extend([
+            '-c:v', 'libx264',
+            '-preset', 'fast',
+            '-crf', '23',
+        ])
+        
+        if audio_exists:
+            cmd.extend(['-c:a', 'aac', '-b:a', '128k'])
+        else:
+            cmd.extend(['-an'])
+        
+        cmd.extend([
+            '-movflags', '+faststart',
+            output_path
+        ])
+        
+        print(f'[Bili] FFmpeg命令: {" ".join(cmd)}')
+        
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
+        
+        duration = None
+        error_output = []
+        while True:
+            line = process.stderr.readline()
+            if not line and process.poll() is not None:
+                break
+            
+            if line:
+                error_output.append(line.strip())
+                
+                if 'Duration:' in line:
+                    import re
+                    match = re.search(r'Duration: (\d{2}):(\d{2}):(\d{2})\.(\d{2})', line)
+                    if match:
+                        h, m, s, ms = int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4))
+                        duration = h * 3600 + m * 60 + s + ms / 100
+                        print(f'[Bili] 视频时长: {duration}秒')
+                
+                if 'time=' in line and duration:
+                    import re
+                    match = re.search(r'time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})', line)
+                    if match:
+                        h, m, s, ms = int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4))
+                        current_time = h * 3600 + m * 60 + s + ms / 100
+                        if duration > 0:
+                            task.converting_progress = int((current_time / duration) * 100)
+                            print(f'[Bili] 合并进度: {task.converting_progress}%')
+        
+        process.wait()
+        
+        if process.returncode == 0:
+            output_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
+            print(f'[Bili] 视频合并转换完成: {output_path} ({format_size(output_size)})')
+            return True
+        else:
+            print(f'[Bili] FFmpeg合并转换失败，返回码: {process.returncode}')
+            print(f'[Bili] 错误输出:')
+            for line in error_output[-20:]:
+                print(f'    {line}')
             return False
-        return True
+            
     except FileNotFoundError:
-        print('[Bili] FFmpeg未找到，尝试直接合并')
+        print('[Bili] FFmpeg未找到，尝试直接复制')
         return False
     except Exception as e:
-        print(f'[Bili] 合并异常: {e}')
+        print(f'[Bili] 合并转换异常: {e}')
+        import traceback
+        traceback.print_exc()
         return False
 
 
 def download_video_task(task):
-    import requests
-    import time
     from bilibili_api.video import VideoStreamDownloadURL, AudioStreamDownloadURL, FLVStreamDownloadURL, MP4StreamDownloadURL
     
-    try:
-        task.status = 'fetching'
-        task.start_time = time.time()
-        task.last_update = time.time()
+    global active_downloads
+    
+    with download_semaphore:
+        with download_lock:
+            active_downloads += 1
+            task.status = 'fetching'
+            task.queue_position = 0
         
-        info, cid = get_video_info_sync(task.bvid)
-        task.title = info.get('title', task.bvid)
-        
-        streams = get_download_streams_sync(task.bvid, cid)
-        
-        if not streams:
-            raise Exception('未找到可用的下载流')
-        
-        video_path = get_video_cache_path(task.bvid)
-        temp_video_path = video_path + '.video'
-        temp_audio_path = video_path + '.audio'
-        
-        headers = {'Referer': 'https://www.bilibili.com/'}
-        
-        if len(streams) == 1 and isinstance(streams[0], (FLVStreamDownloadURL, MP4StreamDownloadURL)):
-            stream = streams[0]
-            url = stream.url
-            task.total = 0
-            task.status = 'downloading'
-            download_file_with_progress(url, video_path, task, headers)
-            task.status = 'completed'
-            task.progress = 100
+        try:
+            task.start_time = time.time()
+            task.last_update = time.time()
             
-        elif len(streams) >= 2:
-            video_stream = None
-            audio_stream = None
+            print(f'[Bili] 开始获取视频信息: {task.bvid}')
+            info, cid = get_video_info_sync(task.bvid)
+            task.title = info.get('title', task.bvid)
+            print(f'[Bili] 视频标题: {task.title}')
             
-            for s in streams:
-                if isinstance(s, VideoStreamDownloadURL) and video_stream is None:
-                    video_stream = s
-                elif isinstance(s, AudioStreamDownloadURL) and audio_stream is None:
-                    audio_stream = s
+            print(f'[Bili] 开始获取下载流')
+            streams = get_download_streams_sync(task.bvid, cid)
             
-            if not video_stream:
-                raise Exception('未找到视频流')
+            if not streams:
+                raise Exception('未找到可用的下载流')
             
-            video_url = video_stream.url
-            audio_url = audio_stream.url if audio_stream else None
+            video_path = get_video_cache_path(task.bvid)
+            temp_video_path = video_path + '.video'
+            temp_audio_path = video_path + '.audio'
+            temp_merged_path = video_path + '.merged.mp4'
             
-            task.total = 0
-            task.status = 'downloading'
+            headers = {'Referer': 'https://www.bilibili.com/'}
             
-            download_file_with_progress(video_url, temp_video_path, task, headers)
-            
-            if audio_url:
-                download_file_with_progress(audio_url, temp_audio_path, task, headers)
-            
-            task.status = 'merging'
-            
-            if audio_url and os.path.exists(temp_audio_path) and os.path.exists(temp_video_path):
-                success = merge_video_audio(temp_video_path, temp_audio_path, video_path)
+            if len(streams) == 1 and isinstance(streams[0], (FLVStreamDownloadURL, MP4StreamDownloadURL)):
+                print(f'[Bili] 单流模式下载')
+                stream = streams[0]
+                url = stream.url
+                task.status = 'downloading'
+                download_file(url, temp_merged_path, task, headers)
+                
+                merged_size = os.path.getsize(temp_merged_path) if os.path.exists(temp_merged_path) else 0
+                
+                if merged_size < 1024:
+                    raise Exception(f'下载的文件太小({merged_size}B)，可能是无效文件')
+                
+                task.status = 'converting'
+                task.converting_progress = 0
+                print(f'[Bili] 开始转换为H264格式')
+                success = convert_to_h264(temp_merged_path, video_path, task)
+                
                 if success:
                     try:
-                        os.remove(temp_video_path)
-                        os.remove(temp_audio_path)
+                        os.remove(temp_merged_path)
                     except:
                         pass
+                    task.status = 'completed'
+                    task.progress = 100
+                    print(f'[Bili] 视频处理成功: {video_path}')
+                else:
+                    print(f'[Bli] 转换失败，保留原始文件')
+                    if os.path.exists(temp_merged_path):
+                        os.rename(temp_merged_path, video_path)
+                    task.status = 'completed'
+                    task.progress = 100
+                    task.error = '视频转换失败，保留原始格式'
+                
+            elif len(streams) >= 2:
+                print(f'[Bili] 双流模式下载（音视频分离）')
+                video_stream = None
+                audio_stream = None
+                
+                for s in streams:
+                    if isinstance(s, VideoStreamDownloadURL) and video_stream is None:
+                        video_stream = s
+                    elif isinstance(s, AudioStreamDownloadURL) and audio_stream is None:
+                        audio_stream = s
+                
+                if not video_stream:
+                    raise Exception('未找到视频流')
+                
+                video_url = video_stream.url
+                audio_url = audio_stream.url if audio_stream else None
+                
+                print(f'[Bili] 视频流URL: {video_url[:100]}...')
+                if audio_url:
+                    print(f'[Bili] 音频流URL: {audio_url[:100]}...')
+                
+                task.status = 'downloading'
+                
+                print(f'[Bili] 开始下载视频流')
+                download_file(video_url, temp_video_path, task, headers)
+                
+                video_size = os.path.getsize(temp_video_path) if os.path.exists(temp_video_path) else 0
+                if video_size < 1024:
+                    raise Exception(f'下载的视频文件太小({video_size}B)')
+                
+                if audio_url:
+                    print(f'[Bili] 开始下载音频流')
+                    download_file(audio_url, temp_audio_path, task, headers)
+                    
+                    audio_size = os.path.getsize(temp_audio_path) if os.path.exists(temp_audio_path) else 0
+                    if audio_size < 1024:
+                        print(f'[Bili] 警告: 音频文件较小({audio_size}B)')
+                
+                task.status = 'converting'
+                task.converting_progress = 0
+                print(f'[Bili] 开始合并并转换为H264格式')
+                
+                if audio_url and os.path.exists(temp_audio_path) and os.path.exists(temp_video_path):
+                    success = merge_and_convert_video_audio(temp_video_path, temp_audio_path, video_path, task)
+                    if success:
+                        try:
+                            os.remove(temp_video_path)
+                            os.remove(temp_audio_path)
+                        except:
+                            pass
+                        print(f'[Bili] 视频合并转换成功: {video_path}')
+                    else:
+                        print(f'[Bili] 合并转换失败，尝试仅转换视频')
+                        if os.path.exists(temp_video_path):
+                            success2 = convert_to_h264(temp_video_path, video_path, task)
+                            if success2:
+                                try:
+                                    os.remove(temp_video_path)
+                                    if os.path.exists(temp_audio_path):
+                                        os.remove(temp_audio_path)
+                                except:
+                                    pass
+                                print(f'[Bili] 视频转换成功: {video_path}')
+                            else:
+                                print(f'[Bili] 转换失败，保留原始文件')
+                                if os.path.exists(temp_video_path):
+                                    os.rename(temp_video_path, video_path)
+                                task.error = '视频转换失败，保留原始格式'
                 else:
                     if os.path.exists(temp_video_path):
-                        os.rename(temp_video_path, video_path)
+                        success = convert_to_h264(temp_video_path, video_path, task)
+                        if success:
+                            try:
+                                os.remove(temp_video_path)
+                            except:
+                                pass
+                            print(f'[Bili] 视频转换成功: {video_path}')
+                        else:
+                            print(f'[Bili] 转换失败，保留原始文件')
+                            os.rename(temp_video_path, video_path)
+                            task.error = '视频转换失败，保留原始格式'
+                
+                task.status = 'completed'
+                task.progress = 100
+                print(f'[Bili] 下载完成: {video_path}')
             else:
-                if os.path.exists(temp_video_path):
-                    os.rename(temp_video_path, video_path)
-            
-            task.status = 'completed'
-            task.progress = 100
-        else:
-            raise Exception('未找到可用的下载地址')
-            
-    except Exception as e:
-        task.status = 'error'
-        task.error = str(e)
-        print(f'[Bili] 下载失败 {task.bvid}: {e}')
+                raise Exception('未找到可用的下载地址')
+                
+        except Exception as e:
+            task.status = 'error'
+            task.error = str(e)
+            print(f'[Bili] 下载失败 {task.bvid}: {e}')
+            import traceback
+            traceback.print_exc()
+        finally:
+            with download_lock:
+                active_downloads -= 1
+
+
+def update_queue_positions():
+    with download_lock:
+        pending_tasks = [t for t in download_tasks.values() if t.status == 'pending']
+        for i, task in enumerate(pending_tasks):
+            task.queue_position = i + 1
 
 
 def start_download(bvid):
     with download_lock:
         if bvid in download_tasks:
             task = download_tasks[bvid]
-            if task.status in ['pending', 'downloading', 'fetching', 'merging']:
+            if task.status in ['pending', 'downloading', 'fetching', 'merging', 'converting']:
                 return task
         
         if is_video_cached(bvid):
@@ -316,7 +624,16 @@ def start_download(bvid):
             task = DownloadTask(bvid, title, cid)
             download_tasks[bvid] = task
             
-            executor.submit(download_video_task, task)
+            pending_count = len([t for t in download_tasks.values() if t.status == 'pending'])
+            active_count = len([t for t in download_tasks.values() if t.status in ['downloading', 'fetching', 'converting']])
+            
+            if active_count >= MAX_CONCURRENT_DOWNLOADS:
+                task.status = 'pending'
+                task.queue_position = pending_count + 1
+                print(f'[Bili] 下载任务排队中: {bvid}, 队列位置: {task.queue_position}')
+            else:
+                task.queue_position = 0
+                executor.submit(download_video_task, task)
             
             return task
         except Exception as e:

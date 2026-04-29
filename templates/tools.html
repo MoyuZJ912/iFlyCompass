@@ -414,12 +414,12 @@
                                     [<]
                                 </el-button>
                                 <span style="margin: 0 10px;">
-                                    [[ currentPage ]]/[[ Math.ceil(filteredTools.length / 4) || 1 ]]
+                                    [[ currentPage ]]/[[ totalPages ]]
                                 </span>
                                 <el-button 
                                     type="text" 
                                     @click="nextPage"
-                                    :disabled="currentPage >= Math.ceil(filteredTools.length / 4)"
+                                    :disabled="currentPage >= totalPages"
                                 >
                                     [>]
                                 </el-button>
@@ -507,40 +507,9 @@
                     },
                     searchKeyword: '',
                     currentPage: 1,
-                    tools: [
-                        {
-                            id: 1,
-                            name: '小说阅读器',
-                            provider: 'Built-in',
-                            description: '随时阅读TXT小说！',
-                            path: '/tools/novelreader',
-                            icon: 'menu_book'
-                        },
-                        {
-                            id: 2,
-                            name: '随身听',
-                            provider: '网易云音乐',
-                            description: '搜索并播放网易云音乐！',
-                            path: '/ncmplayer',
-                            icon: 'headset'
-                        },
-                        {
-                            id: 3,
-                            name: '视频播放器',
-                            provider: 'Built-in',
-                            description: '播放在线视频文件！支持多种格式',
-                            path: '/tools/videoplayer',
-                            icon: 'movie'
-                        },
-                        {
-                            id: 4,
-                            name: 'B站视频',
-                            provider: '哔哩哔哩',
-                            description: '缓存并播放B站视频！480P画质',
-                            path: '/tools/biliplayer',
-                            icon: 'play_circle'
-                        }
-                    ]
+                    tools: [],
+                    allToolsLoaded: false,
+                    pageSize: {% if card_layout == '1x3' %}3{% elif card_layout == '2x3' %}6{% else %}4{% endif %},
                 };
             },
             computed: {
@@ -554,9 +523,12 @@
                     );
                 },
                 paginatedTools() {
-                    const start = (this.currentPage - 1) * 4;
-                    const end = start + 4;
+                    const start = (this.currentPage - 1) * this.pageSize;
+                    const end = start + this.pageSize;
                     return this.filteredTools.slice(start, end);
+                },
+                totalPages() {
+                    return Math.ceil(this.filteredTools.length / this.pageSize) || 1;
                 }
             },
             mounted() {
@@ -571,23 +543,70 @@
             methods: {
                 loadNavItems() {
                     var self = this;
+                    
+                    var builtInApps = [
+                        {
+                            id: 'builtin_novelreader',
+                            name: '小说阅读器',
+                            provider: 'Built-in',
+                            description: '随时阅读TXT小说！',
+                            path: '/tools/novelreader',
+                            icon: 'menu_book'
+                        },
+                        {
+                            id: 'builtin_ncmplayer',
+                            name: '随身听',
+                            provider: '网易云音乐',
+                            description: '搜索并播放网易云音乐！',
+                            path: '/ncmplayer',
+                            icon: 'headset'
+                        },
+                        {
+                            id: 'builtin_videoplayer',
+                            name: '视频播放器',
+                            provider: 'Built-in',
+                            description: '播放在线视频文件！支持多种格式',
+                            path: '/tools/videoplayer',
+                            icon: 'movie'
+                        },
+                        {
+                            id: 'builtin_biliplayer',
+                            name: 'B站视频',
+                            provider: '哔哩哔哩',
+                            description: '缓存并播放B站视频！480P画质',
+                            path: '/tools/biliplayer',
+                            icon: 'play_circle'
+                        }
+                    ];
+                    
                     fetch('/api/nav/items?category=tools')
                         .then(function(response) { return response.json(); })
                         .then(function(data) {
+                            var allTools = [];
+                            
+                            builtInApps.forEach(function(app) {
+                                allTools.push(app);
+                            });
+                            
                             data.forEach(function(item) {
-                                self.tools.push({
+                                allTools.push({
                                     id: 'nav_' + item.id,
                                     name: item.name,
                                     provider: 'External',
-                                    description: '外部链接',
+                                    description: item.description || '外部链接',
                                     path: item.link,
-                                    icon: 'link',
+                                    icon: item.icon || 'link',
                                     isExternal: true
                                 });
                             });
+                            
+                            self.tools = allTools;
+                            self.allToolsLoaded = true;
                         })
                         .catch(function(error) {
                             console.error('加载导航项失败:', error);
+                            self.tools = builtInApps;
+                            self.allToolsLoaded = true;
                         });
                 },
                 toggleCollapse() {
@@ -685,7 +704,7 @@
                     }
                 },
                 nextPage() {
-                    if (this.currentPage < Math.ceil(this.filteredTools.length / 4)) {
+                    if (this.currentPage < this.totalPages) {
                         this.currentPage++;
                     }
                 },

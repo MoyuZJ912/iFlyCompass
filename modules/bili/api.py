@@ -35,6 +35,9 @@ def run_async(coro):
 @login_required
 def get_recommend():
     try:
+        page = request.args.get('page', 1, type=int)
+        ps = request.args.get('ps', 10, type=int)
+        
         from bilibili_api import rank
         from bilibili_api.rank import RankType
         
@@ -44,9 +47,9 @@ def get_recommend():
         
         data = run_async(_get_rank())
         
-        videos = []
+        all_videos = []
         for item in data.get('list', []):
-            videos.append({
+            all_videos.append({
                 'bvid': item.get('bvid', ''),
                 'title': item.get('title', ''),
                 'cover': item.get('pic', ''),
@@ -58,6 +61,10 @@ def get_recommend():
                 'duration_display': format_duration(item.get('duration', 0)),
                 'cached': is_video_cached(item.get('bvid', ''))
             })
+        
+        start = (page - 1) * ps
+        end = start + ps
+        videos = all_videos[start:end]
         
         return jsonify(videos)
     except Exception as e:
@@ -71,9 +78,10 @@ def search_video():
     try:
         keyword = request.args.get('keyword', '')
         page = request.args.get('page', 1, type=int)
+        ps = request.args.get('ps', 10, type=int)
         
         if not keyword:
-            return jsonify({'videos': [], 'total': 0, 'page': page})
+            return jsonify([])
         
         from bilibili_api import search
         
@@ -84,7 +92,7 @@ def search_video():
         data = run_async(_search())
         
         videos = []
-        for item in data.get('result', []):
+        for item in data.get('result', [])[:ps]:
             cover = item.get('pic', '')
             if cover.startswith('//'):
                 cover = 'https:' + cover
@@ -102,14 +110,12 @@ def search_video():
                 'cached': is_video_cached(item.get('bvid', ''))
             })
         
-        return jsonify({
-            'videos': videos,
-            'total': data.get('numResults', 0),
-            'page': page
-        })
+        return jsonify(videos)
     except Exception as e:
         print(f'[Bili] 搜索异常: {e}')
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        traceback.print_exc()
+        return jsonify([])
 
 
 @bili_bp.route('/api/bili/search_user')
@@ -118,9 +124,10 @@ def search_user():
     try:
         keyword = request.args.get('keyword', '')
         page = request.args.get('page', 1, type=int)
+        ps = request.args.get('ps', 10, type=int)
         
         if not keyword:
-            return jsonify({'users': [], 'total': 0, 'page': page})
+            return jsonify([])
         
         from bilibili_api import search
         
@@ -131,7 +138,7 @@ def search_user():
         data = run_async(_search())
         
         users = []
-        for item in data.get('result', []):
+        for item in data.get('result', [])[:ps]:
             avatar = item.get('upic', '')
             if avatar.startswith('//'):
                 avatar = 'https:' + avatar
@@ -147,14 +154,12 @@ def search_user():
                 'is_up': item.get('is_up', 0) == 1
             })
         
-        return jsonify({
-            'users': users,
-            'total': data.get('numResults', 0),
-            'page': page
-        })
+        return jsonify(users)
     except Exception as e:
         print(f'[Bili] 搜索用户异常: {e}')
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        traceback.print_exc()
+        return jsonify([])
 
 
 @bili_bp.route('/api/bili/user_videos/<int:mid>')
@@ -162,13 +167,13 @@ def search_user():
 def get_user_videos(mid):
     try:
         page = request.args.get('page', 1, type=int)
-        ps = request.args.get('ps', 20, type=int)
+        ps = request.args.get('ps', 10, type=int)
         
         from bilibili_api import user
         
         async def _get_videos():
             u = user.User(mid)
-            result = await u.get_videos(page=page, page_size=ps)
+            result = await u.get_videos()
             return result
         
         data = run_async(_get_videos())
@@ -176,7 +181,11 @@ def get_user_videos(mid):
         videos = []
         vlist = data.get('list', {}).get('vlist', [])
         
-        for item in vlist:
+        start = (page - 1) * ps
+        end = start + ps
+        paginated_list = vlist[start:end]
+        
+        for item in paginated_list:
             videos.append({
                 'bvid': item.get('bvid', ''),
                 'title': item.get('title', ''),
@@ -189,14 +198,12 @@ def get_user_videos(mid):
                 'cached': is_video_cached(item.get('bvid', ''))
             })
         
-        return jsonify({
-            'videos': videos,
-            'total': data.get('page', {}).get('count', 0),
-            'page': page
-        })
+        return jsonify(videos)
     except Exception as e:
         print(f'[Bili] 获取用户视频异常: {e}')
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        traceback.print_exc()
+        return jsonify([])
 
 
 @bili_bp.route('/api/bili/video/<bvid>')
@@ -277,6 +284,28 @@ def list_downloads():
 @login_required
 def list_cached():
     return jsonify(get_cached_videos())
+
+
+@bili_bp.route('/api/bili/cached_titles', methods=['POST'])
+@login_required
+def get_cached_titles():
+    try:
+        data = request.get_json()
+        bvids = data.get('bvids', [])
+        
+        titles = {}
+        for bvid in bvids:
+            try:
+                info = get_video_info(bvid)
+                titles[bvid] = info.get('title', bvid)
+            except Exception as e:
+                print(f'[Bili] 获取视频标题失败 {bvid}: {e}')
+                titles[bvid] = bvid
+        
+        return jsonify(titles)
+    except Exception as e:
+        print(f'[Bili] 获取缓存视频标题异常: {e}')
+        return jsonify({'error': str(e)}), 500
 
 
 @bili_bp.route('/api/bili/delete/<bvid>', methods=['DELETE'])

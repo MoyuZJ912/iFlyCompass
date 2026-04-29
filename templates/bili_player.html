@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="/assets/css/element-ui.css">
     <link rel="stylesheet" href="/assets/css/console.css">
     <link rel="stylesheet" href="/assets/css/drop.css">
-    <link rel="stylesheet" href="/assets/css/plyr.min.css">
+    <link rel="stylesheet" href="/assets/css/plyr.css">
     <style>
         .bili-container {
             height: calc(100vh - 60px);
@@ -152,6 +152,17 @@
             margin-left: 6px;
         }
 
+        .loading-more, .no-more {
+            text-align: center;
+            padding: 16px;
+            color: #909399;
+            font-size: 13px;
+        }
+
+        .loading-more i {
+            margin-right: 6px;
+        }
+
         .user-item {
             display: flex;
             align-items: center;
@@ -263,20 +274,13 @@
             max-height: 100%;
         }
 
-        .plyr {
+        .video-js {
             width: 100%;
             height: 100%;
-            min-height: 180px;
         }
 
-        .plyr__video-wrapper {
-            height: calc(100% - 50px);
-            min-height: 130px;
-        }
-
-        .plyr__controls {
-            flex-shrink: 0;
-            height: 50px;
+        .video-js .vjs-tech {
+            object-fit: contain;
         }
 
         .download-overlay {
@@ -541,6 +545,12 @@
                                             </div>
                                         </div>
                                     </div>
+                                    <div v-if="recommendLoading" class="loading-more">
+                                        <i class="el-icon-loading"></i> 正在加载...
+                                    </div>
+                                    <div v-else-if="!recommendHasMore && recommendList.length > 0" class="no-more">
+                                        没有更多了
+                                    </div>
                                 </template>
 
                                 <template v-else-if="activeTab === 'search'">
@@ -557,6 +567,12 @@
                                                 <span v-if="video.cached" class="cached-badge">已缓存</span>
                                             </div>
                                         </div>
+                                    </div>
+                                    <div v-if="searchLoading" class="loading-more">
+                                        <i class="el-icon-loading"></i> 正在加载...
+                                    </div>
+                                    <div v-else-if="(currentMid ? !userVideoHasMore : !searchHasMore) && searchResults.length > 0" class="no-more">
+                                        没有更多了
                                     </div>
                                     <div v-if="searchResults.length === 0 && !searchLoading" style="text-align: center; padding: 40px; color: #909399;">
                                         <div v-if="searchKeyword">未找到相关视频</div>
@@ -577,6 +593,12 @@
                                             </div>
                                         </div>
                                     </div>
+                                    <div v-if="userLoading" class="loading-more">
+                                        <i class="el-icon-loading"></i> 正在加载...
+                                    </div>
+                                    <div v-else-if="!userHasMore && userResults.length > 0" class="no-more">
+                                        没有更多了
+                                    </div>
                                     <div v-if="userResults.length === 0 && !userLoading" style="text-align: center; padding: 40px; color: #909399;">
                                         <div v-if="searchKeyword">未找到相关UP主</div>
                                         <div v-else>输入关键词搜索UP主</div>
@@ -586,7 +608,7 @@
                                 <template v-else-if="activeTab === 'cached'">
                                     <div v-for="video in cachedVideos" :key="video.bvid" class="bili-item" @click="playCached(video)">
                                         <div class="info" style="flex: 1;">
-                                            <div class="title">[[ video.bvid ]]</div>
+                                            <div class="title">[[ video.title || video.bvid ]]</div>
                                             <div class="meta">
                                                 <span>[[ video.size_display ]]</span>
                                                 <el-button type="text" size="mini" style="color: #f56c6c;" @click.stop="deleteCached(video.bvid)">删除</el-button>
@@ -614,7 +636,13 @@
                                         </span>
                                     </div>
                                     <div class="player-container">
-                                        <video id="bili-player" playsinline controls></video>
+                                        <video
+                                            id="bili-player"
+                                            playsinline
+                                            controls
+                                        >
+                                            <source src="" type="video/mp4">
+                                        </video>
                                         
                                         <div class="download-overlay" v-if="downloadProgress && downloadProgress.status !== 'completed'">
                                             <div class="progress-circle">
@@ -622,19 +650,27 @@
                                                     <circle class="bg" cx="60" cy="60" r="52"></circle>
                                                     <circle class="progress" cx="60" cy="60" r="52"
                                                         :stroke-dasharray="326.73"
-                                                        :stroke-dashoffset="326.73 * (1 - downloadProgress.progress / 100)">
+                                                        :stroke-dashoffset="326.73 * (1 - (downloadProgress.status === 'converting' ? downloadProgress.converting_progress : downloadProgress.progress) / 100)">
                                                     </circle>
                                                 </svg>
-                                                <div class="progress-text">[[ downloadProgress.progress ]]%</div>
+                                                <div class="progress-text">[[ downloadProgress.status === 'converting' ? downloadProgress.converting_progress : downloadProgress.progress ]]%</div>
                                             </div>
                                             <div class="status-text">
-                                                <template v-if="downloadProgress.status === 'fetching'">获取视频信息...</template>
+                                                <template v-if="downloadProgress.status === 'pending'">排队等待中... (位置: [[ downloadProgress.queue_position ]])</template>
+                                                <template v-else-if="downloadProgress.status === 'fetching'">获取视频信息...</template>
                                                 <template v-else-if="downloadProgress.status === 'downloading'">正在下载...</template>
+                                                <template v-else-if="downloadProgress.status === 'converting'">正在转换为H264格式...</template>
                                                 <template v-else-if="downloadProgress.status === 'merging'">正在合并...</template>
                                                 <template v-else-if="downloadProgress.status === 'error'">下载失败</template>
                                             </div>
-                                            <div class="speed-text" v-if="downloadProgress.status === 'downloading'">
+                                            <div class="speed-text" v-if="downloadProgress.status === 'pending'" style="color: #e6a23c;">
+                                                等待其他下载完成...
+                                            </div>
+                                            <div class="speed-text" v-else-if="downloadProgress.status === 'downloading'">
                                                 [[ downloadProgress.speed_display ]] · [[ downloadProgress.downloaded_display ]] / [[ downloadProgress.total_display ]]
+                                            </div>
+                                            <div class="speed-text" v-else-if="downloadProgress.status === 'converting'" style="color: #e6a23c;">
+                                                FFmpeg 视频转换中，请稍候...
                                             </div>
                                             <div class="speed-text" v-else-if="downloadProgress.status === 'error'" style="color: #f56c6c;">
                                                 [[ downloadProgress.error ]]
@@ -739,10 +775,21 @@
                     activeTab: 'recommend',
                     searchKeyword: '',
                     recommendList: [],
+                    recommendPage: 1,
+                    recommendHasMore: true,
+                    recommendLoading: false,
                     searchResults: [],
                     userResults: [],
+                    searchPage: 1,
+                    searchHasMore: true,
+                    userPage: 1,
+                    userHasMore: true,
+                    currentMid: null,
+                    userVideoPage: 1,
+                    userVideoHasMore: true,
                     cachedVideos: [],
                     currentVideo: null,
+                    currentBvid: null,
                     player: null,
                     listLoading: false,
                     searchLoading: false,
@@ -756,10 +803,41 @@
                 console.log('Vue 实例挂载完成');
                 this.loadRecommend();
                 this.loadCached();
+                
+                this.$nextTick(function() {
+                    var listEl = document.querySelector('.bili-list');
+                    if (listEl) {
+                        listEl.addEventListener('scroll', function() {
+                            var scrollTop = listEl.scrollTop;
+                            var scrollHeight = listEl.scrollHeight;
+                            var clientHeight = listEl.clientHeight;
+                            var nearBottom = scrollTop + clientHeight >= scrollHeight - 100;
+                            
+                            if (self.activeTab === 'recommend' && self.recommendHasMore && !self.recommendLoading && nearBottom) {
+                                self.loadMoreRecommend();
+                            } else if (self.activeTab === 'search' && self.searchHasMore && !self.searchLoading && nearBottom) {
+                                if (self.currentMid) {
+                                    self.loadMoreUserVideos();
+                                } else {
+                                    self.loadMoreSearch();
+                                }
+                            } else if (self.activeTab === 'user' && self.userHasMore && !self.userLoading && nearBottom) {
+                                self.loadMoreUser();
+                            }
+                        });
+                    }
+                });
             },
             beforeDestroy() {
                 if (this.progressTimer) {
                     clearInterval(this.progressTimer);
+                }
+                if (this.player) {
+                    try {
+                        this.player.destroy();
+                    } catch (e) {
+                        console.warn('[BiliPlayer] 销毁播放器时出错:', e);
+                    }
                 }
             },
             methods: {
@@ -775,12 +853,30 @@
                 },
                 loadRecommend() {
                     var self = this;
-                    this.listLoading = true;
-                    fetch('/api/bili/recommend?ps=20')
+                    this.recommendPage = 1;
+                    this.recommendList = [];
+                    this.recommendHasMore = true;
+                    this.loadMoreRecommend();
+                },
+                loadMoreRecommend() {
+                    var self = this;
+                    if (this.recommendLoading || !this.recommendHasMore) return;
+                    
+                    this.recommendLoading = true;
+                    fetch('/api/bili/recommend?ps=10&page=' + this.recommendPage)
                         .then(function(r) { return r.json(); })
                         .then(function(data) {
                             if (Array.isArray(data)) {
-                                self.recommendList = data;
+                                if (data.length < 10) {
+                                    self.recommendHasMore = false;
+                                }
+                                data.forEach(function(video) {
+                                    var exists = self.recommendList.some(function(v) { return v.bvid === video.bvid; });
+                                    if (!exists) {
+                                        self.recommendList.push(video);
+                                    }
+                                });
+                                self.recommendPage++;
                             } else {
                                 self.$message.error(data.error || '获取推荐失败');
                             }
@@ -790,7 +886,7 @@
                             self.$message.error('获取推荐失败');
                         })
                         .finally(function() {
-                            self.listLoading = false;
+                            self.recommendLoading = false;
                         });
                 },
                 doSearch() {
@@ -798,12 +894,19 @@
                     if (!this.searchKeyword.trim()) return;
                     
                     if (this.activeTab === 'search') {
+                        this.searchPage = 1;
+                        this.searchHasMore = true;
                         this.searchLoading = true;
-                        fetch('/api/bili/search?keyword=' + encodeURIComponent(this.searchKeyword))
+                        this.searchResults = [];
+                        this.currentMid = null;
+                        fetch('/api/bili/search?keyword=' + encodeURIComponent(this.searchKeyword) + '&ps=10&page=1')
                             .then(function(r) { return r.json(); })
                             .then(function(data) {
-                                if (data.videos) {
-                                    self.searchResults = data.videos;
+                                if (Array.isArray(data)) {
+                                    if (data.length < 10) {
+                                        self.searchHasMore = false;
+                                    }
+                                    self.searchResults = data;
                                 } else {
                                     self.$message.error(data.error || '搜索失败');
                                 }
@@ -816,12 +919,18 @@
                                 self.searchLoading = false;
                             });
                     } else if (this.activeTab === 'user') {
+                        this.userPage = 1;
+                        this.userHasMore = true;
                         this.userLoading = true;
-                        fetch('/api/bili/search_user?keyword=' + encodeURIComponent(this.searchKeyword))
+                        this.userResults = [];
+                        fetch('/api/bili/search_user?keyword=' + encodeURIComponent(this.searchKeyword) + '&ps=10&page=1')
                             .then(function(r) { return r.json(); })
                             .then(function(data) {
-                                if (data.users) {
-                                    self.userResults = data.users;
+                                if (Array.isArray(data)) {
+                                    if (data.length < 10) {
+                                        self.userHasMore = false;
+                                    }
+                                    self.userResults = data;
                                 } else {
                                     self.$message.error(data.error || '搜索失败');
                                 }
@@ -835,12 +944,104 @@
                             });
                     }
                 },
+                loadMoreSearch() {
+                    var self = this;
+                    if (this.searchLoading || !this.searchHasMore) return;
+                    
+                    this.searchLoading = true;
+                    this.searchPage++;
+                    fetch('/api/bili/search?keyword=' + encodeURIComponent(this.searchKeyword) + '&ps=10&page=' + this.searchPage)
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            if (Array.isArray(data)) {
+                                if (data.length < 10) {
+                                    self.searchHasMore = false;
+                                }
+                                data.forEach(function(video) {
+                                    var exists = self.searchResults.some(function(v) { return v.bvid === video.bvid; });
+                                    if (!exists) {
+                                        self.searchResults.push(video);
+                                    }
+                                });
+                            } else {
+                                self.$message.error(data.error || '搜索失败');
+                            }
+                        })
+                        .catch(function(e) {
+                            console.error(e);
+                            self.$message.error('加载更多失败');
+                        })
+                        .finally(function() {
+                            self.searchLoading = false;
+                        });
+                },
+                loadMoreUser() {
+                    var self = this;
+                    if (this.userLoading || !this.userHasMore) return;
+                    
+                    this.userLoading = true;
+                    this.userPage++;
+                    fetch('/api/bili/search_user?keyword=' + encodeURIComponent(this.searchKeyword) + '&ps=10&page=' + this.userPage)
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            if (Array.isArray(data)) {
+                                if (data.length < 10) {
+                                    self.userHasMore = false;
+                                }
+                                data.forEach(function(user) {
+                                    var exists = self.userResults.some(function(u) { return u.mid === user.mid; });
+                                    if (!exists) {
+                                        self.userResults.push(user);
+                                    }
+                                });
+                            } else {
+                                self.$message.error(data.error || '搜索失败');
+                            }
+                        })
+                        .catch(function(e) {
+                            console.error(e);
+                            self.$message.error('加载更多失败');
+                        })
+                        .finally(function() {
+                            self.userLoading = false;
+                        });
+                },
                 loadCached() {
                     var self = this;
                     fetch('/api/bili/cached')
                         .then(function(r) { return r.json(); })
                         .then(function(data) {
-                            self.cachedVideos = data;
+                            var cachedList = data || [];
+                            cachedList.forEach(function(video) {
+                                video.title = video.bvid;
+                                video.cached = true;
+                            });
+                            
+                            if (cachedList.length > 0) {
+                                var bvids = cachedList.map(function(v) { return v.bvid; });
+                                fetch('/api/bili/cached_titles', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ bvids: bvids })
+                                })
+                                .then(function(r) { return r.json(); })
+                                .then(function(titles) {
+                                    if (titles && typeof titles === 'object') {
+                                        cachedList.forEach(function(video) {
+                                            if (titles[video.bvid]) {
+                                                video.title = titles[video.bvid];
+                                            }
+                                        });
+                                    }
+                                    self.cachedVideos = cachedList;
+                                })
+                                .catch(function(e) {
+                                    console.error('[BiliPlayer] 获取缓存视频标题失败:', e);
+                                    self.cachedVideos = cachedList;
+                                });
+                            } else {
+                                self.cachedVideos = cachedList;
+                            }
                         })
                         .catch(function(e) {
                             console.error(e);
@@ -875,13 +1076,32 @@
                     var self = this;
                     this.activeTab = 'search';
                     this.searchKeyword = user.uname;
+                    this.currentMid = user.mid;
+                    this.userVideoPage = 1;
+                    this.userVideoHasMore = true;
+                    this.searchResults = [];
+                    
+                    this.loadUserVideos();
+                },
+                loadUserVideos() {
+                    var self = this;
+                    if (this.searchLoading || !this.userVideoHasMore) return;
                     
                     this.searchLoading = true;
-                    fetch('/api/bili/user_videos/' + user.mid)
+                    fetch('/api/bili/user_videos/' + this.currentMid + '?ps=10&page=' + this.userVideoPage)
                         .then(function(r) { return r.json(); })
                         .then(function(data) {
-                            if (data.videos) {
-                                self.searchResults = data.videos;
+                            if (Array.isArray(data)) {
+                                if (data.length < 10) {
+                                    self.userVideoHasMore = false;
+                                }
+                                data.forEach(function(video) {
+                                    var exists = self.searchResults.some(function(v) { return v.bvid === video.bvid; });
+                                    if (!exists) {
+                                        self.searchResults.push(video);
+                                    }
+                                });
+                                self.userVideoPage++;
                             } else {
                                 self.$message.error(data.error || '获取视频失败');
                             }
@@ -893,6 +1113,9 @@
                         .finally(function() {
                             self.searchLoading = false;
                         });
+                },
+                loadMoreUserVideos() {
+                    this.loadUserVideos();
                 },
                 startDownload(bvid) {
                     var self = this;
@@ -943,33 +1166,106 @@
                 playVideo(bvid) {
                     var self = this;
                     this.downloadProgress = null;
+                    this.currentBvid = bvid;
+                    
+                    console.log('[BiliPlayer] 开始播放视频: ' + bvid);
+                    console.log('[BiliPlayer] 视频URL: /api/bili/play/' + bvid);
+                    
+                    if (this.player) {
+                        console.log('[BiliPlayer] 销毁旧播放器实例');
+                        try {
+                            this.player.destroy();
+                        } catch (e) {
+                            console.warn('[BiliPlayer] 销毁播放器时出错:', e);
+                        }
+                        this.player = null;
+                    }
                     
                     this.$nextTick(function() {
                         var videoElement = document.getElementById('bili-player');
-                        if (!videoElement) return;
+                        if (!videoElement) {
+                            console.error('[BiliPlayer] 错误: 找不到 video 元素');
+                            return;
+                        }
+                        
+                        console.log('[BiliPlayer] Plyr 版本: ' + (Plyr && Plyr.version ? Plyr.version : '未知'));
+                        console.log('[BiliPlayer] 浏览器 User-Agent: ' + navigator.userAgent);
                         
                         videoElement.src = '/api/bili/play/' + bvid;
                         
-                        if (self.player) {
-                            self.player.destroy();
+                        try {
+                            self.player = new Plyr(videoElement, {
+                                controls: [
+                                    'play-large',
+                                    'play',
+                                    'progress',
+                                    'current-time',
+                                    'duration',
+                                    'mute',
+                                    'volume',
+                                    'settings',
+                                    'fullscreen'
+                                ],
+                                settings: ['speed'],
+                                i18n: {
+                                    play: '播放',
+                                    pause: '暂停',
+                                    mute: '静音',
+                                    unmute: '取消静音',
+                                    fullscreen: '全屏',
+                                    exitFullscreen: '退出全屏',
+                                    settings: '设置',
+                                    speed: '速度'
+                                }
+                            });
+                            
+                            console.log('[BiliPlayer] Plyr 播放器实例创建成功');
+                            
+                            self.player.on('loadeddata', function() {
+                                console.log('[BiliPlayer] 视频数据加载完成');
+                            });
+                            
+                            self.player.on('ready', function() {
+                                console.log('[BiliPlayer] 播放器准备就绪');
+                            });
+                            
+                            self.player.on('play', function() {
+                                console.log('[BiliPlayer] 开始播放');
+                            });
+                            
+                            self.player.on('pause', function() {
+                                console.log('[BiliPlayer] 暂停播放');
+                            });
+                            
+                            self.player.on('ended', function() {
+                                console.log('[BiliPlayer] 视频播放结束');
+                            });
+                            
+                            self.player.on('error', function(e) {
+                                console.error('[BiliPlayer] 播放错误:', e);
+                                self.$message.error('播放失败，请重试');
+                            });
+                            
+                            console.log('[BiliPlayer] 尝试自动播放...');
+                            self.player.play().catch(function(error) {
+                                console.warn('[BiliPlayer] 自动播放失败:', error.message);
+                            });
+                            
+                        } catch (e) {
+                            console.error('[BiliPlayer] 初始化播放器异常:', e.message);
+                            self.$message.error('播放器初始化失败: ' + e.message);
                         }
-                        
-                        self.player = new Plyr(videoElement, {
-                            controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'fullscreen'],
-                            i18n: {
-                                play: '播放',
-                                pause: '暂停',
-                                mute: '静音',
-                                unmute: '取消静音',
-                                fullscreen: '全屏',
-                                exitFullscreen: '退出全屏'
-                            }
-                        });
-                        
-                        self.player.on('ready', function() {
-                            self.player.play();
-                        });
                     });
+                },
+                formatTime(seconds) {
+                    if (isNaN(seconds) || !isFinite(seconds)) return '00:00';
+                    var h = Math.floor(seconds / 3600);
+                    var m = Math.floor((seconds % 3600) / 60);
+                    var s = Math.floor(seconds % 60);
+                    if (h > 0) {
+                        return h + ':' + (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+                    }
+                    return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
                 },
                 playCached(video) {
                     this.currentVideo = { bvid: video.bvid, title: video.bvid };
