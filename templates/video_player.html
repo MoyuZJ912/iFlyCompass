@@ -62,14 +62,75 @@
             padding: 8px;
         }
 
+        .video-category {
+            margin-bottom: 4px;
+        }
+
+        .video-category-header {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: background 0.2s;
+            gap: 8px;
+            user-select: none;
+        }
+
+        .video-category-header:hover {
+            background: #f5f7fa;
+        }
+
+        .video-category-header .category-arrow {
+            font-size: 12px;
+            color: #909399;
+            transition: transform 0.2s;
+            flex-shrink: 0;
+        }
+
+        .video-category-header .category-arrow.expanded {
+            transform: rotate(90deg);
+        }
+
+        .video-category-header .category-icon {
+            font-size: 18px;
+            color: #409eff;
+            flex-shrink: 0;
+        }
+
+        .video-category-header .category-name {
+            flex: 1;
+            font-size: 13px;
+            font-weight: 600;
+            color: #303133;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .video-category-header .category-count {
+            font-size: 11px;
+            color: #909399;
+            flex-shrink: 0;
+        }
+
+        .video-category-body {
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .video-category-body.collapsed {
+            max-height: 0 !important;
+        }
+
         .video-item {
             display: flex;
             align-items: center;
-            padding: 10px 12px;
+            padding: 10px 12px 10px 28px;
             border-radius: 8px;
             cursor: pointer;
             transition: all 0.2s;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
             gap: 10px;
         }
 
@@ -116,6 +177,9 @@
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
 
         .video-item .video-item-size {
@@ -126,6 +190,63 @@
 
         .video-item.active .video-item-name {
             color: #409eff;
+        }
+
+        .video-item .video-item-actions {
+            flex-shrink: 0;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .video-item:hover .video-item-actions {
+            opacity: 1;
+        }
+
+        .video-item .video-item-actions .action-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: #909399;
+            transition: all 0.2s;
+        }
+
+        .video-item .video-item-actions .action-btn:hover {
+            background: #e6e6e6;
+            color: #606266;
+        }
+
+        .access-tag {
+            display: inline-flex;
+            align-items: center;
+            font-size: 10px;
+            padding: 1px 5px;
+            border-radius: 3px;
+            line-height: 16px;
+            flex-shrink: 0;
+        }
+
+        .access-tag.public {
+            background: #f0f9eb;
+            color: #67c23a;
+        }
+
+        .access-tag.admin_only {
+            background: #fef0f0;
+            color: #f56c6c;
+        }
+
+        .access-tag.whitelist {
+            background: #ecf5ff;
+            color: #409eff;
+        }
+
+        .access-tag.blacklist {
+            background: #fdf6ec;
+            color: #e6a23c;
         }
 
         .video-player-area {
@@ -353,7 +474,7 @@
                                 <div class="sidebar-title">
                                     <i class="el-icon-video-camera-solid"></i>
                                     <span>视频列表</span>
-                                    <span class="count">([[ videos.length ]])</span>
+                                    <span class="count">([[ totalVideoCount ]])</span>
                                 </div>
                                 <el-input
                                     v-model="searchKeyword"
@@ -364,22 +485,47 @@
                                 ></el-input>
                             </div>
                             <div class="video-sidebar-body">
-                                <div
-                                    v-for="video in filteredVideos"
-                                    :key="video.name"
-                                    class="video-item"
-                                    :class="{ active: currentVideo && currentVideo.name === video.name }"
-                                    @click="playVideo(video)"
-                                >
-                                    <div class="video-item-icon">
-                                        <i class="el-icon-video-play"></i>
+                                <div v-for="category in filteredCategories" :key="category.name" class="video-category">
+                                    <div class="video-category-header" @click="toggleCategory(category.name)">
+                                        <i class="el-icon-arrow-right category-arrow" :class="{ expanded: !collapsedCategories[category.name] }"></i>
+                                        <i class="el-icon-folder category-icon"></i>
+                                        <span class="category-name">[[ category.name ]]</span>
+                                        <span class="category-count">[[ category.videos.length ]]</span>
                                     </div>
-                                    <div class="video-item-info">
-                                        <div class="video-item-name">[[ video.name ]]</div>
-                                        <div class="video-item-size">[[ video.size_display ]]</div>
+                                    <div class="video-category-body" :class="{ collapsed: collapsedCategories[category.name] }" :style="{ maxHeight: collapsedCategories[category.name] ? '0' : (category.videos.length * 70 + 20) + 'px' }">
+                                        <div
+                                            v-for="video in category.videos"
+                                            :key="video.path"
+                                            class="video-item"
+                                            :class="{ active: currentVideo && currentVideo.path === video.path }"
+                                            @click="playVideo(video)"
+                                        >
+                                            <div class="video-item-icon">
+                                                <i class="el-icon-video-play"></i>
+                                            </div>
+                                            <div class="video-item-info">
+                                                <div class="video-item-name">
+                                                    <span>[[ video.name ]]</span>
+                                                    <span v-if="isAdmin && video.access && video.access.mode !== 'public'" class="access-tag" :class="video.access.mode">[[ accessModeLabel(video.access.mode) ]]</span>
+                                                </div>
+                                                <div class="video-item-size">[[ video.size_display ]]</div>
+                                            </div>
+                                            <div v-if="isAdmin" class="video-item-actions" @click.stop>
+                                                <el-dropdown trigger="click" @command="handleVideoAction($event, video)">
+                                                    <div class="action-btn">
+                                                        <i class="el-icon-more"></i>
+                                                    </div>
+                                                    <el-dropdown-menu slot="dropdown">
+                                                        <el-dropdown-item command="access">
+                                                            <i class="el-icon-lock"></i> 访问控制
+                                                        </el-dropdown-item>
+                                                    </el-dropdown-menu>
+                                                </el-dropdown>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                                <div v-if="filteredVideos.length === 0" style="text-align: center; padding: 40px 16px; color: #909399;">
+                                <div v-if="filteredCategories.length === 0 || totalVideoCount === 0" style="text-align: center; padding: 40px 16px; color: #909399;">
                                     <div style="font-size: 48px; margin-bottom: 12px; color: #dcdfe6;">
                                         <i class="el-icon-folder-opened"></i>
                                     </div>
@@ -395,7 +541,7 @@
                             <template v-if="currentVideo">
                                 <div class="video-wrapper">
                                     <div class="video-title-bar">
-                                        <span class="video-name">[[ currentVideo.name ]]</span>
+                                        <span class="video-name">[[ currentVideo.category ? currentVideo.category + ' / ' : '' ]][[ currentVideo.name ]]</span>
                                         <span class="video-size">[[ currentVideo.size_display ]]</span>
                                     </div>
                                     <div class="player-container">
@@ -445,6 +591,107 @@
             <span slot="footer" class="dialog-footer">
                 <el-button @click="profileDialogVisible = false">取消</el-button>
                 <el-button type="primary" @click="saveProfile">保存</el-button>
+            </span>
+        </el-dialog>
+
+        <el-dialog
+            title="访问控制"
+            :visible.sync="accessDialogVisible"
+            width="500px"
+            @close="closeAccessDialog"
+        >
+            <div v-if="accessDialogVideo" style="margin-bottom: 16px;">
+                <div style="font-size: 13px; color: #606266; margin-bottom: 4px;">视频文件</div>
+                <div style="font-size: 14px; color: #303133; font-weight: 500;">[[ accessDialogVideo.name ]]</div>
+            </div>
+            <el-form label-width="90px">
+                <el-form-item label="访问模式">
+                    <el-radio-group v-model="accessForm.mode">
+                        <el-radio label="public">公开可见</el-radio>
+                        <el-radio label="admin_only">仅管理员</el-radio>
+                        <el-radio label="whitelist">白名单</el-radio>
+                        <el-radio label="blacklist">黑名单</el-radio>
+                    </el-radio-group>
+                </el-form-item>
+                <el-form-item v-if="accessForm.mode === 'whitelist'" label="白名单用户">
+                    <div style="margin-bottom: 8px;">
+                        <el-select
+                            v-model="accessForm.addUserId"
+                            filterable
+                            remote
+                            reserve-keyword
+                            placeholder="搜索用户"
+                            :remote-method="searchAccessUsers"
+                            :loading="accessUserSearching"
+                            @change="addAccessUser"
+                            size="small"
+                            style="width: 100%;"
+                        >
+                            <el-option
+                                v-for="u in accessUserSearchResults"
+                                :key="u.id"
+                                :label="u.display_name + ' (' + u.username + ')'"
+                                :value="u.id"
+                            ></el-option>
+                        </el-select>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                        <el-tag
+                            v-for="u in accessForm.users"
+                            :key="u.id"
+                            closable
+                            @close="removeAccessUser(u.id)"
+                            size="small"
+                        >[[ u.display_name ]]</el-tag>
+                    </div>
+                    <div v-if="accessForm.users.length === 0" style="color: #c0c4cc; font-size: 12px; margin-top: 4px;">白名单为空时，除管理员外无人可访问</div>
+                </el-form-item>
+                <el-form-item v-if="accessForm.mode === 'blacklist'" label="黑名单用户">
+                    <div style="margin-bottom: 8px;">
+                        <el-select
+                            v-model="accessForm.addUserId"
+                            filterable
+                            remote
+                            reserve-keyword
+                            placeholder="搜索用户"
+                            :remote-method="searchAccessUsers"
+                            :loading="accessUserSearching"
+                            @change="addAccessUser"
+                            size="small"
+                            style="width: 100%;"
+                        >
+                            <el-option
+                                v-for="u in accessUserSearchResults"
+                                :key="u.id"
+                                :label="u.display_name + ' (' + u.username + ')'"
+                                :value="u.id"
+                            ></el-option>
+                        </el-select>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                        <el-tag
+                            v-for="u in accessForm.users"
+                            :key="u.id"
+                            closable
+                            type="warning"
+                            @close="removeAccessUser(u.id)"
+                            size="small"
+                        >[[ u.display_name ]]</el-tag>
+                    </div>
+                    <div v-if="accessForm.users.length === 0" style="color: #c0c4cc; font-size: 12px; margin-top: 4px;">黑名单为空时，所有人可访问</div>
+                </el-form-item>
+                <el-form-item>
+                    <div style="color: #909399; font-size: 12px; line-height: 1.6;">
+                        <div v-if="accessForm.mode === 'public'">所有用户均可查看此视频</div>
+                        <div v-if="accessForm.mode === 'admin_only'">仅管理员和超级管理员可查看此视频</div>
+                        <div v-if="accessForm.mode === 'whitelist'">仅白名单中的用户和管理员可查看此视频</div>
+                        <div v-if="accessForm.mode === 'blacklist'">黑名单中的用户不可查看此视频，管理员始终可查看</div>
+                    </div>
+                </el-form-item>
+            </el-form>
+            <span slot="footer" class="dialog-footer">
+                <el-button @click="accessDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="saveAccessControl" :loading="accessSaving">保存</el-button>
             </span>
         </el-dialog>
     </div>
@@ -506,20 +753,48 @@
                     },
                     mobileSidebarOpen: false,
                     searchKeyword: '',
-                    videos: [],
+                    categories: [],
+                    collapsedCategories: {},
                     currentVideo: null,
-                    player: null
+                    player: null,
+                    accessDialogVisible: false,
+                    accessDialogVideo: null,
+                    accessSaving: false,
+                    accessUserSearching: false,
+                    accessUserSearchResults: [],
+                    accessForm: {
+                        mode: 'public',
+                        users: [],
+                        addUserId: null
+                    }
                 };
             },
             computed: {
-                filteredVideos() {
+                totalVideoCount() {
+                    var count = 0;
+                    for (var i = 0; i < this.categories.length; i++) {
+                        count += this.categories[i].videos.length;
+                    }
+                    return count;
+                },
+                filteredCategories() {
                     var self = this;
                     if (!this.searchKeyword) {
-                        return this.videos;
+                        return this.categories;
                     }
-                    return this.videos.filter(function(video) {
-                        return video.name.toLowerCase().indexOf(self.searchKeyword.toLowerCase()) !== -1;
-                    });
+                    var keyword = this.searchKeyword.toLowerCase();
+                    var result = [];
+                    for (var i = 0; i < this.categories.length; i++) {
+                        var cat = this.categories[i];
+                        var filtered = cat.videos.filter(function(video) {
+                            return video.name.toLowerCase().indexOf(keyword) !== -1 ||
+                                   video.path.toLowerCase().indexOf(keyword) !== -1;
+                        });
+                        if (filtered.length > 0) {
+                            result.push({ name: cat.name, videos: filtered });
+                        }
+                    }
+                    return result;
                 }
             },
             mounted() {
@@ -558,8 +833,12 @@
                             return response.json(); 
                         })
                         .then(function(data) {
-                            self.videos = data;
-                            console.log('[VideoPlayer] 视频列表加载完成，共 ' + data.length + ' 个视频');
+                            self.categories = data;
+                            var total = 0;
+                            for (var i = 0; i < data.length; i++) {
+                                total += data[i].videos.length;
+                            }
+                            console.log('[VideoPlayer] 视频列表加载完成，共 ' + data.length + ' 个分类，' + total + ' 个视频');
                         })
                         .catch(function(error) {
                             console.error('[VideoPlayer] 加载视频列表失败: ' + error.message);
@@ -572,8 +851,8 @@
                     this.mobileSidebarOpen = false;
                     
                     console.log('[VideoPlayer] 选择视频: ' + video.name);
+                    console.log('[VideoPlayer] 视频路径: ' + video.path);
                     console.log('[VideoPlayer] 视频大小: ' + video.size_display);
-                    console.log('[VideoPlayer] 视频URL: /api/video/' + encodeURIComponent(video.name));
 
                     this.$nextTick(function() {
                         self.initPlayer(video);
@@ -599,7 +878,7 @@
                     console.log('[VideoPlayer] Video.js 版本: ' + (videojs && videojs.VERSION ? videojs.VERSION : '未知'));
                     console.log('[VideoPlayer] 浏览器 User-Agent: ' + navigator.userAgent);
 
-                    var videoUrl = '/api/video/' + encodeURIComponent(video.name);
+                    var videoUrl = '/api/video/' + video.path.split('/').map(function(seg) { return encodeURIComponent(seg); }).join('/');
                     
                     try {
                         this.player = videojs('video-player', {
@@ -817,6 +1096,133 @@
                     if (this.mobileSidebarOpen) {
                         this.mobileSidebarOpen = false;
                     }
+                },
+                toggleCategory(name) {
+                    var self = this;
+                    this.$set(this.collapsedCategories, name, !this.collapsedCategories[name]);
+                },
+                accessModeLabel(mode) {
+                    var labels = {
+                        'public': '公开',
+                        'admin_only': '仅管理员',
+                        'whitelist': '白名单',
+                        'blacklist': '黑名单'
+                    };
+                    return labels[mode] || mode;
+                },
+                handleVideoAction(command, video) {
+                    if (command === 'access') {
+                        this.openAccessDialog(video);
+                    }
+                },
+                openAccessDialog(video) {
+                    this.accessDialogVideo = video;
+                    if (video.access) {
+                        this.accessForm.mode = video.access.mode;
+                        this.accessForm.users = (video.access.users || []).slice();
+                    } else {
+                        this.accessForm.mode = 'public';
+                        this.accessForm.users = [];
+                    }
+                    this.accessForm.addUserId = null;
+                    this.accessUserSearchResults = [];
+                    this.accessDialogVisible = true;
+                },
+                closeAccessDialog() {
+                    this.accessDialogVideo = null;
+                    this.accessForm.mode = 'public';
+                    this.accessForm.users = [];
+                    this.accessForm.addUserId = null;
+                    this.accessUserSearchResults = [];
+                },
+                searchAccessUsers(keyword) {
+                    var self = this;
+                    if (!keyword) {
+                        self.accessUserSearchResults = [];
+                        return;
+                    }
+                    self.accessUserSearching = true;
+                    fetch('/api/video/access/users/search?keyword=' + encodeURIComponent(keyword))
+                        .then(function(response) { return response.json(); })
+                        .then(function(data) {
+                            self.accessUserSearchResults = data;
+                            self.accessUserSearching = false;
+                        })
+                        .catch(function(error) {
+                            console.error('[VideoPlayer] 搜索用户失败: ' + error.message);
+                            self.accessUserSearching = false;
+                        });
+                },
+                addAccessUser(userId) {
+                    var self = this;
+                    var exists = false;
+                    for (var i = 0; i < this.accessForm.users.length; i++) {
+                        if (this.accessForm.users[i].id === userId) {
+                            exists = true;
+                            break;
+                        }
+                    }
+                    if (!exists) {
+                        for (var j = 0; j < this.accessUserSearchResults.length; j++) {
+                            if (this.accessUserSearchResults[j].id === userId) {
+                                self.accessForm.users.push({
+                                    id: this.accessUserSearchResults[j].id,
+                                    username: this.accessUserSearchResults[j].username,
+                                    nickname: this.accessUserSearchResults[j].nickname,
+                                    display_name: this.accessUserSearchResults[j].display_name
+                                });
+                                break;
+                            }
+                        }
+                    }
+                    this.$nextTick(function() {
+                        self.accessForm.addUserId = null;
+                    });
+                },
+                removeAccessUser(userId) {
+                    var newUsers = [];
+                    for (var i = 0; i < this.accessForm.users.length; i++) {
+                        if (this.accessForm.users[i].id !== userId) {
+                            newUsers.push(this.accessForm.users[i]);
+                        }
+                    }
+                    this.accessForm.users = newUsers;
+                },
+                saveAccessControl() {
+                    var self = this;
+                    var video = this.accessDialogVideo;
+                    if (!video) return;
+
+                    self.accessSaving = true;
+                    var userIds = [];
+                    for (var i = 0; i < this.accessForm.users.length; i++) {
+                        userIds.push(this.accessForm.users[i].id);
+                    }
+
+                    fetch('/api/video/access/' + video.path.split('/').map(function(seg) { return encodeURIComponent(seg); }).join('/'), {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            mode: self.accessForm.mode,
+                            users: userIds
+                        })
+                    })
+                    .then(function(response) { return response.json(); })
+                    .then(function(data) {
+                        self.accessSaving = false;
+                        if (data.error) {
+                            self.$message.error(data.error);
+                        } else {
+                            self.$message.success('访问控制更新成功');
+                            self.accessDialogVisible = false;
+                            self.loadVideos();
+                        }
+                    })
+                    .catch(function(error) {
+                        console.error('[VideoPlayer] 保存访问控制失败: ' + error.message);
+                        self.accessSaving = false;
+                        self.$message.error('保存失败');
+                    });
                 },
                 toggleCollapse() {
                     this.isCollapse = !this.isCollapse;

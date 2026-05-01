@@ -18,7 +18,8 @@ DEFAULT_CONFIG = {
         'assets': './assets',
         'stickers': './stickers',
         'novels': './instance/novels',
-        'music_cache': './temp/music'
+        'music_cache': './temp/music',
+        'videos': './instance/videos'
     },
     'external_api': {
         'sticker_api': 'http://45.207.204.145:5003/api'
@@ -115,6 +116,7 @@ def _init_config():
     Config.STICKERS_DIR = dirs.get('stickers', './stickers')
     Config.NOVELS_DIR = dirs.get('novels', './instance/novels')
     Config.MUSIC_CACHE_DIR = dirs.get('music_cache', './temp/music')
+    Config.VIDEOS_DIR = dirs.get('videos', './instance/videos')
     
     Config.STICKER_API_BASE = external.get('sticker_api', 'http://45.207.204.145:5003/api')
     
@@ -131,6 +133,7 @@ class Config:
     STICKERS_DIR = None
     NOVELS_DIR = None
     MUSIC_CACHE_DIR = None
+    VIDEOS_DIR = None
     STICKER_API_BASE = None
     MAX_MESSAGE_HISTORY = None
 

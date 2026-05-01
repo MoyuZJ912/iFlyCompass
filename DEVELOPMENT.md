@@ -2,6 +2,38 @@
 
 ## 版本更新
 
+### REL2.4.2
+
+**NCM API 客户端统一重构**
+
+- **问题背景**：
+  - 网易云音乐 API 请求函数在 3 个文件中重复定义（`modules/ncm/api.py`、`utils/music_cache.py`、`utils/ncm_api.py`）
+  - 同一功能 `ncm_api_request` 存在 3 份不同实现，日志格式和错误处理不一致
+  - `utils/music_cache.py` 职责混乱，同时包含缓存逻辑和 API 调用逻辑
+- **创建统一 NCM API 客户端**：
+  - 重写 `utils/ncm_api.py`，引入 `NCMAPIClient` 类
+  - 统一的 `request()` 方法，包含完善的错误处理（超时、网络异常、未知错误）
+  - 8 个语义化的 API 方法：`search`、`get_song_url`、`get_song_detail`、`get_lyric`、`get_personalized`、`get_personalized_newsong`、`get_playlist_detail`、`get_hot_search`
+  - 全局单例 `ncm_client`，方便各模块直接使用
+- **重构 modules/ncm/api.py**：
+  - 移除本地 `NCM_API_BASE` 常量和 `ncm_api_request()` 函数定义
+  - 改用 `from utils.ncm_api import ncm_client`
+  - 所有路由函数调用 `ncm_client.xxx()` 替代原来的 `ncm_api_request('/xxx', {...})`
+- **重构 utils/music_cache.py**：
+  - 移除 `NCM_API_BASE` 常量
+  - 移除 `ncm_api_request()` 函数定义
+  - 移除 8 个重复的 API 调用函数（`search_songs`、`get_song_url`、`get_song_detail`、`get_personalized`、`get_personalized_newsong`、`get_lyric`、`get_hot_search`、`get_playlist_detail`）
+  - 保留纯粹的缓存功能（`get_cache_path`、`is_cached`、`get_cached_music`、`cache_music`、`cache_cover`）
+- **代码量变化**：
+  - `utils/ncm_api.py`：86行 → 60行（重写为类结构）
+  - `modules/ncm/api.py`：213行 → 195行（移除重复定义）
+  - `utils/music_cache.py`：159行 → 115行（移除 API 函数，约减少 44 行）
+- **架构改进**：
+  - 消除约 150 行重复代码
+  - 统一 NCM API 请求入口，单点维护
+  - `music_cache.py` 职责回归单一（仅负责缓存）
+  - 错误处理和日志格式统一
+
 ### REL2.4.1
 
 **视频播放器 + B站视频缓存与播放**
@@ -563,7 +595,7 @@
   - api.py：表情包管理 API
 - **ncm 模块**：随身听
   - routes.py：播放器页面路由
-  - api.py：网易云音乐 API
+  - api.py：网易云音乐 API（使用统一 NCMAPIClient 客户端）
 - **video 模块**：视频播放器
   - routes.py：播放器页面路由
   - api.py：视频流 API
@@ -609,6 +641,24 @@
   - detect\_chapters()：从文件检测章节位置
   - detect\_chapters\_from\_lines()：从行列表检测章节
   - V3.1 锚点学习 + 统计验证算法
+- **music\_cache.py**：
+  - get\_cache\_path()：获取音乐缓存路径
+  - is\_cached()：检查音乐是否已缓存
+  - get\_cached\_music()：获取缓存的音乐文件路径
+  - cache\_music()：缓存音乐文件到本地
+  - cache\_cover()：缓存封面图片到本地
+- **ncm\_api.py**：
+  - NCMAPIClient 类：网易云音乐 API 统一客户端
+  - request()：统一 API 请求方法（含超时、网络异常、未知错误处理）
+  - search()：搜索歌曲
+  - get\_song\_url()：获取歌曲播放地址
+  - get\_song\_detail()：获取歌曲详情
+  - get\_lyric()：获取歌词
+  - get\_personalized()：获取推荐歌单
+  - get\_personalized\_newsong()：获取推荐新歌
+  - get\_playlist\_detail()：获取歌单详情
+  - get\_hot\_search()：获取热搜列表
+  - ncm\_client：全局单例实例
 - **system\_settings.py**：
   - get\_settings()：获取系统设置
   - update\_settings()：更新系统设置

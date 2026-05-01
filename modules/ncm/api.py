@@ -1,20 +1,7 @@
 from flask import jsonify, request, send_file
 from . import ncm_bp
 from utils.music_cache import get_cached_music, cache_music, cache_cover
-
-NCM_API_BASE = 'http://wjysrv.moyuzj.cn:29996'
-
-def ncm_api_request(endpoint, params=None):
-    try:
-        import requests
-        url = f"{NCM_API_BASE}{endpoint}"
-        print(f"[NCM API] 请求: {url}, 参数: {params}")
-        response = requests.get(url, params=params, timeout=10)
-        print(f"[NCM API] 响应状态码: {response.status_code}")
-        return response.json()
-    except Exception as e:
-        print(f"[NCM API] 请求失败: {endpoint}, 错误: {e}")
-        return {'code': 500, 'error': str(e)}
+from utils.ncm_api import ncm_client
 
 @ncm_bp.route('/api/ncm/search', methods=['GET'])
 def api_search():
@@ -25,12 +12,7 @@ def api_search():
     
     print(f"[NCM] 搜索请求: keywords={keywords}, limit={limit}, offset={offset}, type={search_type}")
     
-    result = ncm_api_request('/search', {
-        'keywords': keywords,
-        'limit': limit,
-        'offset': offset,
-        'type': search_type
-    })
+    result = ncm_client.search(keywords, limit, offset, search_type)
     
     if result.get('code') == 200:
         song_count = len(result.get('result', {}).get('songs', []))
@@ -45,7 +27,7 @@ def api_song_url():
     song_id = request.args.get('id', '')
     print(f"[NCM] 获取歌曲URL请求: song_id={song_id}")
     
-    result = ncm_api_request('/song/url', {'id': song_id})
+    result = ncm_client.get_song_url(song_id)
     
     if result.get('code') == 200 and result.get('data'):
         url = result['data'][0].get('url', 'N/A') if result['data'] else 'N/A'
@@ -63,7 +45,7 @@ def api_song_detail():
     ids = request.args.get('ids', '')
     print(f"[NCM] 获取歌曲详情请求: ids={ids}")
     
-    result = ncm_api_request('/song/detail', {'ids': ids})
+    result = ncm_client.get_song_detail(ids)
     print(f"[NCM] 歌曲详情响应: code={result.get('code')}")
     
     return jsonify(result)
@@ -73,7 +55,7 @@ def api_personalized():
     limit = request.args.get('limit', 30, type=int)
     print(f"[NCM] 获取推荐歌单请求: limit={limit}")
     
-    result = ncm_api_request('/personalized', {'limit': limit})
+    result = ncm_client.get_personalized(limit)
     
     if result.get('code') == 200:
         count = len(result.get('result', []))
@@ -88,7 +70,7 @@ def api_lyric():
     song_id = request.args.get('id', '')
     print(f"[NCM] 获取歌词请求: song_id={song_id}")
     
-    result = ncm_api_request('/lyric', {'id': song_id})
+    result = ncm_client.get_lyric(song_id)
     print(f"[NCM] 歌词响应: code={result.get('code')}")
     
     return jsonify(result)
@@ -98,7 +80,7 @@ def api_playlist_detail():
     playlist_id = request.args.get('id', '')
     print(f"[NCM] 获取歌单详情请求: playlist_id={playlist_id}")
     
-    result = ncm_api_request('/playlist/detail', {'id': playlist_id})
+    result = ncm_client.get_playlist_detail(playlist_id)
     
     if result.get('code') == 200 and result.get('playlist'):
         track_count = len(result['playlist'].get('tracks', []))
@@ -112,7 +94,7 @@ def api_playlist_detail():
 def api_hot_search():
     print("[NCM] 获取热搜列表请求")
     
-    result = ncm_api_request('/search/hot/detail')
+    result = ncm_client.get_hot_search()
     
     if result.get('code') == 200:
         count = len(result.get('data', []))

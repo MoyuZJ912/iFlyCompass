@@ -17,7 +17,7 @@ from modules.bili import bili_bp
 from modules.chat.websocket import register_socketio_events
 from utils import init_novel_cache, init_settings, init_nav_file
 
-for directory in [Config.TEMP_DIR, Config.INSTANCE_DIR, Config.STICKERS_DIR, Config.NOVELS_DIR]:
+for directory in [Config.TEMP_DIR, Config.INSTANCE_DIR, Config.STICKERS_DIR, Config.NOVELS_DIR, Config.VIDEOS_DIR]:
     if not os.path.exists(directory):
         os.makedirs(directory)
 
@@ -144,6 +144,39 @@ def run_migrations(app):
         if 'multi_user_mode' not in chat_room_columns:
             print("正在迁移数据库：添加 chat_room.multi_user_mode 字段...")
             cursor.execute("ALTER TABLE chat_room ADD COLUMN multi_user_mode BOOLEAN DEFAULT 0")
+            conn.commit()
+            print("数据库迁移完成！")
+        
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='video_access_control'")
+        if not cursor.fetchone():
+            print("正在迁移数据库：创建 video_access_control 表...")
+            cursor.execute('''
+                CREATE TABLE video_access_control (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    video_path VARCHAR(500) NOT NULL UNIQUE,
+                    mode VARCHAR(20) NOT NULL DEFAULT 'public',
+                    created_by INTEGER,
+                    created_at DATETIME,
+                    updated_at DATETIME,
+                    FOREIGN KEY (created_by) REFERENCES user(id)
+                )
+            ''')
+            conn.commit()
+            print("数据库迁移完成！")
+        
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='video_access_user'")
+        if not cursor.fetchone():
+            print("正在迁移数据库：创建 video_access_user 表...")
+            cursor.execute('''
+                CREATE TABLE video_access_user (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    video_path VARCHAR(500) NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    created_at DATETIME,
+                    FOREIGN KEY (user_id) REFERENCES user(id),
+                    CONSTRAINT unique_video_access_user UNIQUE (video_path, user_id)
+                )
+            ''')
             conn.commit()
             print("数据库迁移完成！")
 

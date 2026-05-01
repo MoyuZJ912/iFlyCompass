@@ -7,8 +7,6 @@ from config import Config
 _music_cache = {}
 _cache_lock = threading.Lock()
 
-NCM_API_BASE = 'http://wjysrv.moyuzj.cn:29996'
-
 def get_cache_path(song_id, file_type='mp3'):
     cache_dir = Config.MUSIC_CACHE_DIR
     if not os.path.exists(cache_dir):
@@ -115,45 +113,3 @@ def cache_cover(pic_url):
     except Exception as e:
         print(f"[MusicCache] 缓存封面失败: {e}")
         return None
-
-def ncm_api_request(endpoint, params=None):
-    try:
-        url = f"{NCM_API_BASE}{endpoint}"
-        print(f"[NCM API] 请求: {url}")
-        response = requests.get(url, params=params, timeout=10)
-        print(f"[NCM API] 响应状态码: {response.status_code}")
-        return response.json()
-    except Exception as e:
-        print(f"[NCM API] 请求失败: {endpoint}, {e}")
-        return None
-
-def search_songs(keywords, limit=30, offset=0):
-    return ncm_api_request('/search', {
-        'keywords': keywords,
-        'limit': limit,
-        'offset': offset,
-        'type': 1
-    })
-
-def get_song_url(song_id):
-    return ncm_api_request('/song/url', {'id': song_id})
-
-def get_song_detail(song_ids):
-    if isinstance(song_ids, list):
-        song_ids = ','.join(map(str, song_ids))
-    return ncm_api_request('/song/detail', {'ids': song_ids})
-
-def get_personalized(limit=30):
-    return ncm_api_request('/personalized', {'limit': limit})
-
-def get_personalized_newsong(limit=10):
-    return ncm_api_request('/personalized/newsong', {'limit': limit})
-
-def get_lyric(song_id):
-    return ncm_api_request('/lyric', {'id': song_id})
-
-def get_hot_search():
-    return ncm_api_request('/search/hot/detail')
-
-def get_playlist_detail(playlist_id):
-    return ncm_api_request('/playlist/detail', {'id': playlist_id})

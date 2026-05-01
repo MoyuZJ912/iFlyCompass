@@ -2,7 +2,7 @@
 
 ## 项目简介
 
-**版本：REL2.4.1**
+**版本：REL2.4.2**
 
 iFlyCompass 是一个多功能的 Web 应用平台，采用模块化架构设计，提供了多种实用工具和功能，包括：
 
@@ -162,6 +162,7 @@ iFlyCompass/
 │   ├── chapter_parser.py    # 章节解析器（V3.1算法）
 │   ├── novel_cache.py       # 小说缓存服务
 │   ├── music_cache.py       # 音乐缓存服务
+│   ├── ncm_api.py           # 网易云音乐 API 客户端（NCMAPIClient）
 │   ├── system_settings.py   # 系统设置工具
 │   ├── validators.py        # 验证工具
 │   └── nav.py               # 导航配置工具
