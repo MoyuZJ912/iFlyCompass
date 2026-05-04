@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    {% include "_pwa_head.html" %}
     <title>{{ room.name }} - 聊天室</title>
     <link rel="stylesheet" href="/assets/css/loading.css">
     <style>
@@ -644,6 +645,15 @@
                     });
                 }
             });
+
+            socket.on('connect_error', () => {
+                console.log('WebSocket连接失败，服务端可能离线');
+                stopReconnectInterval();
+                var chatArea = document.getElementById('chat-messages');
+                if (chatArea) {
+                    chatArea.innerHTML = '<div style=\"padding:20px;color:#ff4d4f;text-align:center;\">聊天服务不可用，请检查服务端状态</div>';
+                }
+            });
         }
         
         let reconnectInterval = null;
@@ -889,6 +899,8 @@
             initSidebarState();
         });
     </script>
+    <script src="/assets/js/offline-handler.js"></script>
     <script src="/assets/js/loading.js"></script>
+{% include "_pwa_register.html" %}
 </body>
 </html>

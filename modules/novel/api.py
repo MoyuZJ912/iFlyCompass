@@ -7,6 +7,7 @@ from extensions import db
 from models.novel import NovelReadingProgress
 from config import Config
 from utils import read_novel_content, get_all_novels, get_novel_info, refresh_novel_cache
+from utils.novel_cache import is_cache_initialized, init_novel_cache
 from .parser import parse_chapters
 from . import novel_bp
 
@@ -21,6 +22,8 @@ def find_novel_file_by_name(novel_name):
 @login_required
 def get_novels():
     try:
+        if not is_cache_initialized():
+            init_novel_cache()
         novels = get_all_novels()
         
         result = []
@@ -150,6 +153,35 @@ def get_chapter_content(novel_name, chapter_index):
             'success': False,
             'error': str(e)
         }), 500
+
+@novel_bp.route('/api/novels/<novel_name>/download-all')
+@login_required
+def download_all_chapters(novel_name):
+    """一次性返回所有章节内容，供客户端整本书缓存"""
+    try:
+        file_path = find_novel_file_by_name(novel_name)
+        if not file_path:
+            return jsonify({'success': False, 'error': '小说不存在'}), 404
+
+        content = read_novel_content(file_path)
+        if content is None:
+            return jsonify({'success': False, 'error': '读取小说内容失败'}), 500
+
+        chapters = parse_chapters(content)
+        all_chapters = [
+            {'index': i, 'name': ch['name'], 'content': ch['content']}
+            for i, ch in enumerate(chapters)
+        ]
+
+        return jsonify({
+            'success': True,
+            'novel_name': novel_name,
+            'total_chapters': len(all_chapters),
+            'chapters': all_chapters
+        })
+    except Exception as e:
+        print(f"下载全部章节失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @novel_bp.route('/api/novels/<novel_name>/progress', methods=['POST'])
 @login_required

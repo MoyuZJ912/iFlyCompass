@@ -3,12 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    {% include "_pwa_head.html" %}
     <title>沉浸式阅读 - iFlyCompass</title>
     <link rel="stylesheet" href="/assets/css/loading.css">
     <link rel="stylesheet" href="/assets/css/material-icons.css">
     <link rel="stylesheet" href="/assets/css/element-ui.css">
     <script src="/assets/js/vue.min.js"></script>
     <script src="/assets/js/element-ui.js"></script>
+    <script src="/assets/js/novel-cache.js"></script>
     <style>
         * {
             margin: 0;
@@ -1125,6 +1127,26 @@
                 setInterval(updateTime, 1000);
 
                 await loadChapterList();
+
+                // 确保整本书已缓存，未缓存则一次性下载全部
+                if (chapters.length > 0) {
+                    var fullyCached = await NovelCache.isNovelFullyCached(currentNovel, chapters.length);
+                    if (!fullyCached) {
+                        console.log('整本缓存未完成，开始下载全部章节...');
+                        var dlResp = await safeFetch('/api/novels/' + encodeURIComponent(currentNovel) + '/download-all');
+                        var dlData = await dlResp.json();
+                        if (dlData.success) {
+                            var allChapters = dlData.chapters || [];
+                            var batchSize = 20;
+                            for (var bs = 0; bs < allChapters.length; bs += batchSize) {
+                                var batch = allChapters.slice(bs, bs + batchSize);
+                                await NovelCache.cacheAllChapters(currentNovel, batch);
+                            }
+                            console.log('整本缓存完成:', allChapters.length, '章');
+                        }
+                    }
+                }
+
                 await loadChapter(currentChapter);
                 hideLoading();
             } catch (error) {
@@ -1152,13 +1174,26 @@
         
         async function loadChapterList() {
             try {
+                // 优先从 IndexedDB 缓存加载章节列表
+                var cached = await NovelCache.getChapterList(currentNovel);
+                if (cached && cached.length > 0) {
+                    chapters = cached;
+                    console.log('从 IndexedDB 缓存加载章节列表:', chapters.length, '章');
+                    return;
+                }
+
                 var apiUrl = '/api/novels/' + encodeURIComponent(currentNovel) + '/chapters';
-                var response = await fetch(apiUrl);
+                var response = await safeFetch(apiUrl);
                 var data = await response.json();
-                
+
                 if (data.success) {
                     chapters = data.chapters || [];
-                    console.log('获取到章节列表:', chapters.length, '章');
+                    console.log('从服务器获取章节列表:', chapters.length, '章');
+                    if (chapters.length > 0) {
+                        NovelCache.setChapterList(currentNovel, chapters);
+                    }
+                } else if (isOfflineResponse(response)) {
+                    showDebugToast('服务端离线，无法加载章节列表', 'error');
                 } else {
                     console.error('获取章节列表失败:', data.error);
                 }
@@ -1174,58 +1209,44 @@
                     console.log('章节索引超出范围:', chapterIndex);
                     return Promise.resolve();
                 }
-                
+
                 currentChapter = chapterIndex;
+
+                // 第一优先级：内存缓存
                 if (chapterCache[chapterIndex]) {
-                    console.log('使用缓存的章节内容:', chapterIndex);
+                    console.log('使用内存缓存:', chapterIndex);
                     var cached = chapterCache[chapterIndex];
                     chapterContent = cached.content;
                     currentChapterName = cached.chapterName;
-
-                    document.getElementById('chapter-name').textContent = currentChapterName;
-                    paginateContent();
-                    currentPage = 0;
-                    renderPage();
-                    updateUI();
-                    await fetch('/api/novels/' + encodeURIComponent(currentNovel) + '/progress', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ chapter_index: chapterIndex })
-                    });
-                    preloadChapters(chapterIndex);
-                    return Promise.resolve();
-                }
-
-                showLoading();
-
-                var chapterApiUrl = '/api/novels/' + encodeURIComponent(currentNovel) + '/chapters/' + chapterIndex;
-                var response = await fetch(chapterApiUrl);
-                var data = await response.json();
-
-                if (data.success) {
-                    chapterContent = data.content || '';
-                    currentChapterName = data.chapter_name || '未知章节';
-
-                    document.getElementById('chapter-name').textContent = currentChapterName;
-
-                    chapterCache[chapterIndex] = {
-                        content: chapterContent,
-                        chapterName: currentChapterName
-                    };
-
-                    paginateContent();
-                    currentPage = 0;
-                    renderPage();
-                    updateUI();
-                    await fetch('/api/novels/' + encodeURIComponent(currentNovel) + '/progress', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ chapter_index: chapterIndex })
-                    });
-                    preloadChapters(chapterIndex);
                 } else {
-                    console.error('获取章节内容失败:', data.error);
+                    // 第二优先级：IndexedDB（整本书已缓存，必定命中）
+                    var idbContent = await NovelCache.getChapterContent(currentNovel, chapterIndex);
+                    if (idbContent) {
+                        console.log('从 IndexedDB 加载:', chapterIndex);
+                        chapterContent = idbContent.content;
+                        currentChapterName = idbContent.chapterName;
+                        chapterCache[chapterIndex] = {
+                            content: chapterContent,
+                            chapterName: currentChapterName
+                        };
+                    } else {
+                        showDebugToast('章节内容丢失，请返回重试', 'error');
+                        return Promise.resolve();
+                    }
                 }
+
+                document.getElementById('chapter-name').textContent = currentChapterName;
+                paginateContent();
+                currentPage = 0;
+                renderPage();
+                updateUI();
+                fetch('/api/novels/' + encodeURIComponent(currentNovel) + '/progress', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chapter_index: chapterIndex })
+                }).catch(function () {});
+                preloadChapters(chapterIndex);
+                return Promise.resolve();
             } catch (error) {
                 showDebugToast('【错误-loadChapter】' + error.message);
                 console.error('加载章节内容失败:', error);
@@ -1233,27 +1254,21 @@
                 hideLoading();
             }
         }
-        
+
         async function preloadChapters(currentIndex) {
             var preloadIndices = [currentIndex + 1, currentIndex + 2];
-            
+
             for (var i = 0; i < preloadIndices.length; i++) {
                 var idx = preloadIndices[i];
                 if (idx >= 0 && idx < chapters.length && !chapterCache[idx]) {
-                    console.log('预加载章节:', idx);
-                    try {
-                        var response = await fetch('/api/novels/' + encodeURIComponent(currentNovel) + '/chapters/' + idx);
-                        var data = await response.json();
-                        
-                        if (data.success) {
-                            chapterCache[idx] = {
-                                content: data.content || '',
-                                chapterName: data.chapter_name || '未知章节'
-                            };
-                            console.log('预加载章节完成:', idx);
-                        }
-                    } catch (error) {
-                        console.log('预加载章节失败:', idx, error);
+                    // 从 IndexedDB 预加载到内存缓存（纯离线，无网络请求）
+                    var idbContent = await NovelCache.getChapterContent(currentNovel, idx);
+                    if (idbContent) {
+                        chapterCache[idx] = {
+                            content: idbContent.content,
+                            chapterName: idbContent.chapterName
+                        };
+                        console.log('预加载到内存缓存:', idx);
                     }
                 }
             }
@@ -1762,6 +1777,8 @@
             }
         })();
     </script>
+    <script src="/assets/js/offline-handler.js"></script>
     <script src="/assets/js/loading.js"></script>
+{% include "_pwa_register.html" %}
 </body>
 </html>

@@ -1,6 +1,6 @@
 import os
 import sqlite3
-from flask import Flask
+from flask import Flask, send_from_directory
 from config import Config
 from extensions import db, login_manager, socketio
 from modules.auth import auth_bp
@@ -15,7 +15,7 @@ from modules.drop import drop_bp
 from modules.video import video_bp
 from modules.bili import bili_bp
 from modules.chat.websocket import register_socketio_events
-from utils import init_novel_cache, init_settings, init_nav_file
+from utils import init_settings, init_nav_file
 
 for directory in [Config.TEMP_DIR, Config.INSTANCE_DIR, Config.STICKERS_DIR, Config.NOVELS_DIR, Config.VIDEOS_DIR]:
     if not os.path.exists(directory):
@@ -203,12 +203,22 @@ def create_app():
     app.register_blueprint(bili_bp)
     
     register_socketio_events(socketio)
-    
+
+    @app.route('/sw.js')
+    def serve_service_worker():
+        response = send_from_directory(
+            os.path.join(app.root_path, 'assets', 'js'),
+            'sw.js',
+            mimetype='application/javascript'
+        )
+        response.headers['Service-Worker-Allowed'] = '/'
+        response.headers['Cache-Control'] = 'no-cache'
+        return response
+
     with app.app_context():
         db.create_all()
         run_migrations(app)
-    
-    init_novel_cache()
+
     init_settings()
     init_nav_file()
     

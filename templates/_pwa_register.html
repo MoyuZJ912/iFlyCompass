@@ -1,0 +1,25 @@
+<script>
+(function () {
+  'use strict';
+  if (!('serviceWorker' in navigator)) return;
+
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      .then(function (reg) {
+        console.log('[PWA] Service Worker 已注册:', reg.scope);
+        reg.addEventListener('updatefound', function () {
+          var newWorker = reg.installing;
+          if (!newWorker) return;
+          newWorker.addEventListener('statechange', function () {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              console.log('[PWA] 新版本已就绪，刷新页面后生效');
+            }
+          });
+        });
+      })
+      .catch(function (err) {
+        console.warn('[PWA] Service Worker 注册失败:', err.message);
+      });
+  });
+})();
+</script>

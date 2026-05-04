@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% include "_pwa_head.html" %}
     <title>随身听 - iFlyCompass</title>
     <link rel="stylesheet" href="/assets/css/loading.css">
     <link rel="stylesheet" href="/assets/css/material-icons.css">
@@ -711,7 +712,11 @@
                 async loadHotSearch() {
                     console.log('[NCM] 加载热搜列表...');
                     try {
-                        const response = await fetch('/api/ncm/hot-search');
+                        const response = await safeFetch('/api/ncm/hot-search');
+                        if (isOfflineResponse(response)) {
+                            this.$message.warning('搜索功能需要服务端支持，当前无法使用');
+                            return;
+                        }
                         const data = await response.json();
                         console.log('[NCM] 热搜响应:', JSON.stringify(data));
                         if (data.code === 200 && data.data) {
@@ -727,7 +732,11 @@
                 async loadPersonalized() {
                     console.log('[NCM] 加载推荐歌单...');
                     try {
-                        const response = await fetch('/api/ncm/personalized?limit=12');
+                        const response = await safeFetch('/api/ncm/personalized?limit=12');
+                        if (isOfflineResponse(response)) {
+                            this.$message.warning('推荐歌单需要服务端支持，当前无法使用');
+                            return;
+                        }
                         const data = await response.json();
                         console.log('[NCM] 推荐歌单响应:', JSON.stringify(data));
                         if (data.code === 200 && data.result) {
@@ -756,7 +765,12 @@
                     this.searchResults = [];
                     
                     try {
-                        const response = await fetch(`/api/ncm/search?keywords=${encodeURIComponent(this.searchKeyword)}&limit=30`);
+                        const response = await safeFetch(`/api/ncm/search?keywords=${encodeURIComponent(this.searchKeyword)}&limit=30`);
+                        if (isOfflineResponse(response)) {
+                            this.$message.warning('搜索功能需要服务端支持，当前无法使用');
+                            this.searchLoading = false;
+                            return;
+                        }
                         const data = await response.json();
                         console.log('[NCM] 搜索响应:', JSON.stringify(data));
                         if (data.code === 200 && data.result && data.result.songs) {
@@ -1051,6 +1065,8 @@
             }
         });
     </script>
+    <script src="/assets/js/offline-handler.js"></script>
     <script src="/assets/js/loading.js"></script>
+{% include "_pwa_register.html" %}
 </body>
 </html>

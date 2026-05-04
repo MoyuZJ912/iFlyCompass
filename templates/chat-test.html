@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% include "_pwa_head.html" %}
     <title>{{ room.name }} - 聊天室</title>
     <link rel="stylesheet" href="/assets/css/loading.css">
     <link rel="stylesheet" href="/assets/css/material-icons.css">
@@ -1123,6 +1124,13 @@
                             });
                         }
                     });
+
+                    // 监听WebSocket连接失败事件
+                    this.socket.on('connect_error', () => {
+                        console.log('WebSocket连接失败，服务端可能离线');
+                        this.stopReconnectInterval();
+                        this.$message.warning('聊天服务不可用，请检查服务端状态');
+                    });
                 },
                 
                 // 开始WebSocket重连定时器
@@ -1358,6 +1366,8 @@
             document.getElementById('announcement-bar').classList.remove('has-announcement');
         }
     </script>
+    <script src="/assets/js/offline-handler.js"></script>
     <script src="/assets/js/loading.js"></script>
+{% include "_pwa_register.html" %}
 </body>
 </html>
