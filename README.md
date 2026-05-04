@@ -2,10 +2,16 @@
 
 ## 项目简介
 
-**版本：REL2.4.2**
+**版本：REL2.5.0**
 
 iFlyCompass 是一个多功能的 Web 应用平台，采用模块化架构设计，提供了多种实用工具和功能，包括：
 
+- **网页代理**：基于 mitmproxy 的反向代理工具，支持 URL 重写、请求头修正、Service Worker + Hook 双模式拦截
+  - **双层拦截机制**：Service Worker（底层拦截所有网络请求）+ Hook 模式（API 层拦截）
+  - **智能 URL 重写**：统一格式 `http://{proxy}:{port}/{protocol}/{host}/{path}`
+  - **Next.js 兼容**：自动替换 `__webpack_public_path__`、处理 `self.__next_f.push` 动态加载
+  - **请求头修正**：自动推断并设置正确的 Origin/Referer，解决 403 Forbidden
+  - **全面资源覆盖**：HTML/CSS/JS/图片/音频/视频/字体等所有静态资源
 - **聊天室功能**：支持创建、加入、管理聊天室，实时消息通信，多人优化模式
 - **小说阅读器**：支持多种编码格式，智能章节解析，阅读进度保存，启动时预扫描缓存
   - **沉浸式阅读器**：主题切换、翻页动画、低版本 WebView 兼容、续段处理、边界溢出保护
@@ -30,6 +36,7 @@ iFlyCompass 是一个多功能的 Web 应用平台，采用模块化架构设计
 - **认证**：Flask-Login
 - **架构**：Flask Blueprint 模块化设计
 - **配置**：YAML 配置文件（`instance/config.yml`）
+- **代理引擎**：mitmproxy（网页代理功能）
 
 ## 架构特点
 
@@ -47,6 +54,7 @@ iFlyCompass 是一个多功能的 Web 应用平台，采用模块化架构设计
   - **ncm/** - 随身听模块（网易云音乐）
   - **video/** - 视频播放器模块
   - **bili/** - B站视频模块
+  - **proxy/** - 网页代理模块（mitmproxy 反向代理）
   - **main/** - 主页面模块
   - **settings/** - 系统设置模块
   - **announcement/** - 公告系统模块
@@ -132,7 +140,7 @@ pip install -r requirements.txt
 python app.py
 ```
 
-项目将在 `http://127.0.0.1:5002` 上运行。
+项目将在 `http://127.0.0.1:5002` 上运行（主应用），网页代理服务将在 `http://127.0.0.1:5003` 上运行。
 
 ### 打包为 EXE
 
@@ -194,10 +202,16 @@ iFlyCompass/
 │   │   ├── routes.py        # 播放器路由
 │   │   └── api.py           # 视频 API
 │   ├── bili/                # B站视频模块
-│   │   ├── __init__.py
-│   │   ├── routes.py        # 播放器路由
-│   │   ├── api.py           # B站 API
-│   │   └── download_service.py # 下载服务
+│   │   ├── __init__.py       # B站视频模块定义
+│   │   ├── routes.py         # B站播放器路由
+│   │   ├── api.py            # B站 API
+│   │   └── download_service.py # B站视频下载服务
+│   ├── proxy/                # 网页代理模块
+│   │   ├── __init__.py       # 代理模块定义和 Blueprint 注册
+│   │   ├── proxy_addon.py    # mitmproxy 插件（URL 重写、请求头修正）
+│   │   ├── hook.js           # 浏览器端拦截脚本（Service Worker + Hook）
+│   │   ├── proxy_server.py   # 代理服务器管理（启动、停止）
+│   │   └── api.py            # 代理控制 API（状态查询、启动停止）
 │   ├── main/                # 主页面模块
 │   │   ├── __init__.py
 │   │   └── routes.py        # 主页面路由
@@ -227,6 +241,7 @@ iFlyCompass/
 │   ├── ncm_player.html      # 随身听页面
 │   ├── video_player.html    # 视频播放器页面
 │   ├── bili_player.html     # B站视频页面
+│   ├── web_proxy.html        # 网页代理工具页面
 │   ├── index.html           # 首页
 │   ├── login.html           # 登录页面
 │   ├── register.html        # 注册页面

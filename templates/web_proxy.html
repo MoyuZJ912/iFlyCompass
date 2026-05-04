@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="touch-defense-5">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>网页代理 - iFlyCompass</title>
+    <link rel="stylesheet" href="/assets/css/loading.css">
+    <link rel="stylesheet" href="/assets/css/material-icons.css">
+    <link rel="stylesheet" href="/assets/css/element-ui.css">
+    <link rel="stylesheet" href="/assets/css/console.css">
+    <link rel="stylesheet" href="/assets/css/drop.css">
+    <style>
+        .proxy-container {
+            height: calc(100vh - 60px);
+            display: flex;
+            flex-direction: column;
+            background: #f5f7fa;
+            overflow: hidden;
+        }
+
+        .proxy-header {
+            padding: 16px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+            color: #fff;
+        }
+
+        .proxy-header h2 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .proxy-status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            background: rgba(255,255,255,0.2);
+            padding: 4px 12px;
+            border-radius: 12px;
+        }
+
+        .proxy-status-badge .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .proxy-status-badge .dot.running {
+            background-color: #67c23a;
+            box-shadow: 0 0 6px #67c23a;
+        }
+
+        .proxy-status-badge .dot.stopped {
+            background-color: #f56c6c;
+        }
+
+        .proxy-body {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .proxy-card {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+            padding: 24px;
+            margin-bottom: 16px;
+        }
+
+        .proxy-card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #303133;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .proxy-card-title i {
+            color: #667eea;
+        }
+
+        .proxy-toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #ebeef5;
+        }
+
+        .proxy-toggle-label {
+            font-size: 14px;
+            color: #606266;
+        }
+
+        .proxy-toggle-desc {
+            font-size: 12px;
+            color: #909399;
+            margin-top: 4px;
+        }
+
+        .proxy-input-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .proxy-input-group .el-input {
+            flex: 1;
+        }
+
+        .proxy-info-row {
+            margin-top: 16px;
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            font-size: 13px;
+            color: #909399;
+            line-height: 1.6;
+        }
+
+        .proxy-info-row i {
+            color: #e6a23c;
+            margin-top: 2px;
+        }
+
+        .proxy-info-row code {
+            background: #f5f7fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+            color: #606266;
+            word-break: break-all;
+        }
+
+        .proxy-usage-card .usage-item {
+            padding: 12px 0;
+            border-bottom: 1px solid #f2f6fc;
+        }
+
+        .proxy-usage-card .usage-item:last-child {
+            border-bottom: none;
+        }
+
+        .proxy-usage-card .usage-label {
+            font-size: 13px;
+            color: #909399;
+            margin-bottom: 4px;
+        }
+
+        .proxy-usage-card .usage-value {
+            font-size: 14px;
+            color: #303133;
+            font-family: 'Courier New', monospace;
+            background: #f5f7fa;
+            padding: 8px 12px;
+            border-radius: 4px;
+            word-break: break-all;
+        }
+
+        .proxy-quick-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .proxy-quick-link {
+            padding: 6px 14px;
+            background: #ecf5ff;
+            color: #409eff;
+            border-radius: 16px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .proxy-quick-link:hover {
+            background: #409eff;
+            color: #fff;
+        }
+    </style>
+</head>
+<body class="touch-defense-5">
+    <div id="touch-buffer"></div>
+    <div id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">加载中...</div>
+    </div>
+    <div id="app">
+        <el-container class="console-container">
+            <el-aside width="64px" class="console-sidebar" :width="isCollapse ? '64px' : '200px'">
+                <div class="sidebar-header" @click="toggleCollapse">
+                    <img src="/assets/images/logo-trans-white.png" alt="Logo" class="sidebar-logo">
+                    <span v-show="!isCollapse" class="sidebar-brand">iFlyCompass</span>
+                    <i v-show="!isCollapse" class="el-icon-s-fold sidebar-toggle"></i>
+                </div>
+                <el-menu
+                    :default-active="activeMenu"
+                    class="el-menu-vertical-demo"
+                    background-color="#1a365d"
+                    text-color="#ffffff"
+                    active-text-color="#409EFF"
+                    :collapse="isCollapse"
+                    @select="handleMenuClick"
+                >
+                    <el-menu-item index="dashboard">
+                        <i class="el-icon-s-home"></i>
+                        <span slot="title">首页</span>
+                    </el-menu-item>
+                    <el-menu-item index="tools">
+                        <i class="el-icon-s-tools"></i>
+                        <span slot="title">小工具</span>
+                    </el-menu-item>
+                    <el-menu-item index="games">
+                        <i class="el-icon-s-marketing"></i>
+                        <span slot="title">小游戏</span>
+                    </el-menu-item>
+                    <el-menu-item index="users" v-if="isAdmin">
+                        <i class="el-icon-s-custom"></i>
+                        <span slot="title">用户管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="passkeys" v-if="isSuperAdmin">
+                        <i class="el-icon-key"></i>
+                        <span slot="title">Passkey 管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="chat">
+                        <i class="el-icon-chat-dot-round"></i>
+                        <span slot="title">聊天室</span>
+                    </el-menu-item>
+                    <el-menu-item index="settings" v-if="isAdmin">
+                        <i class="el-icon-setting"></i>
+                        <span slot="title">系统设置</span>
+                    </el-menu-item>
+                </el-menu>
+            </el-aside>
+
+            <el-container>
+                <el-header class="console-header">
+                    <div class="header-left">
+                        <h1>网页代理</h1>
+                    </div>
+                    <div class="header-right">
+                        <div class="user-menu-container" @click="toggleUserMenu">
+                            <span class="user-info">
+                                您好，[[ displayName ]]
+                                <i class="el-icon-arrow-down" :class="{ 'rotated': userMenuVisible }"></i>
+                            </span>
+                            <div class="user-dropdown-menu" v-show="userMenuVisible" @click.stop>
+                                <div class="user-dropdown-header">
+                                    <div class="display-name">[[ displayName ]]</div>
+                                    <div class="username-label">@[[ username ]]</div>
+                                </div>
+                                <div class="user-dropdown-item" @click="openDropDialog">
+                                    <i class="el-icon-message"></i>
+                                    <span>发送 Drop</span>
+                                </div>
+                                <div class="user-dropdown-item" @click="goDropSettings">
+                                    <i class="el-icon-setting"></i>
+                                    <span>Drop 设置</span>
+                                </div>
+                                <div class="user-dropdown-divider"></div>
+                                <div class="user-dropdown-item logout-item" @click="confirmLogout">
+                                    <i class="el-icon-switch-button"></i>
+                                    <span>退出登录</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </el-header>
+
+                <el-main class="console-content">
+                    <div class="proxy-container">
+                        <div class="proxy-header">
+                            <h2><i class="el-icon-link" style="margin-right:8px;"></i>网页代理</h2>
+                            <div class="proxy-status-badge">
+                                <span class="dot" :class="proxyRunning ? 'running' : 'stopped'"></span>
+                                <span>[[ proxyRunning ? '代理运行中' : '代理已停止' ]]</span>
+                            </div>
+                        </div>
+
+                        <div class="proxy-body">
+                            <div class="proxy-card">
+                                <div class="proxy-card-title">
+                                    <i class="el-icon-setting"></i>
+                                    <span>代理控制</span>
+                                </div>
+                                <div class="proxy-toggle-row">
+                                    <div>
+                                        <div class="proxy-toggle-label">代理服务（端口 5003）</div>
+                                        <div class="proxy-toggle-desc">基于 mitmproxy，支持 GET/POST 请求，自动重写所有链接和资源</div>
+                                    </div>
+                                    <el-switch
+                                        v-model="proxyRunning"
+                                        active-color="#67c23a"
+                                        inactive-color="#dcdfe6"
+                                        @change="toggleProxy"
+                                    ></el-switch>
+                                </div>
+                                <div class="proxy-input-group">
+                                    <el-input
+                                        v-model="proxyUrl"
+                                        placeholder="输入网址，如 https://baidu.com"
+                                        clearable
+                                        @keyup.enter.native="openProxy"
+                                    >
+                                        <template slot="prepend">
+                                            <i class="el-icon-link"></i>
+                                        </template>
+                                    </el-input>
+                                    <el-button type="primary" @click="openProxy" :disabled="!proxyRunning || !proxyUrl">访问</el-button>
+                                </div>
+                                <div class="proxy-info-row" v-if="proxyRunning && proxyBaseUrl">
+                                    <i class="el-icon-info"></i>
+                                    <div>
+                                        代理地址格式：<code>[[ proxyBaseUrl ]]/&lt;http|https&gt;/&lt;目标网址&gt;</code>
+                                    </div>
+                                </div>
+                                <div class="proxy-info-row" v-if="!proxyRunning">
+                                    <i class="el-icon-warning"></i>
+                                    <span>请先开启代理服务，然后输入网址访问</span>
+                                </div>
+                            </div>
+
+                            <div class="proxy-card proxy-usage-card" v-if="proxyRunning">
+                                <div class="proxy-card-title">
+                                    <i class="el-icon-document"></i>
+                                    <span>使用说明</span>
+                                </div>
+                                <div class="usage-item">
+                                    <div class="usage-label">示例：访问百度</div>
+                                    <div class="usage-value">[[ proxyBaseUrl ]]/https/baidu.com</div>
+                                </div>
+                                <div class="usage-item">
+                                    <div class="usage-label">示例：访问带路径的网址</div>
+                                    <div class="usage-value">[[ proxyBaseUrl ]]/https/example.com/path/page</div>
+                                </div>
+                                <div class="usage-item">
+                                    <div class="usage-label">工作原理</div>
+                                    <div style="font-size:13px;color:#606266;line-height:1.8;">
+                                        内网设备访问代理服务器 → 代理服务器请求外网资源 → 重写所有 URL 和资源引用 → 返回给内网设备<br>
+                                        所有 HTML 链接、CSS url()、JS 请求、重定向都会被自动改写为通过代理访问
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="proxy-card" v-if="proxyRunning">
+                                <div class="proxy-card-title">
+                                    <i class="el-icon-star-off"></i>
+                                    <span>快速访问</span>
+                                </div>
+                                <div class="proxy-quick-links">
+                                    <span class="proxy-quick-link" @click="quickOpen('https://baidu.com')">百度</span>
+                                    <span class="proxy-quick-link" @click="quickOpen('https://bing.com')">Bing</span>
+                                    <span class="proxy-quick-link" @click="quickOpen('https://github.com')">GitHub</span>
+                                    <span class="proxy-quick-link" @click="quickOpen('https://wikipedia.org')">Wikipedia</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </el-main>
+            </el-container>
+        </el-container>
+    </div>
+
+    <script src="/assets/js/vue.min.js"></script>
+    <script src="/assets/js/element-ui.js"></script>
+    <script src="/assets/js/drop.js"></script>
+    <script>
+        var defenseLayer5ScrollHandler = null;
+
+        function enableDefenseLayer5() {
+            if (!defenseLayer5ScrollHandler) {
+                defenseLayer5ScrollHandler = function() {
+                    var scrollLeft = document.documentElement.scrollLeft || document.body.scrollLeft;
+                    var scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+                    var container = document.querySelector('.console-container');
+                    if (container) {
+                        container.style.transform = 'translate(' + (-scrollLeft) + 'px, ' + (-scrollTop) + 'px)';
+                    }
+                    var sidebar = document.querySelector('.console-sidebar');
+                    if (sidebar) {
+                        sidebar.style.transform = 'translate(' + scrollLeft + 'px, ' + scrollTop + 'px)';
+                    }
+                    var header = document.querySelector('.console-header');
+                    if (header) {
+                        header.style.transform = 'translate(' + scrollLeft + 'px, ' + scrollTop + 'px)';
+                    }
+                };
+                window.addEventListener('scroll', defenseLayer5ScrollHandler, { passive: true });
+            }
+        }
+
+        enableDefenseLayer5();
+
+        new Vue({
+            el: '#app',
+            delimiters: ['[[', ']]'],
+            data() {
+                return {
+                    isCollapse: {% if sidebar_expanded %}false{% else %}true{% endif %},
+                    activeMenu: 'tools',
+                    displayName: '{{ current_user.display_name }}',
+                    username: '{{ current_user.username }}',
+                    isAdmin: {% if current_user.is_admin or current_user.is_super_admin %}true{% else %}false{% endif %},
+                    isSuperAdmin: {% if current_user.is_super_admin %}true{% else %}false{% endif %},
+                    userMenuVisible: false,
+                    proxyRunning: false,
+                    proxyUrl: '',
+                    proxyBaseUrl: ''
+                };
+            },
+            mounted() {
+                this.loadProxyStatus();
+            },
+            methods: {
+                loadProxyStatus() {
+                    fetch('/api/proxy/status')
+                        .then(function(response) { return response.json(); })
+                        .then(function(data) {
+                            this.proxyRunning = data.running;
+                            this.proxyBaseUrl = data.proxy_url || '';
+                        }.bind(this))
+                        .catch(function(error) {
+                            console.error('加载代理状态失败:', error);
+                        });
+                },
+                toggleProxy(val) {
+                    if (val) {
+                        fetch('/api/proxy/start', { method: 'POST' })
+                            .then(function(response) { return response.json(); })
+                            .then(function(data) {
+                                if (data.success) {
+                                    this.proxyRunning = true;
+                                    this.proxyBaseUrl = data.proxy_url || '';
+                                    this.$message.success('代理服务已启动');
+                                } else {
+                                    this.proxyRunning = false;
+                                    this.$message.error('代理服务启动失败');
+                                }
+                            }.bind(this))
+                            .catch(function(error) {
+                                console.error('启动代理失败:', error);
+                                this.proxyRunning = false;
+                                this.$message.error('代理服务启动失败');
+                            }.bind(this));
+                    } else {
+                        fetch('/api/proxy/stop', { method: 'POST' })
+                            .then(function(response) { return response.json(); })
+                            .then(function(data) {
+                                this.proxyRunning = false;
+                                this.proxyBaseUrl = '';
+                                this.$message.success('代理服务已停止');
+                            }.bind(this))
+                            .catch(function(error) {
+                                console.error('停止代理失败:', error);
+                                this.$message.error('代理服务停止失败');
+                            }.bind(this));
+                    }
+                },
+                openProxy() {
+                    if (!this.proxyRunning || !this.proxyUrl) return;
+                    var url = this.proxyUrl.trim();
+                    if (!url) return;
+                    if (!url.match(/^https?:\/\//)) {
+                        url = 'https://' + url;
+                    }
+                    var match = url.match(/^(https?):\/\/(.+)$/);
+                    if (!match) {
+                        this.$message.error('无效的网址格式');
+                        return;
+                    }
+                    var scheme = match[1];
+                    var target = match[2];
+                    var proxyLink = this.proxyBaseUrl + '/' + scheme + '/' + target;
+                    window.open(proxyLink, '_blank');
+                },
+                quickOpen(url) {
+                    if (!this.proxyRunning) {
+                        this.$message.warning('请先开启代理服务');
+                        return;
+                    }
+                    this.proxyUrl = url;
+                    this.openProxy();
+                },
+                toggleCollapse() {
+                    this.isCollapse = !this.isCollapse;
+                },
+                toggleUserMenu() {
+                    this.userMenuVisible = !this.userMenuVisible;
+                },
+                goDropSettings() {
+                    this.userMenuVisible = false;
+                    window.location.href = '/drop/settings';
+                },
+                openDropDialog() {
+                    this.userMenuVisible = false;
+                    if (window.DropSender) {
+                        window.DropSender.openDialog();
+                    }
+                },
+                confirmLogout() {
+                    this.userMenuVisible = false;
+                    this.$confirm('确定要退出登录吗？', '提示', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    })
+                    .then(function() {
+                        window.location.href = '/logout';
+                    })
+                    .catch(function() {});
+                },
+                handleMenuClick(key) {
+                    this.userMenuVisible = false;
+                    if (key === 'dashboard') {
+                        window.location.href = '/board';
+                    } else if (key === 'tools') {
+                        window.location.href = '/board/tools';
+                    } else if (key === 'users') {
+                        window.location.href = '/board/users';
+                    } else if (key === 'passkeys') {
+                        window.location.href = '/board/passkeys';
+                    } else if (key === 'chat') {
+                        window.location.href = '/board/chat';
+                    } else if (key === 'settings') {
+                        window.location.href = '/board/settings';
+                    }
+                }
+            }
+        });
+    </script>
+    <script src="/assets/js/loading.js"></script>
+</body>
+</html>

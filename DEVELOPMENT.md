@@ -2,6 +2,74 @@
 
 ## 版本更新
 
+### REL2.5.0
+
+**网页代理工具（Web Proxy）**
+
+- **功能概述**：
+  - 基于 mitmproxy 的反向代理工具，允许内网设备通过跳板机访问外网
+  - 运行在 5003 端口，支持 URL 格式：`http://{proxy}:5003/https/{target}`
+  - 自动重写所有链接和资源路径，确保所有请求通过代理
+- **双层拦截架构**：
+  - **Service Worker 模式**（优先）：浏览器底层拦截所有网络请求，100% 可靠
+    - 使用 `self.addEventListener('fetch', ...)` 拦截
+    - 自动添加 `X-Proxy-Token` 和 `X-Proxy-Base` 认证头
+    - 错误回退机制：代理失败时返回原始请求
+  - **Hook 模式**（备用）：当 SW 不可用时自动启用
+    - Hook XMLHttpRequest、fetch、window.open、history API、EventSource
+    - Hook Image 构造函数和 `HTMLImageElement.prototype.src`
+    - Hook DOM 元素创建（createElement）和 MutationObserver 监听
+    - Hook 内联样式 cssText 属性
+- **Python 服务端处理**：
+  - **HTML 属性重写** (`_rewrite_html_attrs`)：
+    - 替换 `<a href>`, `<img src>`, `<link href>`, `<script src>` 等属性
+    - 替换内联样式 `style="background: url(...)"` 中的 URL
+  - **内联脚本重写** (`_rewrite_inline_scripts`)：
+    - 处理 HTML 中 `<script>` 标签内的内容
+    - 只替换绝对 URL，保留相对路径给 webpack 处理
+  - **JS 文件重写** (`_rewrite_js`)：
+    - **关键修复**：替换 `__webpack_public_path__` 为代理路径
+      - 解决 Next.js chunk 加载双重前缀问题
+      - 示例：`r.p = "https://cdn.com/_next/"` → `r.p = "http://192.168.1.4:5003/https/cdn.com/_next/"`
+    - 处理 `self.__next_f.push([...])` 中的绝对 URL
+    - 处理 `:HL[...]` CSS 预加载链接格式
+  - **CSS 重写** (`_rewrite_css`)：
+    - 替换 `url()` 中的相对和绝对路径
+    - 替换 `@import` 语句
+  - **请求头修正** (`request`)：
+    - 从 `X-Proxy-Base` 或 Referer 推断原始 Origin
+    - 强制设置正确的 Origin 和 Referer 头
+    - 解决 CDN 防盗链导致的 403 Forbidden 问题
+- **URL 格式统一**：
+  - 统一使用 `http://{proxy}:{port}/{protocol}/{host}/{path}` 格式
+  - 所有资源（页面、CSS、JS、图片、音频、视频、字体）都通过此格式访问
+- **Next.js 兼容性**：
+  - 自动识别并处理 `self.__next_f.push([...])` 动态加载模式
+  - 替换 webpack runtime 中的 `__webpack_public_path__`
+  - 处理 `:HL[...]` CSS 预加载链接
+  - 兼容所有基于 Next.js 的网站
+- **新增模块**：
+  - `modules/proxy/__init__.py` - 代理模块定义和 Blueprint 注册
+  - `modules/proxy/proxy_addon.py` - mitmproxy 插件核心逻辑（~650 行）
+  - `modules/proxy/hook.js` - 浏览器端拦截脚本（~350 行）
+  - `modules/proxy/proxy_server.py` - 代理服务器管理
+  - `modules/proxy/api.py` - 代理控制 API
+- **新增页面**：
+  - `templates/web_proxy.html` - 网页代理工具界面
+- **新增 API**：
+  - `GET /api/proxy/status` - 获取代理状态
+  - `POST /api/proxy/start` - 启动代理服务
+  - `POST /api/proxy/stop` - 停止代理服务
+- **新增依赖**：
+  - `mitmproxy` - HTTP/HTTPS 代理引擎
+- **解决的问题**：
+  | 问题 | 原因 | 解决方案 |
+  |------|------|---------|
+  | Next.js chunk 加载失败 | webpack 双重前缀 | 替换 `__webpack_public_path__` |
+  | 图片/音频/视频 403 | 未被 hook 拦截或 Origin 不对 | 新增 Image/src 拦截 + 服务端强制设置正确头 |
+  | CSS background-image 未替换 | 内联样式未处理 | 增加 style 属性处理 |
+  | `/rp/xxx.png` 路径错误 | fakeOrigin 为空时解析错误 | 增加 baseScheme 变量保护 |
+
 ### REL2.4.2
 
 **NCM API 客户端统一重构**
@@ -603,6 +671,11 @@
   - routes.py：播放器页面路由
   - api.py：B站 API
   - download_service.py：视频下载服务
+- **proxy 模块**：网页代理
+  - proxy_addon.py：mitmproxy 插件（URL 重写、请求头修正、内容替换）
+  - hook.js：浏览器端拦截脚本（Service Worker + Hook 双模式）
+  - proxy_server.py：代理服务器管理（启动、停止、状态查询）
+  - api.py：代理控制 API
 - **main 模块**：主页面
   - routes.py：首页、控制面板、工具页面
 - **settings 模块**：系统设置
@@ -1534,6 +1607,29 @@
   - category: 分类（'tools' 或 'games'）
 - **返回**：导航项列表 JSON
 
+### 3.14 网页代理相关 API
+
+#### 3.14.1 获取代理状态
+
+- **URL**：`/api/proxy/status`
+- **方法**：GET
+- **权限**：登录用户
+- **返回**：代理状态 JSON（running, port, host）
+
+#### 3.14.2 启动代理服务
+
+- **URL**：`/api/proxy/start`
+- **方法**：POST
+- **权限**：管理员或超级管理员
+- **返回**：启动结果 JSON
+
+#### 3.14.3 停止代理服务
+
+- **URL**：`/api/proxy/stop`
+- **方法**：POST
+- **权限**：管理员或超级管理员
+- **返回**：停止结果 JSON
+
 ## 4. WebSocket 事件
 
 ### 4.1 客户端发送事件
@@ -1708,6 +1804,17 @@ gunicorn -w 4 -b 0.0.0.0:5002 app:app
 
 - **问题**：路由冲突或 404 错误
 - **解决方案**：检查 Blueprint 的 url\_prefix 设置，确保路由定义正确
+
+### 6.7 网页代理相关问题
+
+- **问题**：代理服务无法启动
+  - **解决方案**：检查 mitmproxy 是否已安装（`pip install mitmproxy`），确认端口 5003 未被占用
+- **问题**：访问代理页面显示 403 Forbidden
+  - **解决方案**：检查 Origin/Referer 头是否被正确设置，查看 `proxy_addon.py` 中的请求头修正逻辑
+- **问题**：Next.js 网站 chunk 加载失败
+  - **解决方案**：确认 `_rewrite_js` 方法中的 `__webpack_public_path__` 替换逻辑正常工作
+- **问题**：图片或音频资源加载失败
+  - **解决方案**：检查 hook.js 是否正确拦截了 Image/src 属性，确认 Service Worker 或 Hook 模式已启动
 
 ## 7. 贡献指南
 
