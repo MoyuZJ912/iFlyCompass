@@ -11,21 +11,26 @@ user_sessions = {}
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('main.board'))
-    
+
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
         user = User.query.filter_by(username=username).first()
-        
+
         if user and user.check_password(password):
             login_user(user, remember=True)
             session.permanent = True
             user_sessions[username] = request.cookies.get('session')
+
+            next_page = request.form.get('next', '')
+            if next_page and next_page.startswith('/') and not next_page.startswith('//'):
+                return redirect(next_page)
             return redirect(url_for('main.board'))
         else:
             flash('用户名或密码错误')
-    
-    return render_template('login.html')
+
+    next_page = request.args.get('next', '')
+    return render_template('login.html', next=next_page)
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():

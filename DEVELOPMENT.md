@@ -2,6 +2,104 @@
 
 ## 版本更新
 
+### DEV2.5.2
+
+**跨平台 FFmpeg 支持**
+
+- **问题背景**：
+  - 项目捆绑的 FFmpeg 为 Windows 可执行文件（`tools/ffmpeg/ffmpeg.exe`），Linux 无法使用
+  - `modules/bili/download_service.py` 硬编码 `.exe` 路径，Linux 上 B站视频缓存功能不可用
+- **新增 `utils/ffmpeg.py` 工具模块**：
+  - `get_ffmpeg_path()` — 跨平台 FFmpeg 路径解析，检查顺序：捆绑二进制 → 系统 PATH
+  - `get_ffprobe_path()` — 同上，用于 FFprobe
+  - `ensure_ffmpeg()` — 统一入口，找不到时在 Linux/macOS 上自动下载静态构建
+  - `_download_ffmpeg_linux()` — 从 `johnvansickle.com` 下载静态 FFmpeg（~40MB tar.xz），解压到 `tools/ffmpeg/`
+  - `verify_ffmpeg()` — 验证 FFmpeg 可执行性并返回版本
+- **路径规则**：
+  | 平台 | 捆绑路径 | 回退 |
+  |------|---------|------|
+  | Windows | `tools/ffmpeg/ffmpeg.exe` | `shutil.which('ffmpeg')` |
+  | Linux | `tools/ffmpeg/ffmpeg` | `shutil.which('ffmpeg')` → 自动下载 |
+  | macOS | `tools/ffmpeg/ffmpeg` | `shutil.which('ffmpeg')` → 自动下载 |
+- **变更文件**：
+  - **新增**：`utils/ffmpeg.py`
+  - **修改**：`modules/bili/download_service.py`（`check_ffmpeg()` 改用 `ensure_ffmpeg()`，移除硬编码路径和冗余代码）
+  - **修改**：`utils/__init__.py`（导出 FFmpeg 工具函数）
+  - **更新**：`.gitignore`（忽略 Linux/macOS 捆绑二进制和下载缓存）
+- **行为变化**：
+  - Windows：行为不变，仍然使用捆绑的 `ffmpeg.exe`
+  - Linux/macOS：首次运行 B站功能时自动下载 FFmpeg（如系统未安装），后续直接使用
+
+### REL2.5.1
+
+**Bug 修复**
+
+- **注册页面闪存消息缺失**：
+  - 注册失败时 `flash()` 的错误消息无法显示
+  - `templates/register.html` 缺少 `{% with messages = get_flashed_messages() %}` 块
+  - 修复：在注册表单前添加 flash 消息渲染块（与 login.html 一致）
+  - 现在「无效的Passkey」「密码必须包含数字」等错误正确显示在注册页面
+- **登录后 `next` 参数被忽略**：
+  - `login()` 路由始终重定向到 `main.board`，忽略 `?next=` 参数
+  - 例如 `/login?next=%2Fboard%2Fsettings` 登录后会跳转到 `/board` 而非 `/board/settings`
+  - 修复三处：
+    - `routes.py` login() POST：读取 `next` 表单字段，校验为相对路径后重定向
+    - `routes.py` login() GET：读取 `next` 查询参数并传入模板
+    - `templates/login.html`：添加隐藏字段 `<input type="hidden" name="next" value="{{ next }}">`
+  - 安全防护：校验 `next` 以 `/` 开头且不以 `//` 开头，防止开放重定向攻击
+
+**小说模块 v2 重构（整本书缓存架构）**
+
+- **重构目标**：将小说阅读从章节级缓存升级为整本书缓存，实现完全的离线阅读能力
+- **小说列表重构**：
+  - 拆分为**本地列表**（IndexedDB 中已缓存的书，服务端关闭也能读）和**云端列表**（服务端存放的书）
+  - 云端列表提供**刷新按钮**，通知服务端扫描小说目录
+  - 即使服务端删除小说文件，浏览器端本地列表保留已缓存的书
+- **缓存方式重构**：
+  - 不再逐章缓存，改为**一次性缓存整本书**（原始 `.txt` 文件），然后浏览器端解析章节
+  - 下载时显示**缓存进度条**（总文件大小 / 已缓存大小）
+  - 支持 **HTTP Range 断点续传**：下载中断后自动从断点继续
+  - 若检测到服务端文件更新，提示用户是否更新（**是 / 否 / 不再提示**），点击「不再提示」后仍可手动点击更新按钮
+- **阅读进度**：
+  - 移除服务端 `NovelReadingProgress` 模型，进度全部存储在浏览器 IndexedDB 中
+  - 不再需要云端阅读进度同步
+- **服务端 API 变更**：
+  - 新增：`GET /api/novels/<name>/info` — 返回文件大小、修改时间、编码
+  - 新增：`GET /api/novels/<name>/file` — 流式传输原始文件（支持 Range）
+  - 移除：`GET /api/novels/<name>/chapters`、`/chapters/<index>`、`/download-all`、`/progress`（GET+POST）
+  - `GET /api/novels` 返回简化（仅云端列表元数据）
+- **IndexedDB 重构**（NovelCacheDB v2）：
+  - `novelFiles` store：存储整本书原始字节和解码文本、文件大小、编码、服务端修改时间
+  - `readingProgress` store：本地阅读进度（章节索引、滚动位置）
+  - `userSettings` store：用户设置（跳过更新提示等）
+  - 移除旧的 `chapterLists`、`chapterContents` stores（v1）
+- **浏览器端章节解析**：
+  - 新增 `assets/js/chapter-parser.js`，将章节解析逻辑从 Python 移植到 JavaScript
+  - 支持中文数字章节（第X章、第X回）、阿拉伯数字、英文章节、特殊章节（序言/楔子/后记/番外）
+  - 带散文检测，避免正文行被误识别为章节标题
+- **变更文件**：
+  - **重写**：`modules/novel/api.py`、`assets/js/novel-cache.js`、`templates/novel_reader.html`、`templates/immersive_reader.html`
+  - **新增**：`assets/js/chapter-parser.js`
+  - **删除**：`models/novel.py`（NovelReadingProgress）、`modules/novel/parser.py`（服务端章节解析，不再需要）
+  - **更新**：`models/__init__.py`（移除 NovelReadingProgress）、`assets/js/sw.js`（添加 chapter-parser.js 预缓存）
+
+**沉浸式阅读器融合到小说阅读器**
+
+- **目标**：实现浏览器端无缝进入/退出沉浸式阅读，不出现 URL 变更或页面跳转
+- **架构变更**：
+  - 将沉浸式阅读器的 CSS/HTML/JS 全部融合到 `novel_reader.html` 中
+  - 沉浸式阅读器作为**全屏覆盖层**（z-index: 5000），点击按钮显示/隐藏
+  - 进入：`openImmersive()` 显示覆盖层 → 隐藏 body 滚动 → 从当前章节开始沉浸式阅读
+  - 退出：`closeImmersive()` 隐藏覆盖层 → 恢复 body 滚动 → 同步章节回普通阅读器
+  - 共享状态：chapters、currentChapter、currentNovel、currentNovelContent
+  - 沉浸式状态以 `imm` 前缀隔离（immPages、immCurrentPage、immSettings 等）
+  - 键盘事件区分模式：普通模式左右键翻章，沉浸模式左右键翻页、Esc 退出
+- **Bug 修复：章节切换时上一章文本残留**：
+  - `immLoadChapter()`：加载新章节时**立即清空两个页面层**（top + bottom），再渲染内容
+  - `immRenderPage()`：每次渲染页面时**强制清空 bottom 层**，防止动画残留
+  - `immAnimatePage()` 的 `finish()` 回调：动画结束后清空 bottom 层
+  - `immLoadChapter()` 新增 `targetPage` 参数（`'last'` / 数字），简化向上翻章边界处理
+
 ### REL2.5.0
 
 **网页代理工具（Web Proxy）**
@@ -60,8 +158,13 @@
   - `GET /api/proxy/status` - 获取代理状态
   - `POST /api/proxy/start` - 启动代理服务
   - `POST /api/proxy/stop` - 停止代理服务
+- **PWA 适配**（本地合并时补充）：
+  - `templates/web_proxy.html` 添加 `_pwa_head.html`、`_pwa_register.html`、`offline-handler.js`
+  - `templates/tools.html` 合并上游新增的「网页代理」入口，保留所有 PWA 特性
+  - `assets/js/sw.js` 添加 `/tools/webproxy` 到离线缓存路由列表
 - **新增依赖**：
   - `mitmproxy` - HTTP/HTTPS 代理引擎
+  - `aioquic` - QUIC/HTTP3 协议支持（mitmproxy 依赖）
 - **解决的问题**：
   | 问题 | 原因 | 解决方案 |
   |------|------|---------|
@@ -69,27 +172,6 @@
   | 图片/音频/视频 403 | 未被 hook 拦截或 Origin 不对 | 新增 Image/src 拦截 + 服务端强制设置正确头 |
   | CSS background-image 未替换 | 内联样式未处理 | 增加 style 属性处理 |
   | `/rp/xxx.png` 路径错误 | fakeOrigin 为空时解析错误 | 增加 baseScheme 变量保护 |
-
-### REL2.5.0_fix1
-
-**网页代理优化 - mitmdump 内置化**
-
-- **mitmdump.exe 打包到 tools 目录**：
-  - 将 `mitmdump.exe` 复制到项目内置的 `tools/` 目录
-  - 代理服务启动时优先从 `tools/` 目录查找 mitmproxy
-  - 无需系统安装 mitmproxy，开箱即用
-- **查找优先级调整**：
-  1. `tools/mitmdump.exe`（项目内置，最高优先级）✅ 新增
-  2. pip 安装位置（site-packages/Scripts）
-  3. Python 目录（sys.executable 同目录）
-  4. 系统 PATH（shutil.which）
-- **优势**：
-  - 部署更简单：无需额外配置环境或安装依赖
-  - 移植性更强：可打包为独立 EXE，自包含所有依赖
-  - 离线可用：不依赖网络下载或外部包管理器
-- **更新文件**：
-  - `modules/proxy/proxy_server.py` - 调整 `_find_mitmdump()` 查找逻辑
-  - `tools/mitmdump.exe` - 新增内置代理引擎文件
 
 ### REL2.4.2
 
@@ -634,7 +716,8 @@
 │               │    │               │    │               │
 │ - routes.py   │    │ - routes.py   │    │ - routes.py   │
 │ - api.py      │    │ - api.py      │    │ - api.py      │
-│               │    │ - websocket.py│    │ - parser.py   │
+│               │    │ - websocket.py│    │ (browser-side │
+│               │    │               │    │  chap-parse)  │
 └───────────────┘    └───────────────┘    └───────────────┘
         │                     │                     │
         └─────────────────────┼─────────────────────┘
@@ -677,8 +760,9 @@
   - websocket.py：WebSocket 事件处理
 - **novel 模块**：小说阅读器
   - routes.py：小说阅读器页面路由
-  - api.py：小说和章节 API
-  - parser.py：章节解析器（支持高级/简单两种模式）
+  - api.py：小说文件流 API（整本书缓存模式，支持 Range 断点续传）
+  - 浏览器端章节解析（`assets/js/chapter-parser.js`），无需服务端参与
+  - 沉浸式阅读器融合在 `novel_reader.html` 中，浏览器端无缝切换
 - **sticker 模块**：表情包管理
   - routes.py：表情包文件服务
   - api.py：表情包管理 API
@@ -713,7 +797,6 @@
 - **user.py**：User, Passkey
 - **chat.py**：ChatRoom
 - **sticker.py**：UserSticker, PackSticker
-- **novel.py**：NovelReadingProgress
 - **announcement.py**：Announcement, UserAnnouncementStatus
 - **drop.py**：DropMessage, DropSettings, DropBlacklist
 
@@ -859,15 +942,9 @@
 | local\_path   | String(255) | 本地缓存路径             |
 | created\_at   | DateTime    | 创建时间               |
 
-### 2.6 小说阅读进度表 (NovelReadingProgress)
+### 2.6 小说阅读进度（已移除）
 
-| 字段名                  | 类型          | 描述                 |
-| -------------------- | ----------- | ------------------ |
-| id                   | Integer     | 进度 ID，主键           |
-| user\_id             | Integer     | 用户 ID，外键关联 User.id |
-| novel\_filename      | String(255) | 小说文件名              |
-| last\_chapter\_index | Integer     | 最后阅读的章节索引          |
-| last\_read\_at       | DateTime    | 最后阅读时间             |
+> **注意**：`NovelReadingProgress` 模型已在小说模块 v2 重构中移除。阅读进度现在完全存储在浏览器端 IndexedDB 中（`NovelCacheDB` v2 的 `readingProgress` store），不再需要服务端同步。
 
 ### 2.7 公告表 (Announcement)
 
@@ -1116,44 +1193,41 @@
   - password: 密码（如果需要）
 - **返回**：成功/失败信息 JSON
 
-### 3.5 小说阅读器相关 API
+### 3.5 小说阅读器相关 API（v2 整本书缓存架构）
 
-#### 3.5.1 获取小说列表
+#### 3.5.1 获取云端小说列表
 
 - **URL**：`/api/novels`
 - **方法**：GET
 - **权限**：登录用户
-- **返回**：小说列表 JSON
+- **返回**：云端小说列表 JSON（name, filename, author, latest_chapter）
 
-#### 3.5.2 获取章节列表
+#### 3.5.2 刷新小说缓存
 
-- **URL**：`/api/novels/{novel_name}/chapters`
-- **方法**：GET
-- **权限**：登录用户
-- **返回**：章节列表 JSON
-
-#### 3.5.3 获取章节内容
-
-- **URL**：`/api/novels/{novel_name}/chapters/{chapter_index}`
-- **方法**：GET
-- **权限**：登录用户
-- **返回**：章节内容 JSON
-
-#### 3.5.4 保存阅读进度
-
-- **URL**：`/api/novels/{novel_name}/progress`
+- **URL**：`/api/novels/refresh-cache`
 - **方法**：POST
 - **权限**：登录用户
-- **参数**：
-  - chapter\_index: 章节索引
-- **返回**：成功/失败信息 JSON
+- **返回**：扫描计数 JSON
 
-#### 3.5.5 获取阅读进度
+#### 3.5.3 获取小说文件信息
 
-- **URL**：`/api/novels/{novel_name}/progress`
+- **URL**：`/api/novels/{novel_name}/info`
 - **方法**：GET
 - **权限**：登录用户
-- **返回**：阅读进度 JSON
+- **返回**：文件信息 JSON（size, modified, filename, encoding）
+
+#### 3.5.4 下载小说文件
+
+- **URL**：`/api/novels/{novel_name}/file`
+- **方法**：GET
+- **权限**：登录用户
+- **返回**：原始 .txt 文件流（支持 HTTP Range 断点续传，返回 206 Partial Content）
+
+> **已移除的端点**（小说模块 v2 重构后）：
+> - `GET /api/novels/{novel_name}/chapters` — 章节解析已移至浏览器端
+> - `GET /api/novels/{novel_name}/chapters/{chapter_index}` — 不再逐章传输
+> - `GET /api/novels/{novel_name}/download-all` — 改为 `/file` 端点整本传输
+> - `GET/POST /api/novels/{novel_name}/progress` — 阅读进度改为本地 IndexedDB 存储
 
 ### 3.6 表情包相关 API
 

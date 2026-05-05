@@ -1,4 +1,9 @@
 (function() {
+    // 安全请求：优先使用 safeFetch，不可用时回退到原生 fetch
+    function sfetch(url, options) {
+        return (window.safeFetch || fetch)(url, options);
+    }
+
     var DropManager = {
         lastId: 0,
         pollInterval: null,
@@ -53,11 +58,13 @@
             var self = this;
             var url = '/api/drop/poll?last_id=' + this.lastId;
             
-            fetch(url)
+            sfetch(url)
                 .then(function(response) {
+                    if (response._offline) return; // 静默忽略离线
                     return response.json();
                 })
                 .then(function(data) {
+                    if (!data) return;
                     if (data.enabled && data.drops && data.drops.length > 0) {
                         var maxId = self.lastId;
                         data.drops.forEach(function(drop) {
@@ -71,7 +78,7 @@
                     }
                 })
                 .catch(function(error) {
-                    console.error('[Drop] 轮询失败:', error);
+                    // 网络错误静默忽略
                 });
         },
         
@@ -151,17 +158,20 @@
         doBlockUser: function(userId, senderName, bubble) {
             var self = this;
             
-            fetch('/api/drop/blacklist', {
+            sfetch('/api/drop/blacklist', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ user_id: userId })
             })
             .then(function(response) {
+                if (response._offline) {
+                    self.showMessage('error', '服务端离线，屏蔽功能暂不可用');
+                    return;
+                }
                 return response.json();
             })
             .then(function(data) {
+                if (!data) return;
                 if (data.success) {
                     self.showMessage('success', '已屏蔽用户 ' + senderName);
                     self.hideDrop(bubble);
@@ -170,7 +180,6 @@
                 }
             })
             .catch(function(error) {
-                console.error('[Drop] 屏蔽用户失败:', error);
                 self.showMessage('error', '屏蔽失败，请稍后重试');
             });
         },
@@ -283,18 +292,20 @@
         loadStatus: function() {
             var self = this;
             
-            fetch('/api/drop/status')
+            sfetch('/api/drop/status')
                 .then(function(response) {
+                    if (response._offline) return;
                     return response.json();
                 })
                 .then(function(data) {
+                    if (!data) return;
                     self.globalCooldown = data.global_cooldown;
                     self.userCooldown = data.user_cooldown;
                     self.updateCooldownDisplay();
                     self.updateSendButton();
                 })
                 .catch(function(error) {
-                    console.error('[Drop] 获取状态失败:', error);
+                    // 静默忽略离线错误
                 });
         },
         
@@ -372,17 +383,22 @@
             sendBtn.disabled = true;
             sendBtn.textContent = '发送中...';
             
-            fetch('/api/drop/send', {
+            sfetch('/api/drop/send', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ content: content })
             })
             .then(function(response) {
+                if (response._offline) {
+                    DropManager.showMessage('error', '服务端离线，发送功能暂不可用');
+                    self.loadStatus();
+                    self.updateSendButton();
+                    return;
+                }
                 return response.json();
             })
             .then(function(data) {
+                if (!data) return;
                 if (data.success) {
                     DropManager.showMessage('success', 'Drop 发送成功！');
                     self.closeDialog();
@@ -393,7 +409,6 @@
                 }
             })
             .catch(function(error) {
-                console.error('[Drop] 发送失败:', error);
                 DropManager.showMessage('error', '发送失败，请稍后重试');
                 self.loadStatus();
                 self.updateSendButton();

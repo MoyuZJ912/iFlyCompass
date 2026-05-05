@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% include "_pwa_head.html" %}
     <title>控制台 - iFlyCompass</title>
     <link rel="stylesheet" href="/assets/css/loading.css">
     <link rel="stylesheet" href="/assets/css/material-icons.css">
@@ -425,7 +426,7 @@
                                     {% endif %}
                                 </div>
                                 <div class="status-info">
-                                    <p>当前版本：REL2.4.2</p>
+                                    <p>当前版本：DEV2.5.1</p>
                                     <p>上次登录：刚刚</p>
                                 </div>
                             </div>
@@ -822,6 +823,8 @@
             }
         });
     </script>
+    <script src="/assets/js/offline-handler.js"></script>
     <script src="/assets/js/loading.js"></script>
+{% include "_pwa_register.html" %}
 </body>
 </html>

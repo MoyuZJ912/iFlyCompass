@@ -3,31 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    {% include "_pwa_head.html" %}
     <title>沉浸式阅读 - iFlyCompass</title>
     <link rel="stylesheet" href="/assets/css/loading.css">
     <link rel="stylesheet" href="/assets/css/material-icons.css">
     <link rel="stylesheet" href="/assets/css/element-ui.css">
     <script src="/assets/js/vue.min.js"></script>
     <script src="/assets/js/element-ui.js"></script>
+    <script src="/assets/js/novel-cache.js"></script>
+    <script src="/assets/js/chapter-parser.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
         html, body {
-            height: 100%;
-            overflow: hidden;
+            height: 100%; overflow: hidden;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
         }
-        
+
         :root {
-            --reader-bg: #f5f5dc;
-            --reader-text: #333;
+            --reader-bg: #ddc090;
+            --reader-text: #3e3422;
             --reader-bar-bg: rgba(139, 119, 101, 0.95);
-            --reader-bar-gradient: linear-gradient(to bottom, rgba(139, 119, 101, 0.95), rgba(139, 119, 101, 0.9));
-            --reader-bar-gradient-bottom: linear-gradient(to top, rgba(139, 119, 101, 0.95), rgba(139, 119, 101, 0.9));
             --reader-info-color: #8b7765;
             --reader-toc-bg: #f5f5dc;
             --reader-toc-border: #d4c4a8;
@@ -37,707 +33,213 @@
             --reader-loading-border: #d4c4a8;
             --reader-loading-spinner: #8b7765;
         }
-        
+
         .reader-container {
-            width: 100%;
-            height: 100%;
-            background: var(--reader-bg);
-            display: flex;
-            flex-direction: column;
-            position: relative;
+            width: 100%; height: 100%; background: var(--reader-bg);
+            display: flex; flex-direction: column; position: relative;
             transition: background 0.3s ease;
         }
-        
+
         .top-bar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 56px;
-            background: var(--reader-bar-gradient);
-            color: white;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0 20px;
-            z-index: 100;
-            transform: translateY(-100%);
-            transition: transform 0.3s ease;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            position: fixed; top: 0; left: 0; right: 0; height: 56px;
+            background: linear-gradient(to bottom, var(--reader-bar-bg), rgba(139,119,101,0.9));
+            color: white; display: flex; justify-content: space-between;
+            align-items: center; padding: 0 20px; z-index: 100;
+            transform: translateY(-100%); transition: transform 0.3s ease;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
         }
-        
-        .top-bar.visible {
-            transform: translateY(0);
-        }
-        
-        .top-bar-left {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-        }
-        
-        .top-bar-title {
-            font-size: 16px;
-            font-weight: 600;
-        }
-        
-        .top-bar-author {
-            font-size: 12px;
-            opacity: 0.8;
-        }
-        
-        .top-bar-right {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .top-bar-chapter {
-            font-size: 14px;
-            max-width: 200px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        
+        .top-bar.visible { transform: translateY(0); }
+        .top-bar-left { display: flex; flex-direction: column; gap: 2px; }
+        .top-bar-title { font-size: 16px; font-weight: 600; }
+        .top-bar-author { font-size: 12px; opacity: 0.8; }
+        .top-bar-right { display: flex; align-items: center; gap: 8px; }
+        .top-bar-chapter { font-size: 14px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
         .back-btn {
-            background: none;
-            border: none;
-            color: white;
-            font-size: 24px;
-            cursor: pointer;
-            padding: 8px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background 0.2s;
+            background: none; border: none; color: white; font-size: 24px;
+            cursor: pointer; padding: 8px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; transition: background 0.2s;
         }
-        
-        .back-btn:hover {
-            background: rgba(255, 255, 255, 0.2);
-        }
-        
+        .back-btn:hover { background: rgba(255,255,255,0.2); }
+
         .content-area {
-            flex: 1;
-            display: flex;
-            position: relative;
-            overflow: hidden;
-            margin-top: 0;
-            margin-bottom: 0;
-            transition: margin-top 0.3s ease, margin-bottom 0.3s ease;
+            flex: 1; display: flex; position: relative; overflow: hidden;
+            margin-top: 0; margin-bottom: 0; transition: margin 0.3s ease;
         }
-        
-        .content-area.menu-visible {
-            margin-top: 56px;
-            margin-bottom: 80px;
-        }
-        
+        .content-area.menu-visible { margin-top: 56px; margin-bottom: 80px; }
+
         .page-container {
-            flex: 1;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            padding: 40px 20px;
-            overflow: hidden;
+            flex: 1; display: flex; justify-content: center;
+            align-items: flex-start; padding: 40px 20px; overflow: hidden;
         }
-        
-        .page-content {
-            max-width: 800px;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            position: relative;
-        }
-        
+        .page-content { max-width: 800px; width: 100%; height: 100%; overflow: hidden; position: relative; }
+
         .page-layer {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            font-size: 18px;
-            line-height: 2;
-            color: var(--reader-text);
-            text-align: justify;
-            word-break: break-all;
-            white-space: pre-wrap;
-            overflow: hidden;
-            padding: 40px 20px;
-            box-sizing: border-box;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            font-size: 18px; line-height: 2; color: var(--reader-text);
+            text-align: justify; word-break: break-all; white-space: pre-wrap;
+            overflow: hidden; padding: 40px 20px; box-sizing: border-box;
         }
-        
-        .page-layer > p,
-        .page-layer > div:not(.chapter-title-display):not(.continuation-content) {
-            text-indent: 2em;
-        }
-        
-        .continuation-content {
-            text-indent: 0;
-            display: block;
-        }
-        
-        .continuation-content:first-line {
-            text-indent: 0;
-        }
-        
-        #page-layer-bottom {
-            z-index: 1;
-        }
-        
-        #page-layer-top {
-            z-index: 2;
-        }
-        
+        .page-layer > p, .page-layer > div:not(.chapter-title-display):not(.continuation-content) { text-indent: 2em; }
+        .continuation-content { text-indent: 0; display: block; }
+        #page-layer-bottom { z-index: 1; }
+        #page-layer-top { z-index: 2; }
+
         .chapter-title-display {
-            font-size: 22px;
-            font-weight: 600;
-            color: var(--reader-text);
-            text-align: center;
-            margin-bottom: 24px;
-            line-height: 1.5;
+            font-size: 22px; font-weight: 600; color: var(--reader-text);
+            text-align: center; margin-bottom: 24px; line-height: 1.5;
         }
-        
-        .click-zone {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 30%;
-            z-index: 10;
-            cursor: pointer;
-        }
-        
-        .click-zone-left {
-            left: 0;
-        }
-        
-        .click-zone-right {
-            right: 0;
-        }
-        
-        .click-zone-center {
-            left: 30%;
-            right: 30%;
-            width: 40%;
-        }
-        
+
+        .click-zone { position: absolute; top: 0; bottom: 0; width: 30%; z-index: 10; cursor: pointer; }
+        .click-zone-left { left: 0; }
+        .click-zone-right { right: 0; }
+        .click-zone-center { left: 30%; right: 30%; width: 40%; }
+
         .bottom-bar {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 80px;
-            background: var(--reader-bar-gradient-bottom);
-            color: white;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            padding: 0 20px;
-            z-index: 100;
-            transform: translateY(100%);
-            transition: transform 0.3s ease;
-            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
+            position: fixed; bottom: 0; left: 0; right: 0; height: 80px;
+            background: linear-gradient(to top, var(--reader-bar-bg), rgba(139,119,101,0.9));
+            color: white; display: flex; flex-direction: column;
+            justify-content: center; padding: 0 20px; z-index: 100;
+            transform: translateY(100%); transition: transform 0.3s ease;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
         }
-        
-        .bottom-bar.visible {
-            transform: translateY(0);
-        }
-        
-        .bottom-bar-content {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-        
-        .bottom-bar-left {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        
-        .chapter-nav-btns {
-            display: flex;
-            gap: 12px;
-        }
-        
+        .bottom-bar.visible { transform: translateY(0); }
+        .bottom-bar-content { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .chapter-nav-btns { display: flex; gap: 12px; }
+        .bottom-bar-left { display: flex; align-items: center; gap: 12px; }
+
         .nav-btn {
-            background: rgba(255, 255, 255, 0.2);
-            border: none;
-            color: white;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            transition: background 0.2s;
+            background: rgba(255,255,255,0.2); border: none; color: white;
+            padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 14px;
+            display: flex; align-items: center; gap: 4px; transition: background 0.2s;
         }
-        
-        .nav-btn:hover:not(:disabled) {
-            background: rgba(255, 255, 255, 0.3);
-        }
-        
-        .nav-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        
-        .nav-btn .material-icons {
-            font-size: 18px;
-        }
-        
-        .progress-info {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
-        }
-        
-        .progress-text {
-            font-size: 12px;
-            opacity: 0.8;
-        }
-        
+        .nav-btn:hover:not(:disabled) { background: rgba(255,255,255,0.3); }
+        .nav-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .nav-btn .material-icons { font-size: 18px; }
+
+        .progress-info { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .progress-text { font-size: 12px; opacity: 0.8; }
         .progress-bar {
-            width: 100%;
-            height: 4px;
-            background: rgba(255, 255, 255, 0.3);
-            border-radius: 2px;
-            overflow: hidden;
+            width: 200px; height: 4px; background: rgba(255,255,255,0.3);
+            border-radius: 2px; overflow: hidden;
         }
-        
-        .progress-fill {
-            height: 100%;
-            background: white;
-            transition: width 0.3s ease;
-        }
-        
-        .toc-btn {
-            background: rgba(255, 255, 255, 0.2);
-            border: none;
-            color: white;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            transition: background 0.2s;
-        }
-        
-        .toc-btn:hover {
-            background: rgba(255, 255, 255, 0.3);
-        }
-        
-        .setting-btn {
-            background: rgba(255, 255, 255, 0.2);
-            border: none;
-            color: white;
-            padding: 8px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            transition: background 0.2s;
-        }
-        
-        .setting-btn:hover {
-            background: rgba(255, 255, 255, 0.3);
-        }
-        
-        .setting-btn.active {
-            background: rgba(255, 255, 255, 0.4);
-        }
-        
-        .mode-toggle-btn {
-            background: rgba(255, 255, 255, 0.2);
-            border: none;
-            color: white;
-            padding: 8px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            transition: background 0.2s;
-        }
-        
-        .mode-toggle-btn:hover {
-            background: rgba(255, 255, 255, 0.3);
-        }
-        
+        .progress-fill { height: 100%; background: white; transition: width 0.3s ease; }
+
         .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: var(--reader-loading-bg);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 200;
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--reader-loading-bg); display: flex;
+            flex-direction: column; justify-content: center; align-items: center; z-index: 200;
         }
-        
         .loading-spinner {
-            width: 40px;
-            height: 40px;
-            border: 3px solid var(--reader-loading-border);
-            border-top: 3px solid var(--reader-loading-spinner);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-bottom: 16px;
+            width: 40px; height: 40px; border: 3px solid var(--reader-loading-border);
+            border-top: 3px solid var(--reader-loading-spinner); border-radius: 50%;
+            animation: spin 1s linear infinite; margin-bottom: 16px;
         }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .loading-text {
-            color: var(--reader-loading-spinner);
-            font-size: 14px;
-        }
-        
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .loading-text { color: var(--reader-loading-spinner); font-size: 14px; }
+
         .toc-panel {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 150;
-            display: none;
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5); z-index: 150; display: none;
         }
-        
-        .toc-panel.open {
-            display: block;
-        }
-        
+        .toc-panel.open { display: block; }
         .toc-content {
-            position: absolute;
-            right: 0;
-            top: 0;
-            width: 320px;
-            max-width: 80%;
-            height: 100%;
-            background: var(--reader-toc-bg);
-            box-shadow: -2px 0 8px rgba(0, 0, 0, 0.2);
-            overflow-y: auto;
+            position: absolute; right: 0; top: 0; width: 320px; max-width: 80%;
+            height: 100%; background: var(--reader-toc-bg);
+            box-shadow: -2px 0 8px rgba(0,0,0,0.2); overflow-y: auto;
         }
-        
         .toc-header {
-            padding: 20px;
-            border-bottom: 1px solid var(--reader-toc-border);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            position: sticky;
-            top: 0;
-            background: var(--reader-toc-bg);
-            z-index: 10;
+            padding: 20px; border-bottom: 1px solid var(--reader-toc-border);
+            display: flex; justify-content: space-between; align-items: center;
+            position: sticky; top: 0; background: var(--reader-toc-bg); z-index: 10;
         }
-        
-        .toc-header h3 {
-            margin: 0;
-            font-size: 16px;
-            color: var(--reader-text);
-        }
-        
+        .toc-header h3 { margin: 0; font-size: 16px; color: var(--reader-text); }
         .toc-close {
-            background: none;
-            border: none;
-            font-size: 24px;
-            cursor: pointer;
-            color: var(--reader-info-color);
-            padding: 0;
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            background: none; border: none; font-size: 24px; cursor: pointer;
+            color: var(--reader-info-color); padding: 0; width: 32px; height: 32px;
+            display: flex; align-items: center; justify-content: center;
         }
-        
-        .toc-list {
-            padding: 0;
-            margin: 0;
-            list-style: none;
-        }
-        
+        .toc-list { padding: 0; margin: 0; list-style: none; }
         .toc-item {
-            padding: 14px 20px;
-            cursor: pointer;
-            border-bottom: 1px solid var(--reader-toc-border);
-            transition: background-color 0.2s;
-            color: var(--reader-text);
+            padding: 14px 20px; cursor: pointer; border-bottom: 1px solid var(--reader-toc-border);
+            transition: background-color 0.2s; color: var(--reader-text);
         }
-        
-        .toc-item:hover {
-            background: var(--reader-toc-hover);
-        }
-        
-        .toc-item.active {
-            background: var(--reader-toc-active);
-        }
-        
-        .toc-item .chapter-index {
-            font-size: 12px;
-            color: var(--reader-info-color);
-            margin-right: 8px;
-        }
-        
+        .toc-item:hover { background: var(--reader-toc-hover); }
+        .toc-item.active { background: var(--reader-toc-active); }
+        .toc-item .chapter-index { font-size: 12px; color: var(--reader-info-color); margin-right: 8px; }
+
         .page-indicator {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.6);
-            color: white;
-            padding: 6px 16px;
-            border-radius: 20px;
-            font-size: 12px;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-            pointer-events: none;
-            z-index: 50;
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.6); color: white; padding: 6px 16px;
+            border-radius: 20px; font-size: 12px; opacity: 0;
+            transition: opacity 0.3s ease; pointer-events: none; z-index: 50;
         }
-        
-        .page-indicator.visible {
-            opacity: 1;
-        }
-        
+        .page-indicator.visible { opacity: 1; }
+
         .end-chapter-tip {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 14px;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-            pointer-events: none;
-            z-index: 50;
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.7); color: white; padding: 12px 24px;
+            border-radius: 8px; font-size: 14px; opacity: 0;
+            transition: opacity 0.3s ease; pointer-events: none; z-index: 50;
         }
-        
-        .end-chapter-tip.visible {
-            opacity: 1;
-        }
-        
+        .end-chapter-tip.visible { opacity: 1; }
+
         .info-bar {
-            position: fixed;
-            bottom: 12px;
-            left: 20px;
-            color: var(--reader-info-color);
-            font-size: 12px;
-            z-index: 50;
-            pointer-events: none;
-            line-height: 1.6;
-            opacity: 0.8;
+            position: fixed; bottom: 12px; left: 20px;
+            color: var(--reader-text); font-size: 12px; z-index: 50;
+            pointer-events: none; line-height: 1.6; opacity: 0.8;
         }
-        
-        .info-bar .info-line {
-            display: flex;
-            gap: 8px;
-        }
-        
-        .info-bar .info-separator {
-            margin: 0 4px;
-        }
-        
+        .info-bar .info-line { display: flex; gap: 8px; }
+        .info-bar .info-separator { margin: 0 4px; opacity: 0.5; }
+
         .settings-panel {
-            position: fixed;
-            bottom: 90px;
-            right: 20px;
-            background: var(--reader-toc-bg);
-            border: 1px solid var(--reader-toc-border);
-            border-radius: 8px;
-            padding: 16px 20px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-            z-index: 120;
-            display: none;
-            min-width: 280px;
-            max-width: 320px;
+            position: fixed; bottom: 90px; right: 20px;
+            background: var(--reader-toc-bg); border: 1px solid var(--reader-toc-border);
+            border-radius: 8px; padding: 16px 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 120;
+            display: none; min-width: 280px; max-width: 320px;
         }
-        
-        .settings-panel.visible {
-            display: block;
-            animation: fadeInUp 0.25s ease;
-        }
-        
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        .settings-section {
-            margin-bottom: 18px;
-        }
-        
-        .settings-section:last-child {
-            margin-bottom: 0;
-        }
-        
+        .settings-panel.visible { display: block; animation: fadeInUp 0.25s ease; }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .settings-section { margin-bottom: 18px; }
+        .settings-section:last-child { margin-bottom: 0; }
         .settings-label {
-            color: var(--reader-text);
-            font-size: 13px;
-            font-weight: 500;
-            margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            opacity: 0.85;
+            color: var(--reader-text); font-size: 13px; font-weight: 500;
+            margin-bottom: 12px; display: flex; align-items: center; gap: 6px; opacity: 0.85;
         }
-        
-        .settings-label .material-icons {
-            font-size: 16px;
-            opacity: 0.7;
-        }
-        
-        .theme-options {
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-        
-        .theme-option {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 6px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .theme-option:hover {
-            transform: translateY(-2px);
-        }
-        
+        .settings-label .material-icons { font-size: 16px; opacity: 0.7; }
+
+        .theme-options { display: flex; gap: 12px; flex-wrap: wrap; }
+        .theme-option { display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; }
+        .theme-option:hover { transform: translateY(-2px); }
         .theme-color {
-            width: 40px;
-            height: 40px;
-            border-radius: 8px;
-            border: 2px solid transparent;
-            transition: all 0.2s;
-            position: relative;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            width: 40px; height: 40px; border-radius: 8px;
+            border: 2px solid transparent; transition: all 0.2s; position: relative;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
-        
-        .theme-option.active .theme-color {
-            border-color: var(--reader-text);
-            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
-        }
-        
-        .theme-name {
-            font-size: 11px;
-            color: var(--reader-text);
-            opacity: 0.7;
-            white-space: nowrap;
-        }
-        
-        .theme-option.active .theme-name {
-            opacity: 1;
-            font-weight: 500;
-        }
-        
-        .animation-options {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-        
+        .theme-option.active .theme-color { border-color: var(--reader-text); box-shadow: 0 2px 12px rgba(0,0,0,0.2); }
+        .theme-name { font-size: 11px; color: var(--reader-text); opacity: 0.7; white-space: nowrap; }
+        .theme-option.active .theme-name { opacity: 1; font-weight: 500; }
+
+        .animation-options { display: flex; gap: 8px; flex-wrap: wrap; }
         .animation-option {
-            padding: 8px 16px;
-            background: transparent;
-            border: 1px solid var(--reader-toc-border);
-            border-radius: 6px;
-            color: var(--reader-text);
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.2s;
+            padding: 8px 16px; background: transparent; border: 1px solid var(--reader-toc-border);
+            border-radius: 6px; color: var(--reader-text); font-size: 13px; cursor: pointer;
         }
-        
-        .animation-option:hover {
-            background: var(--reader-toc-hover);
-        }
-        
-        .animation-option.active {
-            background: var(--reader-toc-active);
-            border-color: var(--reader-text);
-            font-weight: 500;
-        }
-        
-        .settings-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            z-index: 110;
-            display: none;
-        }
-        
-        .settings-overlay.visible {
-            display: block;
-        }
+        .animation-option:hover { background: var(--reader-toc-hover); }
+        .animation-option.active { background: var(--reader-toc-active); border-color: var(--reader-text); font-weight: 500; }
 
-        .debug-toast {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: rgba(0, 0, 0, 0.85);
-            color: #fff;
-            padding: 12px 16px;
-            border-radius: 8px;
-            font-size: 13px;
-            max-width: 350px;
-            z-index: 9999;
-            opacity: 0;
-            transform: translateY(20px);
-            transition: opacity 0.3s, transform 0.3s;
-            pointer-events: none;
-            word-wrap: break-word;
-            white-space: pre-wrap;
-            line-height: 1.5;
-        }
-
-        .debug-toast.visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        .debug-toast.error {
-            background: rgba(220, 53, 69, 0.95);
-        }
-
-        .debug-toast.success {
-            background: rgba(40, 167, 69, 0.95);
-        }
+        .settings-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 110; display: none; }
+        .settings-overlay.visible { display: block; }
     </style>
 </head>
 <body>
-    <div id="debug-toast" class="debug-toast"></div>
-    
     <div id="loading-overlay" class="loading-overlay">
         <div class="loading-spinner"></div>
         <div class="loading-text">加载中...</div>
     </div>
-    
+
     <div class="reader-container" id="reader-container">
         <div class="top-bar" id="top-bar">
             <div class="top-bar-left">
@@ -751,12 +253,12 @@
                 </button>
             </div>
         </div>
-        
+
         <div class="content-area" id="content-area">
             <div class="click-zone click-zone-left" onclick="handleClick('left')"></div>
             <div class="click-zone click-zone-center" onclick="handleClick('center')"></div>
             <div class="click-zone click-zone-right" onclick="handleClick('right')"></div>
-            
+
             <div class="page-container">
                 <div class="page-content">
                     <div class="page-layer" id="page-layer-bottom"></div>
@@ -764,43 +266,38 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="bottom-bar" id="bottom-bar">
             <div class="bottom-bar-content">
                 <div class="chapter-nav-btns">
                     <button class="nav-btn" id="prev-chapter-btn" onclick="prevChapter()">
-                        <span class="material-icons">navigate_before</span>
-                        上一章
+                        <span class="material-icons">navigate_before</span>上一章
                     </button>
                     <button class="nav-btn" id="next-chapter-btn" onclick="nextChapter()">
-                        下一章
-                        <span class="material-icons">navigate_next</span>
+                        下一章<span class="material-icons">navigate_next</span>
                     </button>
                 </div>
                 <div class="progress-info">
-                    <div class="progress-text" id="progress-text">第 1 页 / 共 1 页</div>
+                    <div class="progress-text" id="progress-text">第 1 章 / 共 1 章</div>
                     <div class="progress-bar">
-                        <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+                        <div class="progress-fill" id="progress-fill" style="width:0%"></div>
                     </div>
                 </div>
                 <div class="bottom-bar-left">
-                    <button class="setting-btn" id="setting-btn" onclick="toggleSettings()">
-                        <span class="material-icons">palette</span>
-                        主题
+                    <button class="nav-btn" id="setting-btn" onclick="toggleSettings()">
+                        <span class="material-icons">palette</span>主题
                     </button>
-                    <button class="mode-toggle-btn" id="mode-toggle-btn" onclick="toggleDayNightMode()">
+                    <button class="nav-btn" id="mode-toggle-btn" onclick="toggleDayNightMode()">
                         <span class="material-icons" id="mode-icon">dark_mode</span>
                     </button>
-                    <button class="toc-btn" onclick="toggleToc()">
-                        <span class="material-icons">menu_book</span>
-                        目录
+                    <button class="nav-btn" onclick="toggleToc()">
+                        <span class="material-icons">menu_book</span>目录
                     </button>
                 </div>
             </div>
         </div>
-        
+
         <div class="settings-overlay" id="settings-overlay" onclick="closeSettings()"></div>
-        
         <div class="settings-panel" id="settings-panel">
             <div class="settings-section">
                 <div class="settings-label">
@@ -811,8 +308,7 @@
             </div>
             <div class="settings-section">
                 <div class="settings-label">
-                    <span class="material-icons">auto_stories</span>
-                    翻页动画
+                    <span class="material-icons">auto_stories</span>翻页动画
                 </div>
                 <div class="animation-options" id="animation-options">
                     <div class="animation-option active" data-animation="slide" onclick="setAnimation('slide')">滑动</div>
@@ -822,10 +318,10 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="page-indicator" id="page-indicator">第 1 页</div>
         <div class="end-chapter-tip" id="end-chapter-tip">已读本章，点击继续下一章</div>
-        
+
         <div class="info-bar" id="info-bar">
             <div class="info-line">
                 <span id="info-time">00:00</span>
@@ -838,7 +334,7 @@
                 <span id="info-pages">第 1 页 / 共 1 页</span>
             </div>
         </div>
-        
+
         <div class="toc-panel" id="toc-panel">
             <div class="toc-content">
                 <div class="toc-header">
@@ -849,92 +345,38 @@
             </div>
         </div>
     </div>
-    
+
     <script>
-        console.log('=== iFlyCompass 沉浸式阅读器加载完成 ===');
+        console.log('=== iFlyCompass 沉浸式阅读器 v2 ===');
 
-        var debugToastTimer = null;
-        function showDebugToast(message, type) {
-            var toast = document.getElementById('debug-toast');
-            if (!toast) return;
-
-            toast.textContent = message;
-            toast.className = 'debug-toast visible';
-            if (type === 'error') toast.classList.add('error');
-            else if (type === 'success') toast.classList.add('success');
-
-            if (debugToastTimer) clearTimeout(debugToastTimer);
-            debugToastTimer = setTimeout(function() {
-                toast.classList.remove('visible');
-            }, 2000);
-        }
-
-        // 兼容性处理：旧版 WebView 可能没有 localStorage
+        // localStorage shim
         if (!window.localStorage) {
-            console.log('[沉浸式阅读器] 检测到无 localStorage，创建 mock 对象');
-            window.localStorage = {
-                _data: {},
-                getItem: function(key) {
-                    return this._data[key] || null;
-                },
-                setItem: function(key, value) {
-                    this._data[key] = value;
-                },
-                removeItem: function(key) {
-                    delete this._data[key];
-                },
-                clear: function() {
-                    this._data = {};
-                }
-            };
+            window.localStorage = { _data: {}, getItem: function(k) { return this._data[k] || null; }, setItem: function(k,v) { this._data[k] = v; }, removeItem: function(k) { delete this._data[k]; }, clear: function() { this._data = {}; } };
         }
-
-        // 兼容性处理：确保 localStorage 方法可用
-        try {
-            localStorage.setItem('test', 'test');
-            localStorage.removeItem('test');
-        } catch (e) {
-            console.log('[沉浸式阅读器] localStorage 不可用，创建 mock 对象');
-            var mockStorage = {
-                _data: {},
-                getItem: function(key) {
-                    return this._data[key] || null;
-                },
-                setItem: function(key, value) {
-                    this._data[key] = value;
-                },
-                removeItem: function(key) {
-                    delete this._data[key];
-                },
-                clear: function() {
-                    this._data = {};
-                }
-            };
-            Object.defineProperty(window, 'localStorage', {
-                value: mockStorage,
-                writable: true
-            });
+        try { localStorage.setItem('_t', '1'); localStorage.removeItem('_t'); } catch(e) {
+            var _ms = { _data: {}, getItem: function(k) { return this._data[k] || null; }, setItem: function(k,v) { this._data[k] = v; }, removeItem: function(k) { delete this._data[k]; }, clear: function() { this._data = {}; } };
+            Object.defineProperty(window, 'localStorage', { value: _ms, writable: true });
         }
 
         var THEMES = {
             day: [
-                { name: '牛奶白', bg: '#FEFEFE', text: '#000000', barBg: 'rgba(180, 180, 180, 0.95)' },
-                { name: '卷轴黄', bg: '#DDC090', text: '#3E3422', barBg: 'rgba(139, 119, 101, 0.95)' },
-                { name: '小草绿', bg: '#C1D7A9', text: '#596C44', barBg: 'rgba(89, 108, 68, 0.95)' },
-                { name: '基佬紫', bg: '#DAB7E1', text: '#67506B', barBg: 'rgba(103, 80, 107, 0.95)' },
-                { name: '云雾蓝', bg: '#AACDDF', text: '#3D4C54', barBg: 'rgba(61, 76, 84, 0.95)' }
+                { name: '牛奶白', bg: '#FEFEFE', text: '#000000', barBg: 'rgba(180,180,180,0.95)' },
+                { name: '卷轴黄', bg: '#DDC090', text: '#3E3422', barBg: 'rgba(139,119,101,0.95)' },
+                { name: '小草绿', bg: '#C1D7A9', text: '#596C44', barBg: 'rgba(89,108,68,0.95)' },
+                { name: '基佬紫', bg: '#DAB7E1', text: '#67506B', barBg: 'rgba(103,80,107,0.95)' },
+                { name: '云雾蓝', bg: '#AACDDF', text: '#3D4C54', barBg: 'rgba(61,76,84,0.95)' }
             ],
             night: [
-                { name: '星空黑', bg: '#000000', text: '#FFFFFF', barBg: 'rgba(40, 40, 40, 0.95)' },
-                { name: '玄素灰', bg: '#3C3F43', text: '#DCDFE1', barBg: 'rgba(60, 63, 67, 0.95)' }
+                { name: '星空黑', bg: '#000000', text: '#FFFFFF', barBg: 'rgba(40,40,40,0.95)' },
+                { name: '玄素灰', bg: '#3C3F43', text: '#DCDFE1', barBg: 'rgba(60,63,67,0.95)' }
             ]
         };
+
         var urlParams = new URLSearchParams(window.location.search);
         var currentNovel = urlParams.get('novel') || '';
         var currentChapter = parseInt(urlParams.get('chapter')) || 0;
         var currentAuthor = urlParams.get('author') || '未知作者';
         var chapters = [];
-        var chapterContent = '';
         var pages = [];
         var currentPage = 0;
         var menuVisible = false;
@@ -944,12 +386,7 @@
         var isChapterLoading = false;
         var isAnimating = false;
 
-        var settings = {
-            mode: 'day',
-            themeIndex: 1,
-            animation: 'slide'
-        };
-
+        var settings = { mode: 'day', themeIndex: 1, animation: 'slide' };
         var FONT_SIZE = 18;
         var LINE_HEIGHT = 2;
         var PADDING_VERTICAL = 80;
@@ -958,161 +395,98 @@
         var TITLE_LINE_HEIGHT = 1.5;
         var TITLE_MARGIN_BOTTOM = 24;
 
-        var currentChapterName = '';
-
+        // ── Settings ───────────────────────────────────────────────
         function loadSettings() {
             var saved = localStorage.getItem('immersiveReaderSettings');
             if (saved) {
                 try {
-                    var parsed = JSON.parse(saved);
-                    if (parsed.mode !== undefined) settings.mode = parsed.mode;
-                    if (parsed.themeIndex !== undefined) settings.themeIndex = parsed.themeIndex;
-                    if (parsed.animation !== undefined) settings.animation = parsed.animation;
-                } catch (e) {
-                    console.log('加载设置失败:', e);
-                }
+                    var p = JSON.parse(saved);
+                    if (p.mode !== undefined) settings.mode = p.mode;
+                    if (p.themeIndex !== undefined) settings.themeIndex = p.themeIndex;
+                    if (p.animation !== undefined) settings.animation = p.animation;
+                } catch(e) {}
             }
         }
-        
-        function saveSettings() {
-            localStorage.setItem('immersiveReaderSettings', JSON.stringify(settings));
-        }
-        
+
+        function saveSettings() { localStorage.setItem('immersiveReaderSettings', JSON.stringify(settings)); }
+
         function applyTheme() {
             var themeList = settings.mode === 'day' ? THEMES.day : THEMES.night;
             var theme = themeList[settings.themeIndex] || themeList[0];
-            
-            document.documentElement.style.setProperty('--reader-bg', theme.bg);
-            document.documentElement.style.setProperty('--reader-text', theme.text);
-            document.documentElement.style.setProperty('--reader-bar-bg', theme.barBg);
-            var gradientBottom = 'linear-gradient(to bottom, ' + theme.barBg + ', ' + theme.barBg.replace('0.95', '0.9') + ')';
-            document.documentElement.style.setProperty('--reader-bar-gradient', gradientBottom);
-            var gradientTop = 'linear-gradient(to top, ' + theme.barBg + ', ' + theme.barBg.replace('0.95', '0.9') + ')';
-            document.documentElement.style.setProperty('--reader-bar-gradient-bottom', gradientTop);
-            document.documentElement.style.setProperty('--reader-info-color', theme.text);
-            document.documentElement.style.setProperty('--reader-toc-bg', theme.bg);
-            document.documentElement.style.setProperty('--reader-toc-border', 
-                settings.mode === 'day' ? '#d4c4a8' : 'rgba(255,255,255,0.1)');
-            document.documentElement.style.setProperty('--reader-toc-hover', 
-                settings.mode === 'day' ? '#e8e0c8' : 'rgba(255,255,255,0.05)');
-            document.documentElement.style.setProperty('--reader-toc-active', 
-                settings.mode === 'day' ? '#d4c4a8' : 'rgba(255,255,255,0.1)');
-            var loadingBg = theme.bg.replace(')', ', 0.95)').replace('rgb', 'rgba').replace('rgba(', 'rgba(');
-            document.documentElement.style.setProperty('--reader-loading-bg', loadingBg);
-            document.documentElement.style.setProperty('--reader-loading-border', 
-                settings.mode === 'day' ? '#d4c4a8' : 'rgba(255,255,255,0.2)');
-            document.documentElement.style.setProperty('--reader-loading-spinner', theme.text);
-            
+            var root = document.documentElement.style;
+            root.setProperty('--reader-bg', theme.bg);
+            root.setProperty('--reader-text', theme.text);
+            root.setProperty('--reader-bar-bg', theme.barBg);
+            root.setProperty('--reader-info-color', theme.text);
+            root.setProperty('--reader-toc-bg', theme.bg);
+            root.setProperty('--reader-toc-border', settings.mode === 'day' ? '#d4c4a8' : 'rgba(255,255,255,0.1)');
+            root.setProperty('--reader-toc-hover', settings.mode === 'day' ? '#e8e0c8' : 'rgba(255,255,255,0.05)');
+            root.setProperty('--reader-toc-active', settings.mode === 'day' ? '#d4c4a8' : 'rgba(255,255,255,0.1)');
+            root.setProperty('--reader-loading-spinner', theme.text);
             updateModeButton();
             updateThemeOptions();
         }
-        
+
         function updateModeButton() {
             var icon = document.getElementById('mode-icon');
-            var btn = document.getElementById('mode-toggle-btn');
-            if (settings.mode === 'day') {
-                icon.textContent = 'dark_mode';
-                btn.title = '切换到夜间模式';
-            } else {
-                icon.textContent = 'light_mode';
-                btn.title = '切换到日间模式';
-            }
+            icon.textContent = settings.mode === 'day' ? 'dark_mode' : 'light_mode';
         }
-        
+
         function updateThemeOptions() {
             var container = document.getElementById('theme-options');
             var themeList = settings.mode === 'day' ? THEMES.day : THEMES.night;
-            var label = document.getElementById('theme-label');
-            
-            label.textContent = settings.mode === 'day' ? '日间主题' : '夜间主题';
-            
+            document.getElementById('theme-label').textContent = settings.mode === 'day' ? '日间主题' : '夜间主题';
             var html = '';
             for (var i = 0; i < themeList.length; i++) {
-                var theme = themeList[i];
-                var activeClass = i === settings.themeIndex ? ' active' : '';
-                html += '<div class="theme-option' + activeClass + '" onclick="setTheme(' + i + ')">' +
-                        '<div class="theme-color" style="background: ' + theme.bg + ';"></div>' +
-                        '<span class="theme-name">' + theme.name + '</span>' +
-                        '</div>';
+                var t = themeList[i];
+                html += '<div class="theme-option' + (i === settings.themeIndex ? ' active' : '') + '" onclick="setTheme(' + i + ')">' +
+                    '<div class="theme-color" style="background:' + t.bg + ';"></div>' +
+                    '<span class="theme-name">' + t.name + '</span></div>';
             }
             container.innerHTML = html;
         }
-        
-        function setTheme(index) {
-            settings.themeIndex = index;
-            saveSettings();
-            applyTheme();
-        }
-        
+
+        function setTheme(i) { settings.themeIndex = i; saveSettings(); applyTheme(); }
+
         function toggleDayNightMode() {
             settings.mode = settings.mode === 'day' ? 'night' : 'day';
-            settings.themeIndex = 0;
-            saveSettings();
-            applyTheme();
+            settings.themeIndex = 0; saveSettings(); applyTheme();
         }
-        
-        function setAnimation(type) {
-            settings.animation = type;
-            saveSettings();
-            updateAnimationOptions();
-        }
-        
+
+        function setAnimation(type) { settings.animation = type; saveSettings(); updateAnimationOptions(); }
         function updateAnimationOptions() {
-            document.querySelectorAll('.animation-option').forEach(function(opt) {
-                opt.classList.toggle('active', opt.dataset.animation === settings.animation);
+            document.querySelectorAll('.animation-option').forEach(function(o) {
+                o.classList.toggle('active', o.dataset.animation === settings.animation);
             });
         }
-        
+
         function toggleSettings() {
             var panel = document.getElementById('settings-panel');
             var overlay = document.getElementById('settings-overlay');
             var btn = document.getElementById('setting-btn');
-            
-            var isVisible = panel.classList.contains('visible');
-            
-            if (isVisible) {
-                closeSettings();
-            } else {
-                panel.classList.add('visible');
-                overlay.classList.add('visible');
-                btn.classList.add('active');
-            }
+            var show = !panel.classList.contains('visible');
+            panel.classList.toggle('visible', show);
+            overlay.classList.toggle('visible', show);
+            btn.classList.toggle('active', show);
         }
-        
         function closeSettings() {
             document.getElementById('settings-panel').classList.remove('visible');
             document.getElementById('settings-overlay').classList.remove('visible');
             document.getElementById('setting-btn').classList.remove('active');
         }
-        
+
+        // ── Pagination ─────────────────────────────────────────────
         function calculatePageDimensions() {
             var container = document.querySelector('.page-content');
-            var containerWidth = container.clientWidth || (window.innerWidth - PADDING_HORIZONTAL * 2);
-            var containerHeight = container.clientHeight || (window.innerHeight - PADDING_VERTICAL * 2);
-            
-            var actualLineHeight = FONT_SIZE * LINE_HEIGHT;
-            var linesPerPage = Math.floor(containerHeight / actualLineHeight);
-            
-            var charWidth = FONT_SIZE * 0.6;
-            var charsPerLine = Math.floor(containerWidth / charWidth);
-            
-            linesPerPage = Math.max(Math.floor(linesPerPage * 0.95), 5);
-            charsPerLine = Math.max(Math.floor(charsPerLine * 0.95), 10);
-            
-            linesPerPage = Math.max(linesPerPage - 3, 5);
-            charsPerLine = Math.max(charsPerLine - 2, 10);
-            
-            return {
-                linesPerPage: linesPerPage,
-                charsPerLine: charsPerLine,
-                containerWidth: containerWidth,
-                containerHeight: containerHeight
-            };
+            var w = container.clientWidth || (window.innerWidth - PADDING_HORIZONTAL * 2);
+            var h = container.clientHeight || (window.innerHeight - PADDING_VERTICAL * 2);
+            var lineH = FONT_SIZE * LINE_HEIGHT;
+            var lpp = Math.max(Math.floor(h / lineH * 0.95) - 3, 5);
+            var cpl = Math.max(Math.floor(w / (FONT_SIZE * 0.6) * 0.95) - 2, 10);
+            return { linesPerPage: lpp, charsPerLine: cpl, containerWidth: w, containerHeight: h };
         }
-        
-        document.addEventListener('DOMContentLoaded', function() {
-            init();
-        });
+
+        document.addEventListener('DOMContentLoaded', function() { init(); });
 
         async function init() {
             try {
@@ -1124,451 +498,226 @@
                 updateTime();
                 setInterval(updateTime, 1000);
 
-                await loadChapterList();
-                await loadChapter(currentChapter);
+                await loadNovelAndParse();
+
+                if (chapters.length > 0) {
+                    if (currentChapter < 0) currentChapter = 0;
+                    if (currentChapter >= chapters.length) currentChapter = chapters.length - 1;
+                    await loadChapter(currentChapter);
+                }
                 hideLoading();
-            } catch (error) {
-                showDebugToast('【错误】初始化失败: ' + error.message, 'error');
+            } catch(error) {
+                console.error('初始化失败:', error);
+                hideLoading();
+                if (window.ELEMENT && window.ELEMENT.Message) {
+                    window.ELEMENT.Message.error({ message: '加载失败: ' + error.message, duration: 3000 });
+                }
             }
         }
-        
+
+        async function loadNovelAndParse() {
+            // Load full novel content from IndexedDB
+            var record = await NovelCache.getNovelFile(currentNovel);
+            if (!record || !record.complete || !record.content) {
+                throw new Error('小说未缓存，请先在小说阅读器中下载');
+            }
+
+            // Parse chapters on browser side
+            chapters = NovelChapterParser.parseChapters(record.content);
+            console.log('解析完成:', chapters.length, '章');
+        }
+
         function updateTime() {
             var now = new Date();
-            var hours = String(now.getHours()).padStart(2, '0');
-            var minutes = String(now.getMinutes()).padStart(2, '0');
-            var timeStr = hours + ':' + minutes;
-            document.getElementById('info-time').textContent = timeStr;
+            var h = String(now.getHours()).padStart(2, '0');
+            var m = String(now.getMinutes()).padStart(2, '0');
+            document.getElementById('info-time').textContent = h + ':' + m;
         }
-        
+
         function updateInfoBar() {
-            var novelText = currentNovel || '未设置';
-            var chapterText = currentChapterName || '未知章节';
-            var pagesText = '第 ' + (currentPage + 1) + ' 页 / 共 ' + pages.length + ' 页';
-            
-            document.getElementById('info-novel').textContent = novelText;
-            document.getElementById('info-chapter').textContent = chapterText;
-            document.getElementById('info-pages').textContent = pagesText;
+            document.getElementById('info-novel').textContent = currentNovel || '未设置';
+            document.getElementById('info-chapter').textContent = (chapters[currentChapter] && chapters[currentChapter].name) || '';
+            document.getElementById('info-pages').textContent = '第 ' + (currentPage + 1) + ' 页 / 共 ' + pages.length + ' 页';
         }
-        
-        async function loadChapterList() {
-            try {
-                var apiUrl = '/api/novels/' + encodeURIComponent(currentNovel) + '/chapters';
-                var response = await fetch(apiUrl);
-                var data = await response.json();
-                
-                if (data.success) {
-                    chapters = data.chapters || [];
-                    console.log('获取到章节列表:', chapters.length, '章');
-                } else {
-                    console.error('获取章节列表失败:', data.error);
-                }
-            } catch (error) {
-                showDebugToast('【错误-加载章节列表】' + error.message);
-                console.error('加载章节列表失败:', error);
-            }
-        }
-        
+
         async function loadChapter(chapterIndex) {
-            try {
-                if (chapterIndex < 0 || chapterIndex >= chapters.length) {
-                    console.log('章节索引超出范围:', chapterIndex);
-                    return Promise.resolve();
-                }
-                
-                currentChapter = chapterIndex;
-                if (chapterCache[chapterIndex]) {
-                    console.log('使用缓存的章节内容:', chapterIndex);
-                    var cached = chapterCache[chapterIndex];
-                    chapterContent = cached.content;
-                    currentChapterName = cached.chapterName;
+            if (chapterIndex < 0 || chapterIndex >= chapters.length) return;
 
-                    document.getElementById('chapter-name').textContent = currentChapterName;
-                    paginateContent();
-                    currentPage = 0;
-                    renderPage();
-                    updateUI();
-                    await fetch('/api/novels/' + encodeURIComponent(currentNovel) + '/progress', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ chapter_index: chapterIndex })
-                    });
-                    preloadChapters(chapterIndex);
-                    return Promise.resolve();
-                }
+            currentChapter = chapterIndex;
+            var ch = chapters[chapterIndex];
 
-                showLoading();
-
-                var chapterApiUrl = '/api/novels/' + encodeURIComponent(currentNovel) + '/chapters/' + chapterIndex;
-                var response = await fetch(chapterApiUrl);
-                var data = await response.json();
-
-                if (data.success) {
-                    chapterContent = data.content || '';
-                    currentChapterName = data.chapter_name || '未知章节';
-
-                    document.getElementById('chapter-name').textContent = currentChapterName;
-
-                    chapterCache[chapterIndex] = {
-                        content: chapterContent,
-                        chapterName: currentChapterName
-                    };
-
-                    paginateContent();
-                    currentPage = 0;
-                    renderPage();
-                    updateUI();
-                    await fetch('/api/novels/' + encodeURIComponent(currentNovel) + '/progress', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ chapter_index: chapterIndex })
-                    });
-                    preloadChapters(chapterIndex);
-                } else {
-                    console.error('获取章节内容失败:', data.error);
-                }
-            } catch (error) {
-                showDebugToast('【错误-loadChapter】' + error.message);
-                console.error('加载章节内容失败:', error);
-            } finally {
-                hideLoading();
+            // Check memory cache
+            if (chapterCache[chapterIndex]) {
+                paginateContent(chapterCache[chapterIndex]);
+            } else {
+                // Chapter content is already separated by the parser
+                paginateContent(ch.content || '');
+                chapterCache[chapterIndex] = ch.content || '';
             }
+
+            currentPage = 0;
+            document.getElementById('chapter-name').textContent = ch.name || '';
+            renderPage();
+            updateUI();
+
+            // Save local progress
+            NovelCache.saveProgress(currentNovel, chapterIndex, 0);
+
+            // Preload adjacent chapters into memory cache
+            preloadChapters(chapterIndex);
         }
-        
-        async function preloadChapters(currentIndex) {
-            var preloadIndices = [currentIndex + 1, currentIndex + 2];
-            
-            for (var i = 0; i < preloadIndices.length; i++) {
-                var idx = preloadIndices[i];
+
+        function preloadChapters(currentIdx) {
+            [currentIdx + 1, currentIdx + 2].forEach(function(idx) {
                 if (idx >= 0 && idx < chapters.length && !chapterCache[idx]) {
-                    console.log('预加载章节:', idx);
-                    try {
-                        var response = await fetch('/api/novels/' + encodeURIComponent(currentNovel) + '/chapters/' + idx);
-                        var data = await response.json();
-                        
-                        if (data.success) {
-                            chapterCache[idx] = {
-                                content: data.content || '',
-                                chapterName: data.chapter_name || '未知章节'
-                            };
-                            console.log('预加载章节完成:', idx);
-                        }
-                    } catch (error) {
-                        console.log('预加载章节失败:', idx, error);
-                    }
+                    chapterCache[idx] = chapters[idx].content || '';
                 }
-            }
-        }
-        
-        function paginateContent() {
-            
-            pages = [];
-            
-            if (!chapterContent) {
-                pages.push('');
-                return;
-            }
-            
-            var dimensions = calculatePageDimensions();
-            var linesPerPage = dimensions.linesPerPage;
-            var charsPerLine = dimensions.charsPerLine;
-            
-            console.log('页面尺寸计算:', {
-                容器宽度: dimensions.containerWidth,
-                容器高度: dimensions.containerHeight,
-                每页行数: linesPerPage,
-                每行字符数: charsPerLine
             });
-            
-            var titleHeight = TITLE_FONT_SIZE * TITLE_LINE_HEIGHT + TITLE_MARGIN_BOTTOM;
-            var normalLineHeight = FONT_SIZE * LINE_HEIGHT;
-            var titleLines = Math.ceil(titleHeight / normalLineHeight);
-            
-            var paragraphs = chapterContent.split('\n');
-            var currentPageContent = '';
-            var currentLines = 0;
-            var isFirstPage = true;
-            var isContinuation = false;
-            
-            for (var paraIndex = 0; paraIndex < paragraphs.length; paraIndex++) {
-                var para = paragraphs[paraIndex];
-                if (para.trim() === '') {
-                    para = '';
-                }
-                
-                var paraLines = Math.ceil(para.length / charsPerLine) || 1;
-                var effectiveLinesPerPage = isFirstPage ? (linesPerPage - titleLines) : linesPerPage;
-                
-                if (currentLines + paraLines > effectiveLinesPerPage && currentPageContent) {
-                    pages.push({
-                        content: currentPageContent.trim(),
-                        isFirstPage: isFirstPage,
-                        isContinuation: isContinuation
-                    });
-                    currentPageContent = para + '\n';
-                    currentLines = paraLines;
-                    isFirstPage = false;
-                    isContinuation = false;
-                } else {
-                    currentPageContent += para + '\n';
-                    currentLines += paraLines;
-                }
-                
-                while (currentLines > (isFirstPage ? linesPerPage - titleLines : linesPerPage)) {
-                    var totalChars = currentPageContent.replace(/\n/g, '').length;
-                    var effectiveLines = isFirstPage ? linesPerPage - titleLines : linesPerPage;
-                    var approxCharsPerPage = effectiveLines * charsPerLine;
-                    
-                    if (totalChars > approxCharsPerPage) {
-                        var breakPoint = approxCharsPerPage;
-                        var linesSoFar = 0;
-                        var charCount = 0;
-                        
-                        for (var charIndex = 0; charIndex < currentPageContent.length; charIndex++) {
-                            if (currentPageContent[charIndex] === '\n') {
-                                linesSoFar++;
-                            } else {
-                                charCount++;
-                                if (charCount % charsPerLine === 0) {
-                                    linesSoFar++;
-                                }
-                            }
-                            
-                            if (linesSoFar >= effectiveLines) {
-                                breakPoint = charIndex + 1;
-                                break;
-                            }
-                        }
-                        
-                        var pageContent = currentPageContent.substring(0, breakPoint).trim();
-                        if (pageContent) {
-                            pages.push({
-                                content: pageContent,
-                                isFirstPage: isFirstPage,
-                                isContinuation: isContinuation
-                            });
-                        }
-                        currentPageContent = currentPageContent.substring(breakPoint);
-                        isFirstPage = false;
-                        isContinuation = true;
-                        var remainingChars = currentPageContent.replace(/\n/g, '').length;
-                        currentLines = Math.ceil(remainingChars / charsPerLine);
-                    } else {
-                        break;
-                    }
-                }
-            }
-            
-            if (currentPageContent.trim()) {
-                pages.push({
-                    content: currentPageContent.trim(),
-                    isFirstPage: isFirstPage,
-                    isContinuation: isContinuation
-                });
-            }
-            
-            if (pages.length === 0) {
-                pages.push({
-                    content: '',
-                    isFirstPage: true,
-                    isContinuation: false
-                });
-            }
-            
-            console.log('分页完成:', pages.length, '页');
         }
-        
-        function renderPageContent(pageIndex) {
-            var pageData = pages[pageIndex];
-            
-            if (pageData !== undefined) {
-                var content = '';
-                
-                if (pageData.isFirstPage && currentChapterName) {
-                    content = '<div class="chapter-title-display">' + currentChapterName + '</div>';
-                }
-                
-                if (pageData.isContinuation) {
-                    content += '<div class="continuation-content">' + (pageData.content || '') + '</div>';
+
+        function paginateContent(content) {
+            pages = [];
+            if (!content) { pages.push(''); return; }
+
+            var dims = calculatePageDimensions();
+            var lpp = dims.linesPerPage;
+            var cpl = dims.charsPerLine;
+            var titleH = TITLE_FONT_SIZE * TITLE_LINE_HEIGHT + TITLE_MARGIN_BOTTOM;
+            var nlh = FONT_SIZE * LINE_HEIGHT;
+            var titleLines = Math.ceil(titleH / nlh);
+
+            var paragraphs = content.split('\n');
+            var curContent = '';
+            var curLines = 0;
+            var isFirst = true;
+            var isCont = false;
+
+            paragraphs.forEach(function(para) {
+                var pl = Math.ceil(para.length / cpl) || 1;
+                var eff = isFirst ? (lpp - titleLines) : lpp;
+
+                if (curLines + pl > eff && curContent) {
+                    pages.push({ content: curContent.trim(), isFirstPage: isFirst, isContinuation: isCont });
+                    curContent = para + '\n';
+                    curLines = pl;
+                    isFirst = false;
+                    isCont = false;
                 } else {
-                    content += pageData.content || '';
+                    curContent += para + '\n';
+                    curLines += pl;
                 }
-                
-                return content;
+
+                while (curLines > (isFirst ? lpp - titleLines : lpp)) {
+                    var tc = curContent.replace(/\n/g, '').length;
+                    var effLines = isFirst ? lpp - titleLines : lpp;
+                    var approx = effLines * cpl;
+                    if (tc > approx) {
+                        var bp = approx, ls = 0, cc = 0;
+                        for (var i = 0; i < curContent.length; i++) {
+                            if (curContent[i] === '\n') ls++;
+                            else { cc++; if (cc % cpl === 0) ls++; }
+                            if (ls >= effLines) { bp = i + 1; break; }
+                        }
+                        var pc = curContent.substring(0, bp).trim();
+                        if (pc) pages.push({ content: pc, isFirstPage: isFirst, isContinuation: isCont });
+                        curContent = curContent.substring(bp);
+                        isFirst = false;
+                        isCont = true;
+                        curLines = Math.ceil(curContent.replace(/\n/g, '').length / cpl);
+                    } else break;
+                }
+            });
+
+            if (curContent.trim()) {
+                pages.push({ content: curContent.trim(), isFirstPage: isFirst, isContinuation: isCont });
             }
-            return '';
+            if (pages.length === 0) pages.push({ content: '', isFirstPage: true, isContinuation: false });
         }
-        
+
+        function renderPageContent(idx) {
+            var pd = pages[idx];
+            if (!pd) return '';
+            var html = '';
+            if (pd.isFirstPage) {
+                var chName = (chapters[currentChapter] && chapters[currentChapter].name) || '';
+                if (chName) html += '<div class="chapter-title-display">' + chName + '</div>';
+            }
+            html += pd.isContinuation ? '<div class="continuation-content">' + (pd.content || '') + '</div>' : (pd.content || '');
+            return html;
+        }
+
         function renderPage() {
-            var topLayer = document.getElementById('page-layer-top');
-            var content = renderPageContent(currentPage);
-            topLayer.innerHTML = content;
+            document.getElementById('page-layer-top').innerHTML = renderPageContent(currentPage);
             updateInfoBar();
         }
 
-        function renderBothPages(topIndex, bottomIndex) {
-            var topLayer = document.getElementById('page-layer-top');
-            var bottomLayer = document.getElementById('page-layer-bottom');
-            
-            topLayer.innerHTML = renderPageContent(topIndex);
-            bottomLayer.innerHTML = renderPageContent(bottomIndex);
-        }
-        
         function updateUI() {
-            var prevBtn = document.getElementById('prev-chapter-btn');
-            var nextBtn = document.getElementById('next-chapter-btn');
-            
-            prevBtn.disabled = currentChapter <= 0;
-            nextBtn.disabled = currentChapter >= chapters.length - 1;
-            
-            var progress = ((currentChapter + 1) / chapters.length * 100).toFixed(1);
-            document.getElementById('progress-fill').style.width = progress + '%';
+            document.getElementById('prev-chapter-btn').disabled = currentChapter <= 0;
+            document.getElementById('next-chapter-btn').disabled = currentChapter >= chapters.length - 1;
+            var pct = chapters.length > 0 ? ((currentChapter + 1) / chapters.length * 100).toFixed(1) : 0;
+            document.getElementById('progress-fill').style.width = pct + '%';
             document.getElementById('progress-text').textContent = '第 ' + (currentChapter + 1) + ' 章 / 共 ' + chapters.length + ' 章';
         }
-        
+
         function handleClick(zone) {
-            if (zone === 'left') {
-                prevPage();
-            } else if (zone === 'right') {
-                nextPage();
-            } else if (zone === 'center') {
-                toggleMenu();
-            }
+            if (zone === 'left') prevPage();
+            else if (zone === 'right') nextPage();
+            else toggleMenu();
         }
-        
-        function animatePageTransition(direction, targetPage) {
+
+        function animatePageTransition(dir, target) {
             if (settings.animation === 'none' || isAnimating) {
-                currentPage = targetPage;
-                renderPage();
-                return;
+                currentPage = target; renderPage(); return;
             }
-            
             isAnimating = true;
-            var topLayer = document.getElementById('page-layer-top');
-            var bottomLayer = document.getElementById('page-layer-bottom');
-            
-            bottomLayer.innerHTML = renderPageContent(targetPage);
-            
-            if (settings.animation === 'slide') {
-                if (direction === 'next') {
-                    topLayer.style.transition = 'none';
-                    topLayer.style.transform = 'translateX(0)';
-                    bottomLayer.style.transition = 'none';
-                    bottomLayer.style.transform = 'translateX(100%)';
-                    
-                    requestAnimationFrame(function() {
-                        requestAnimationFrame(function() {
-                            topLayer.style.transition = 'transform 0.35s ease';
-                            topLayer.style.transform = 'translateX(-100%)';
-                            bottomLayer.style.transition = 'transform 0.35s ease';
-                            bottomLayer.style.transform = 'translateX(0)';
-                            
-                            setTimeout(function() {
-                                currentPage = targetPage;
-                                topLayer.style.transition = 'none';
-                                topLayer.style.transform = 'translateX(0)';
-                                topLayer.innerHTML = renderPageContent(currentPage);
-                                updateInfoBar();
-                                isAnimating = false;
-                            }, 350);
-                        });
-                    });
-                } else {
-                    topLayer.style.transition = 'none';
-                    topLayer.style.transform = 'translateX(0)';
-                    bottomLayer.style.transition = 'none';
-                    bottomLayer.style.transform = 'translateX(-100%)';
-                    
-                    requestAnimationFrame(function() {
-                        requestAnimationFrame(function() {
-                            topLayer.style.transition = 'transform 0.35s ease';
-                            topLayer.style.transform = 'translateX(100%)';
-                            bottomLayer.style.transition = 'transform 0.35s ease';
-                            bottomLayer.style.transform = 'translateX(0)';
-                            
-                            setTimeout(function() {
-                                currentPage = targetPage;
-                                topLayer.style.transition = 'none';
-                                topLayer.style.transform = 'translateX(0)';
-                                topLayer.innerHTML = renderPageContent(currentPage);
-                                updateInfoBar();
-                                isAnimating = false;
-                            }, 350);
-                        });
-                    });
-                }
-            } else if (settings.animation === 'scroll') {
-                if (direction === 'next') {
-                    topLayer.style.transition = 'none';
-                    topLayer.style.transform = 'translateY(0)';
-                    bottomLayer.style.transition = 'none';
-                    bottomLayer.style.transform = 'translateY(100%)';
-                    
-                    requestAnimationFrame(function() {
-                        requestAnimationFrame(function() {
-                            topLayer.style.transition = 'transform 0.4s ease';
-                            topLayer.style.transform = 'translateY(-100%)';
-                            bottomLayer.style.transition = 'transform 0.4s ease';
-                            bottomLayer.style.transform = 'translateY(0)';
-                            
-                            setTimeout(function() {
-                                currentPage = targetPage;
-                                topLayer.style.transition = 'none';
-                                topLayer.style.transform = 'translateY(0)';
-                                topLayer.innerHTML = renderPageContent(currentPage);
-                                updateInfoBar();
-                                isAnimating = false;
-                            }, 400);
-                        });
-                    });
-                } else {
-                    topLayer.style.transition = 'none';
-                    topLayer.style.transform = 'translateY(0)';
-                    bottomLayer.style.transition = 'none';
-                    bottomLayer.style.transform = 'translateY(-100%)';
-                    
-                    requestAnimationFrame(function() {
-                        requestAnimationFrame(function() {
-                            topLayer.style.transition = 'transform 0.4s ease';
-                            topLayer.style.transform = 'translateY(100%)';
-                            bottomLayer.style.transition = 'transform 0.4s ease';
-                            bottomLayer.style.transform = 'translateY(0)';
-                            
-                            setTimeout(function() {
-                                currentPage = targetPage;
-                                topLayer.style.transition = 'none';
-                                topLayer.style.transform = 'translateY(0)';
-                                topLayer.innerHTML = renderPageContent(currentPage);
-                                updateInfoBar();
-                                isAnimating = false;
-                            }, 400);
-                        });
-                    });
-                }
-            } else if (settings.animation === 'fade') {
-                topLayer.style.transition = 'opacity 0.3s ease';
-                topLayer.style.opacity = '0';
-                
-                setTimeout(function() {
-                    currentPage = targetPage;
-                    topLayer.innerHTML = renderPageContent(currentPage);
-                    topLayer.style.transition = 'opacity 0.3s ease';
-                    topLayer.style.opacity = '1';
-                    updateInfoBar();
-                    
-                    setTimeout(function() {
-                        isAnimating = false;
-                    }, 300);
-                }, 300);
-            } else {
-                currentPage = targetPage;
-                renderPage();
+            var top = document.getElementById('page-layer-top');
+            var bot = document.getElementById('page-layer-bottom');
+            bot.innerHTML = renderPageContent(target);
+            var dur = 350;
+
+            function finish() {
+                currentPage = target;
+                top.style.transition = 'none';
+                top.style.transform = dir === 'next' ? 'translateX(0)' : 'translateY(0)';
+                top.innerHTML = renderPageContent(currentPage);
+                updateInfoBar();
                 isAnimating = false;
             }
+
+            if (settings.animation === 'slide') {
+                top.style.transition = 'none'; top.style.transform = 'translateX(0)';
+                bot.style.transition = 'none'; bot.style.transform = 'translateX(' + (dir === 'next' ? '100%' : '-100%') + ')';
+                requestAnimationFrame(function() {
+                    requestAnimationFrame(function() {
+                        top.style.transition = 'transform 0.35s ease'; top.style.transform = 'translateX(' + (dir === 'next' ? '-100%' : '100%') + ')';
+                        bot.style.transition = 'transform 0.35s ease'; bot.style.transform = 'translateX(0)';
+                        setTimeout(finish, dur);
+                    });
+                });
+            } else if (settings.animation === 'scroll') {
+                top.style.transition = 'none'; top.style.transform = 'translateY(0)';
+                bot.style.transition = 'none'; bot.style.transform = 'translateY(' + (dir === 'next' ? '100%' : '-100%') + ')';
+                requestAnimationFrame(function() {
+                    requestAnimationFrame(function() {
+                        top.style.transition = 'transform 0.4s ease'; top.style.transform = 'translateY(' + (dir === 'next' ? '-100%' : '100%') + ')';
+                        bot.style.transition = 'transform 0.4s ease'; bot.style.transform = 'translateY(0)';
+                        setTimeout(finish, 400);
+                    });
+                });
+            } else if (settings.animation === 'fade') {
+                top.style.transition = 'opacity 0.3s ease'; top.style.opacity = '0';
+                setTimeout(function() {
+                    currentPage = target;
+                    top.innerHTML = renderPageContent(currentPage);
+                    top.style.transition = 'opacity 0.3s ease'; top.style.opacity = '1';
+                    updateInfoBar();
+                    setTimeout(function() { isAnimating = false; }, 300);
+                }, 300);
+            }
         }
-        
+
         function prevPage() {
             if (isChapterLoading || isAnimating) return;
-            
             if (currentPage > 0) {
                 animatePageTransition('prev', currentPage - 1);
             } else if (currentChapter > 0) {
@@ -1580,188 +729,108 @@
                 });
             }
         }
-        
+
         function nextPage() {
             if (isChapterLoading || isAnimating) return;
-            
             if (currentPage < pages.length - 1) {
                 animatePageTransition('next', currentPage + 1);
             } else if (currentChapter < chapters.length - 1) {
                 isChapterLoading = true;
-                showEndChapterTipInternal();
+                showEndChapterTip();
                 setTimeout(function() {
-                    hideEndChapterTipInternal();
-                    loadChapter(currentChapter + 1).then(function() {
-                        isChapterLoading = false;
-                    });
+                    hideEndChapterTip();
+                    loadChapter(currentChapter + 1).then(function() { isChapterLoading = false; });
                 }, 800);
             }
         }
-        
-        function showPageIndicator() {
-            var indicator = document.getElementById('page-indicator');
-            indicator.textContent = '第 ' + (currentPage + 1) + ' 页 / 共 ' + pages.length + ' 页';
-            indicator.classList.add('visible');
-            
-            if (pageIndicatorTimeout) {
-                clearTimeout(pageIndicatorTimeout);
-            }
-            
-            pageIndicatorTimeout = setTimeout(function() {
-                indicator.classList.remove('visible');
-            }, 1500);
-        }
-        
-        function showEndChapterTipInternal() {
-            document.getElementById('end-chapter-tip').classList.add('visible');
-        }
-        
-        function hideEndChapterTipInternal() {
-            document.getElementById('end-chapter-tip').classList.remove('visible');
-        }
-        
+
+        function showEndChapterTip() { document.getElementById('end-chapter-tip').classList.add('visible'); }
+        function hideEndChapterTip() { document.getElementById('end-chapter-tip').classList.remove('visible'); }
+
         function toggleMenu() {
             menuVisible = !menuVisible;
-            var topBar = document.getElementById('top-bar');
-            var bottomBar = document.getElementById('bottom-bar');
-            var contentArea = document.getElementById('content-area');
-            
-            if (menuVisible) {
-                topBar.classList.add('visible');
-                bottomBar.classList.add('visible');
-                contentArea.classList.add('menu-visible');
-            } else {
-                topBar.classList.remove('visible');
-                bottomBar.classList.remove('visible');
-                contentArea.classList.remove('menu-visible');
-                closeSettings();
-            }
-        }
-        
-        function prevChapter() {
-            if (currentChapter > 0) {
-                loadChapter(currentChapter - 1);
-            }
-        }
-        
-        function nextChapter() {
-            if (currentChapter < chapters.length - 1) {
-                loadChapter(currentChapter + 1);
-            }
-        }
-        
-        function toggleToc() {
-            var tocPanel = document.getElementById('toc-panel');
-            tocPanel.classList.toggle('open');
-            
-            if (tocPanel.classList.contains('open') && chapters.length > 0) {
-                generateTocList();
-            }
-        }
-        
-        function generateTocList() {
-            var tocList = document.getElementById('toc-list');
-            tocList.innerHTML = '';
-            
-            chapters.forEach(function(chapter, index) {
-                var li = document.createElement('li');
-                li.className = 'toc-item' + (index === currentChapter ? ' active' : '');
-                li.innerHTML = '<span class="chapter-index">' + (index + 1) + '.</span>' + chapter.name;
-                li.onclick = function() {
-                    loadChapter(index);
-                    toggleToc();
-                };
-                tocList.appendChild(li);
+            var show = menuVisible ? 'visible' : '';
+            ['top-bar','bottom-bar'].forEach(function(id) {
+                document.getElementById(id).classList.toggle('visible', menuVisible);
             });
+            document.getElementById('content-area').classList.toggle('menu-visible', menuVisible);
+            if (!menuVisible) closeSettings();
         }
-        
-        function goBack() {
-            window.location.href = '/tools/novelreader';
+
+        function prevChapter() { if (currentChapter > 0) loadChapter(currentChapter - 1); }
+        function nextChapter() { if (currentChapter < chapters.length - 1) loadChapter(currentChapter + 1); }
+
+        function toggleToc() {
+            var panel = document.getElementById('toc-panel');
+            panel.classList.toggle('open');
+            if (panel.classList.contains('open') && chapters.length > 0) {
+                var html = '';
+                chapters.forEach(function(ch, i) {
+                    html += '<li class="toc-item' + (i === currentChapter ? ' active' : '') +
+                        '" onclick="loadChapter(' + i + ');toggleToc();">' +
+                        '<span class="chapter-index">' + (i + 1) + '.</span>' + ch.name + '</li>';
+                });
+                document.getElementById('toc-list').innerHTML = html;
+            }
         }
-        
-        function showLoading() {
-            document.getElementById('loading-overlay').style.display = 'flex';
+
+        function showPageIndicator() {
+            var ind = document.getElementById('page-indicator');
+            ind.textContent = '第 ' + (currentPage + 1) + ' 页 / 共 ' + pages.length + ' 页';
+            ind.classList.add('visible');
+            if (pageIndicatorTimeout) clearTimeout(pageIndicatorTimeout);
+            pageIndicatorTimeout = setTimeout(function() { ind.classList.remove('visible'); }, 1500);
         }
-        
-        function hideLoading() {
-            document.getElementById('loading-overlay').style.display = 'none';
-        }
-        
+
+        function goBack() { window.location.href = '/tools/novelreader'; }
+        function hideLoading() { document.getElementById('loading-overlay').style.display = 'none'; }
+
+        // Keyboard
         document.addEventListener('keydown', function(e) {
-            if (e.key === 'ArrowLeft') {
-                e.preventDefault();
-                prevPage();
-            } else if (e.key === 'ArrowRight') {
-                e.preventDefault();
-                nextPage();
-            } else if (e.key === 'Escape') {
-                if (document.getElementById('settings-panel').classList.contains('visible')) {
-                    closeSettings();
-                } else if (document.getElementById('toc-panel').classList.contains('open')) {
-                    toggleToc();
-                } else if (menuVisible) {
-                    toggleMenu();
-                } else {
-                    goBack();
-                }
+            if (e.key === 'ArrowLeft') { e.preventDefault(); prevPage(); }
+            else if (e.key === 'ArrowRight') { e.preventDefault(); nextPage(); }
+            else if (e.key === 'Escape') {
+                if (document.getElementById('settings-panel').classList.contains('visible')) closeSettings();
+                else if (document.getElementById('toc-panel').classList.contains('open')) toggleToc();
+                else if (menuVisible) toggleMenu();
+                else goBack();
             }
         });
-        
+
         document.getElementById('toc-panel').addEventListener('click', function(e) {
-            if (e.target === this) {
-                toggleToc();
-            }
+            if (e.target === this) toggleToc();
         });
-        
+
+        // Resize handler
         window.addEventListener('resize', function() {
-            if (resizeTimeout) {
-                clearTimeout(resizeTimeout);
-            }
-            
+            if (resizeTimeout) clearTimeout(resizeTimeout);
             resizeTimeout = setTimeout(function() {
-                console.log('窗口大小改变，重新分页');
-                var savedCurrentChar = getCurrentCharPosition();
-                paginateContent();
-                findPageByCharPosition(savedCurrentChar);
+                var saved = getCurrentCharPosition();
+                paginateContent(chapterCache[currentChapter] || '');
+                findPageByCharPosition(saved);
                 renderPage();
             }, 300);
         });
-        
+
         function getCurrentCharPosition() {
             if (pages.length === 0 || currentPage === 0) return 0;
-            
-            var charCount = 0;
-            for (var i = 0; i < currentPage; i++) {
-                charCount += (pages[i] && pages[i].content || '').length;
-            }
-            return charCount;
+            var count = 0;
+            for (var i = 0; i < currentPage; i++) count += (pages[i] && pages[i].content || '').length;
+            return count;
         }
-        
-        function findPageByCharPosition(charPosition) {
-            var charCount = 0;
+
+        function findPageByCharPosition(charPos) {
+            var count = 0;
             for (var i = 0; i < pages.length; i++) {
-                var pageLength = (pages[i] && pages[i].content || '').length;
-                if (charCount + pageLength > charPosition) {
-                    currentPage = i;
-                    return;
-                }
-                charCount += pageLength;
+                var len = (pages[i] && pages[i].content || '').length;
+                if (count + len > charPos) { currentPage = i; return; }
+                count += len;
             }
             currentPage = Math.max(0, pages.length - 1);
         }
     </script>
-    <script>
-        // vConsole 调试工具 - 仅在支持的浏览器中加载
-        (function() {
-            try {
-                if (typeof VConsole !== 'undefined') {
-                    new VConsole();
-                }
-            } catch(e) {
-                console.log('vConsole 不支持此浏览器');
-            }
-        })();
-    </script>
+    <script src="/assets/js/offline-handler.js"></script>
     <script src="/assets/js/loading.js"></script>
+    {% include "_pwa_register.html" %}
 </body>
 </html>
