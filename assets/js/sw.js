@@ -61,6 +61,7 @@
     '/tools/immersive-reader',
     '/tools/biliplayer',
     '/tools/videoplayer',
+    '/tools/webproxy',
     '/ncmplayer',
     '/login',
     '/register',
