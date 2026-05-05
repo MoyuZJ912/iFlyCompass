@@ -14,6 +14,7 @@ from modules.announcement import announcement_bp
 from modules.drop import drop_bp
 from modules.video import video_bp
 from modules.bili import bili_bp
+from modules.proxy import proxy_bp
 from modules.chat.websocket import register_socketio_events
 from utils import init_settings, init_nav_file
 
@@ -201,6 +202,7 @@ def create_app():
     app.register_blueprint(drop_bp)
     app.register_blueprint(video_bp)
     app.register_blueprint(bili_bp)
+    app.register_blueprint(proxy_bp)
     
     register_socketio_events(socketio)
 
@@ -221,6 +223,9 @@ def create_app():
 
     init_settings()
     init_nav_file()
+    
+    from modules.proxy.proxy_server import start_proxy_server
+    start_proxy_server()
     
     return app
 

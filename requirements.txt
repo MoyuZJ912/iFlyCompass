@@ -13,3 +13,4 @@ bilibili-api-python
 curl_cffi
 aiohttp
 httpx
+mitmproxy
