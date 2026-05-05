@@ -70,6 +70,27 @@
   | CSS background-image 未替换 | 内联样式未处理 | 增加 style 属性处理 |
   | `/rp/xxx.png` 路径错误 | fakeOrigin 为空时解析错误 | 增加 baseScheme 变量保护 |
 
+### REL2.5.0_fix1
+
+**网页代理优化 - mitmdump 内置化**
+
+- **mitmdump.exe 打包到 tools 目录**：
+  - 将 `mitmdump.exe` 复制到项目内置的 `tools/` 目录
+  - 代理服务启动时优先从 `tools/` 目录查找 mitmproxy
+  - 无需系统安装 mitmproxy，开箱即用
+- **查找优先级调整**：
+  1. `tools/mitmdump.exe`（项目内置，最高优先级）✅ 新增
+  2. pip 安装位置（site-packages/Scripts）
+  3. Python 目录（sys.executable 同目录）
+  4. 系统 PATH（shutil.which）
+- **优势**：
+  - 部署更简单：无需额外配置环境或安装依赖
+  - 移植性更强：可打包为独立 EXE，自包含所有依赖
+  - 离线可用：不依赖网络下载或外部包管理器
+- **更新文件**：
+  - `modules/proxy/proxy_server.py` - 调整 `_find_mitmdump()` 查找逻辑
+  - `tools/mitmdump.exe` - 新增内置代理引擎文件
+
 ### REL2.4.2
 
 **NCM API 客户端统一重构**

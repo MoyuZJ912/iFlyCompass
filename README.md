@@ -233,6 +233,11 @@ iFlyCompass/
 │   ├── js/                  # JavaScript 文件
 │   │   └── drop.js          # Drop 脚本
 │   └── images/              # 图片文件
+├── tools/                    # 内置工具目录
+│   ├── ffmpeg/              # FFmpeg 视频处理工具
+│   │   ├── ffmpeg.exe       # FFmpeg 可执行文件
+│   │   └── ffprobe.exe      # FFprobe 媒体信息工具
+│   └── mitmdump.exe         # mitmproxy 代理引擎（网页代理功能）
 ├── templates/                # HTML 模板
 │   ├── chat.html            # 聊天室页面
 │   ├── chat-simple.html     # 简化版聊天页面

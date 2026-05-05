@@ -22,12 +22,47 @@ def get_local_ip():
 
 
 def _find_mitmdump():
+    try:
+        import subprocess
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        tools_dir = os.path.join(base_dir, 'tools')
+        if sys.platform == 'win32':
+            mitmdump_path = os.path.join(tools_dir, 'mitmdump.exe')
+        else:
+            mitmdump_path = os.path.join(tools_dir, 'mitmdump')
+        if os.path.isfile(mitmdump_path):
+            return mitmdump_path
+    except Exception:
+        pass
+
+    try:
+        result = subprocess.run(
+            [sys.executable, '-m', 'pip', 'show', 'mitmproxy'],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        if result.returncode == 0:
+            location = None
+            for line in result.stdout.splitlines():
+                if line.startswith('Location:'):
+                    location = line.split(':', 1)[1].strip()
+                    break
+            if location:
+                scripts_dir = os.path.join(location, '..', 'Scripts')
+                scripts_dir = os.path.normpath(scripts_dir)
+                if sys.platform == 'win32':
+                    mitmdump_path = os.path.join(scripts_dir, 'mitmdump.exe')
+                else:
+                    mitmdump_path = os.path.join(scripts_dir, 'mitmdump')
+                if os.path.isfile(mitmdump_path):
+                    return mitmdump_path
+    except Exception:
+        pass
+
     python_exe = sys.executable
     python_dir = os.path.dirname(python_exe)
-    mitmdump_path = os.path.join(python_dir, 'mitmdump.exe')
-    if os.path.isfile(mitmdump_path):
-        return mitmdump_path
-    mitmdump_path = os.path.join(python_dir, 'mitmdump')
+    mitmdump_path = os.path.join(python_dir, 'mitmdump.exe' if sys.platform == 'win32' else 'mitmdump')
     if os.path.isfile(mitmdump_path):
         return mitmdump_path
     try:
