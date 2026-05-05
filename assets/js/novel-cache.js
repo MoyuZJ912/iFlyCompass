@@ -1,15 +1,22 @@
 /**
- * NovelCache - IndexedDB wrapper for novel chapter caching.
- * All novel chapter content is stored browser-side so repeated
- * chapter navigation skips the server API entirely.
+ * NovelCache - IndexedDB wrapper for whole-book caching.
+ *
+ * Stores raw novel file bytes, decoded text, local reading progress,
+ * and user settings. Supports resume download via HTTP Range.
+ *
+ * DB: NovelCacheDB v2
+ *   novelFiles    — key: novelName, full book data + metadata
+ *   readingProgress — key: novelName, local reading position
+ *   userSettings  — key: novelName, per-novel user preferences
  */
 (function () {
   'use strict';
 
   var DB_NAME = 'NovelCacheDB';
-  var DB_VERSION = 1;
-  var LIST_STORE = 'chapterLists';
-  var CONTENT_STORE = 'chapterContents';
+  var DB_VERSION = 2;
+  var FILE_STORE = 'novelFiles';
+  var PROGRESS_STORE = 'readingProgress';
+  var SETTINGS_STORE = 'userSettings';
 
   var _db = null;
   var _pending = null;
@@ -23,11 +30,26 @@
 
       request.onupgradeneeded = function (e) {
         var db = e.target.result;
-        if (!db.objectStoreNames.contains(LIST_STORE)) {
-          db.createObjectStore(LIST_STORE, { keyPath: 'novelName' });
+        var oldVersion = e.oldVersion;
+
+        // Clean up old v1 stores if migrating
+        if (oldVersion < 2) {
+          if (db.objectStoreNames.contains('chapterLists')) {
+            db.deleteObjectStore('chapterLists');
+          }
+          if (db.objectStoreNames.contains('chapterContents')) {
+            db.deleteObjectStore('chapterContents');
+          }
         }
-        if (!db.objectStoreNames.contains(CONTENT_STORE)) {
-          db.createObjectStore(CONTENT_STORE, { keyPath: 'key' });
+
+        if (!db.objectStoreNames.contains(FILE_STORE)) {
+          db.createObjectStore(FILE_STORE, { keyPath: 'novelName' });
+        }
+        if (!db.objectStoreNames.contains(PROGRESS_STORE)) {
+          db.createObjectStore(PROGRESS_STORE, { keyPath: 'novelName' });
+        }
+        if (!db.objectStoreNames.contains(SETTINGS_STORE)) {
+          db.createObjectStore(SETTINGS_STORE, { keyPath: 'novelName' });
         }
       };
 
@@ -48,140 +70,195 @@
   }
 
   function promiseRequest(store, method) {
+    var args = Array.prototype.slice.call(arguments, 2);
     return new Promise(function (resolve, reject) {
-      var request = store[method].apply(store, Array.prototype.slice.call(arguments, 2));
+      var request = store[method].apply(store, args);
       request.onsuccess = function () { resolve(request.result); };
       request.onerror = function () { reject(request.error); };
     });
   }
 
+  // ── File storage ────────────────────────────────────────────────
+
+  function getFileStore(mode) {
+    return openDB().then(function (db) {
+      return db.transaction(FILE_STORE, mode).objectStore(FILE_STORE);
+    });
+  }
+
   window.NovelCache = {
-    getChapterList: function (novelName) {
+
+    // ── Novel file operations ─────────────────────────────────────
+
+    /**
+     * Get stored novel file record.
+     * Returns { novelName, totalSize, encoding, serverModified,
+     *           receivedBytes, content, complete, cachedAt } or null.
+     */
+    getNovelFile: function (novelName) {
       return openDB().then(function (db) {
         return promiseRequest(
-          db.transaction(LIST_STORE, 'readonly').objectStore(LIST_STORE),
-          'get',
-          novelName
-        ).then(function (record) {
-          return record ? record.chapters : null;
-        });
+          db.transaction(FILE_STORE, 'readonly').objectStore(FILE_STORE),
+          'get', novelName
+        );
       }).catch(function (err) {
-        console.warn('[NovelCache] getChapterList failed, will fetch from server:', err.message);
+        console.warn('[NovelCache] getNovelFile failed:', err.message);
         return null;
       });
     },
 
-    setChapterList: function (novelName, chapters) {
+    /**
+     * Store/update a novel file record.
+     */
+    putNovelFile: function (record) {
       return openDB().then(function (db) {
-        return promiseRequest(
-          db.transaction(LIST_STORE, 'readwrite').objectStore(LIST_STORE),
-          'put',
-          { novelName: novelName, chapters: chapters, cachedAt: Date.now() }
-        );
-      }).catch(function (err) {
-        console.warn('[NovelCache] setChapterList failed:', err.message);
-      });
-    },
-
-    getChapterContent: function (novelName, chapterIndex) {
-      var key = novelName + '_' + chapterIndex;
-      return openDB().then(function (db) {
-        return promiseRequest(
-          db.transaction(CONTENT_STORE, 'readonly').objectStore(CONTENT_STORE),
-          'get',
-          key
-        ).then(function (record) {
-          if (!record) return null;
-          return { content: record.content, chapterName: record.chapterName };
+        return new Promise(function (resolve, reject) {
+          var tx = db.transaction(FILE_STORE, 'readwrite');
+          var store = tx.objectStore(FILE_STORE);
+          store.put(record);
+          tx.oncomplete = function () { resolve(); };
+          tx.onerror = function () { reject(tx.error); };
         });
       }).catch(function (err) {
-        console.warn('[NovelCache] getChapterContent failed, will fetch from server:', err.message);
-        return null;
+        console.warn('[NovelCache] putNovelFile failed:', err.message);
       });
     },
 
-    setChapterContent: function (novelName, chapterIndex, content, chapterName) {
-      var key = novelName + '_' + chapterIndex;
+    /**
+     * Save partial download progress for resume support.
+     */
+    savePartialBytes: function (novelName, rawBytes, receivedBytes, totalSize, encoding, serverModified) {
+      return this.putNovelFile({
+        novelName: novelName,
+        rawBytes: rawBytes,
+        totalSize: totalSize,
+        encoding: encoding,
+        serverModified: serverModified,
+        receivedBytes: receivedBytes,
+        content: null,
+        complete: false,
+        cachedAt: Date.now()
+      });
+    },
+
+    /**
+     * Mark download complete with decoded content.
+     */
+    markDownloadComplete: function (novelName, content, totalSize, encoding, serverModified) {
+      return this.putNovelFile({
+        novelName: novelName,
+        totalSize: totalSize,
+        encoding: encoding,
+        serverModified: serverModified,
+        receivedBytes: totalSize,
+        content: content,
+        rawBytes: null,
+        complete: true,
+        cachedAt: Date.now()
+      });
+    },
+
+    /**
+     * Check if a novel is fully cached and up-to-date with server.
+     */
+    isNovelCached: function (novelName, serverModified) {
+      return this.getNovelFile(novelName).then(function (record) {
+        if (!record || !record.complete) return false;
+        if (serverModified !== undefined && record.serverModified !== serverModified) return false;
+        return true;
+      });
+    },
+
+    /**
+     * Get all locally cached novels (for the local list).
+     */
+    getAllLocalNovels: function () {
       return openDB().then(function (db) {
         return promiseRequest(
-          db.transaction(CONTENT_STORE, 'readwrite').objectStore(CONTENT_STORE),
-          'put',
-          { key: key, content: content, chapterName: chapterName, cachedAt: Date.now() }
-        );
-      }).catch(function (err) {
-        console.warn('[NovelCache] setChapterContent failed:', err.message);
-      });
-    },
-
-    isNovelFullyCached: function (novelName, totalChapters) {
-      return openDB().then(function (db) {
-        var store = db.transaction(CONTENT_STORE, 'readonly').objectStore(CONTENT_STORE);
-        var range = IDBKeyRange.bound(novelName + '_0', novelName + '_' + (totalChapters - 1));
-        return promiseRequest(store, 'count', range).then(function (count) {
-          return count >= totalChapters;
+          db.transaction(FILE_STORE, 'readonly').objectStore(FILE_STORE),
+          'getAll'
+        ).then(function (records) {
+          return records.filter(function (r) { return r.complete; });
         });
       }).catch(function (err) {
-        console.warn('[NovelCache] isNovelFullyCached failed:', err.message);
-        return false;
+        console.warn('[NovelCache] getAllLocalNovels failed:', err.message);
+        return [];
       });
     },
 
-    cacheAllChapters: function (novelName, chapters) {
-      return openDB().then(function (db) {
-        var tx = db.transaction(CONTENT_STORE, 'readwrite');
-        var store = tx.objectStore(CONTENT_STORE);
-        return Promise.all(chapters.map(function (ch) {
-          return promiseRequest(store, 'put', {
-            key: novelName + '_' + ch.index,
-            content: ch.content,
-            chapterName: ch.name,
-            cachedAt: Date.now()
-          });
-        }));
-      }).catch(function (err) {
-        console.warn('[NovelCache] cacheAllChapters failed:', err.message);
-      });
-    },
-
-    getCachedChapterCount: function (novelName) {
-      return openDB().then(function (db) {
-        var range = IDBKeyRange.bound(novelName + '_', novelName + '_￿');
-        return promiseRequest(
-          db.transaction(CONTENT_STORE, 'readonly').objectStore(CONTENT_STORE),
-          'count',
-          range
-        );
-      }).catch(function (err) {
-        console.warn('[NovelCache] getCachedChapterCount failed:', err.message);
-        return 0;
-      });
-    },
-
+    /**
+     * Delete a novel from local cache.
+     */
     deleteNovel: function (novelName) {
       return openDB().then(function (db) {
-        var tx = db.transaction([LIST_STORE, CONTENT_STORE], 'readwrite');
-        promiseRequest(tx.objectStore(LIST_STORE), 'delete', novelName);
-
-        // Delete all chapter contents for this novel
-        var contentStore = tx.objectStore(CONTENT_STORE);
-        var range = IDBKeyRange.bound(novelName + '_', novelName + '_￿');
-        promiseRequest(contentStore, 'openCursor', range).then(function (cursor) {
-          return new Promise(function (resolve) {
-            function deleteNext(c) {
-              if (!c) { resolve(); return; }
-              c.delete();
-              c.continue();
-            }
-            contentStore.openCursor(range).onsuccess = function (e) {
-              var c = e.target.result;
-              if (c) { c.delete(); c.continue(); } else { resolve(); }
-            };
-          });
+        return new Promise(function (resolve, reject) {
+          var tx = db.transaction([FILE_STORE, PROGRESS_STORE, SETTINGS_STORE], 'readwrite');
+          tx.objectStore(FILE_STORE).delete(novelName);
+          tx.objectStore(PROGRESS_STORE).delete(novelName);
+          tx.objectStore(SETTINGS_STORE).delete(novelName);
+          tx.oncomplete = function () { resolve(); };
+          tx.onerror = function () { reject(tx.error); };
         });
       }).catch(function (err) {
         console.warn('[NovelCache] deleteNovel failed:', err.message);
       });
     },
+
+    // ── Reading progress (local only) ─────────────────────────────
+
+    getProgress: function (novelName) {
+      return openDB().then(function (db) {
+        return promiseRequest(
+          db.transaction(PROGRESS_STORE, 'readonly').objectStore(PROGRESS_STORE),
+          'get', novelName
+        );
+      }).catch(function () { return null; });
+    },
+
+    saveProgress: function (novelName, chapterIndex, scrollPosition) {
+      return openDB().then(function (db) {
+        return promiseRequest(
+          db.transaction(PROGRESS_STORE, 'readwrite').objectStore(PROGRESS_STORE),
+          'put',
+          { novelName: novelName, chapterIndex: chapterIndex,
+            scrollPosition: scrollPosition || 0, updatedAt: Date.now() }
+        );
+      }).catch(function (err) {
+        console.warn('[NovelCache] saveProgress failed:', err.message);
+      });
+    },
+
+    // ── User settings ─────────────────────────────────────────────
+
+    getSettings: function (novelName) {
+      return openDB().then(function (db) {
+        return promiseRequest(
+          db.transaction(SETTINGS_STORE, 'readonly').objectStore(SETTINGS_STORE),
+          'get', novelName
+        );
+      }).then(function (record) {
+        return record || { novelName: novelName, skipUpdatePrompt: false };
+      }).catch(function () {
+        return { novelName: novelName, skipUpdatePrompt: false };
+      });
+    },
+
+    setSettings: function (novelName, settings) {
+      return openDB().then(function (db) {
+        var store = db.transaction(SETTINGS_STORE, 'readwrite').objectStore(SETTINGS_STORE);
+        return promiseRequest(store, 'get', novelName).then(function (existing) {
+          var merged = existing || { novelName: novelName };
+          Object.keys(settings).forEach(function (k) {
+            merged[k] = settings[k];
+          });
+          return promiseRequest(store, 'put', merged);
+        });
+      }).catch(function (err) {
+        console.warn('[NovelCache] setSettings failed:', err.message);
+      });
+    },
+
+    // ── Utility ───────────────────────────────────────────────────
 
     clearAll: function () {
       return openDB().then(function (db) {

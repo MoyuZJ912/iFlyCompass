@@ -27,6 +27,7 @@
     '/assets/js/loading.js',
     '/assets/js/drop.js',
     '/assets/js/novel-cache.js',
+    '/assets/js/chapter-parser.js',
     '/assets/js/offline-handler.js',
     '/assets/js/socket.io.js',
     '/assets/js/aplayer.min.js',

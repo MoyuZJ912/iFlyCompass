@@ -20,7 +20,7 @@ No test suite exists. Testing is manual (browser + Postman + browser dev tools f
 
 **Three-layer design:**
 
-1. **`models/`** — SQLAlchemy ORM models. `User` (with `is_admin`/`is_super_admin` booleans), `ChatRoom`, `UserSticker`/`PackSticker`, `NovelReadingProgress`, `Announcement`/`UserAnnouncementStatus`, `DropMessage`/`DropSettings`/`DropBlacklist`, `VideoAccessControl`/`VideoAccessUser`.
+1. **`models/`** — SQLAlchemy ORM models. `User` (with `is_admin`/`is_super_admin` booleans), `ChatRoom`, `UserSticker`/`PackSticker`, `Announcement`/`UserAnnouncementStatus`, `DropMessage`/`DropSettings`/`DropBlacklist`, `VideoAccessControl`/`VideoAccessUser`.
 
 2. **`utils/`** — Shared utilities. Key ones: `ncm_api.py` (unified `NCMAPIClient` class with global `ncm_client` singleton — the single entry point for all NetEase Cloud Music API calls), `music_cache.py` (music/cover caching only, no API logic), `chapter_parser.py` (V3.1 anchor-learning chapter detection), `novel_cache.py` (startup pre-scan cache), `system_settings.py` (YAML read/write for settings), `validators.py` (password/username/nickname validation).
 
@@ -43,5 +43,6 @@ No test suite exists. Testing is manual (browser + Postman + browser dev tools f
 ## Important Notes
 
 - `utils/ncm_service.py` is a leftover file from the REL2.4.2 NCM API refactoring. Nothing imports it. `utils/ncm_api.py` (the `NCMAPIClient` class) is the canonical NCM API module.
+- **Novel module (v2)**: Whole-book caching architecture. Client downloads the raw .txt file once (with progress bar + Range-based resume), stores it in IndexedDB (`NovelCacheDB` v2), and parses chapters locally via `chapter-parser.js`. Reading progress is stored only in IndexedDB (no server-side sync). The API surface is: `GET /api/novels` (cloud list), `POST /api/novels/refresh-cache`, `GET /api/novels/<name>/info` (size/modified/encoding), `GET /api/novels/<name>/file` (raw bytes with Range support). Old endpoints (`chapters`, `download-all`, `progress`) have been removed.
 - `instance/`, `stickers/`, `temp/` are in `.gitignore`. Runtime data includes `temp/music/` (music cache), `temp/bili/` (B站 video cache), and `instance/novels/` (novel files).
 - See `DEVELOPMENT.md` for detailed version history and per-release change logs.
