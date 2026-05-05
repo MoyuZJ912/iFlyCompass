@@ -38,7 +38,7 @@ No test suite exists. Testing is manual (browser + Postman + browser dev tools f
 
 **Database**: SQLite via SQLAlchemy. Migrations are hand-written in `app.py:run_migrations()` — checks for missing columns/tables with raw SQL and adds them. No Alembic.
 
-**FFmpeg**: Bundled in `tools/ffmpeg/ffmpeg.exe` and `ffprobe.exe` (~100MB each). Used for B站 video audio/video merging after download.
+**FFmpeg**: Cross-platform via `utils/ffmpeg.py`. On Windows uses bundled `tools/ffmpeg/ffmpeg.exe`. On Linux/macOS checks system PATH first, then auto-downloads static builds from johnvansickle.com to `tools/ffmpeg/`. Used for B站 video audio/video merging.
 
 ## Important Notes
 

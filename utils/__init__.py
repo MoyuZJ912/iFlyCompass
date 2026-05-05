@@ -5,6 +5,7 @@ from .novel_cache import init_novel_cache, get_novel_cache, get_novel_info, get_
 from .system_settings import get_settings, update_settings, get_setting, set_setting, reset_settings, init_settings
 from .validators import validate_password_strength, is_weak_password, validate_username, validate_nickname, PASSWORD_STRENGTH_LEVELS
 from .nav import init_nav_file, get_nav_items
+from .ffmpeg import get_ffmpeg_path, get_ffprobe_path, ensure_ffmpeg, verify_ffmpeg
 
 __all__ = [
     'get_bing_wallpaper', 'get_poetry', 'generate_passkey', 'get_utc_plus_8_time',
@@ -13,5 +14,6 @@ __all__ = [
     'init_novel_cache', 'get_novel_cache', 'get_novel_info', 'get_all_novels', 'refresh_novel_cache', 'is_cache_initialized',
     'get_settings', 'update_settings', 'get_setting', 'set_setting', 'reset_settings', 'init_settings',
     'validate_password_strength', 'is_weak_password', 'validate_username', 'validate_nickname', 'PASSWORD_STRENGTH_LEVELS',
-    'init_nav_file', 'get_nav_items'
+    'init_nav_file', 'get_nav_items',
+    'get_ffmpeg_path', 'get_ffprobe_path', 'ensure_ffmpeg', 'verify_ffmpeg'
 ]

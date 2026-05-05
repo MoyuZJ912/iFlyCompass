@@ -16,8 +16,7 @@ except Exception as e:
 
 BILI_DIR = os.path.join(Config.TEMP_DIR, 'bili') if Config.TEMP_DIR else os.path.join(os.path.dirname(__file__), '..', 'temp', 'bili')
 
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-FFMPEG_PATH = os.path.join(PROJECT_ROOT, 'tools', 'ffmpeg', 'ffmpeg.exe')
+FFMPEG_PATH = None
 
 QUALITY_MAP = {
     16: '360P',
@@ -42,32 +41,13 @@ executor = ThreadPoolExecutor(max_workers=5)
 
 def check_ffmpeg():
     global FFMPEG_PATH
-    
-    if os.path.exists(FFMPEG_PATH):
-        print(f'[Bili] FFmpeg路径: {FFMPEG_PATH}')
-        
-        try:
-            result = subprocess.run([FFMPEG_PATH, '-version'], capture_output=True, text=True, timeout=10)
-            if result.returncode == 0:
-                version_line = result.stdout.split('\n')[0] if result.stdout else ''
-                print(f'[Bili] FFmpeg版本: {version_line}')
-                return True
-            else:
-                print(f'[Bili] FFmpeg执行失败，返回码: {result.returncode}')
-        except Exception as e:
-            print(f'[Bili] FFmpeg测试失败: {e}')
-    
-    FFMPEG_PATH = 'ffmpeg'
-    
-    try:
-        result = subprocess.run([FFMPEG_PATH, '-version'], capture_output=True, text=True, timeout=10)
-        if result.returncode == 0:
-            print(f'[Bili] 使用系统PATH中的FFmpeg')
-            return True
-    except:
-        pass
-    
-    print('[Bili] 警告: FFmpeg未找到，视频转换功能将不可用')
+    from utils.ffmpeg import ensure_ffmpeg
+
+    ffmpeg_path = ensure_ffmpeg()
+    if ffmpeg_path:
+        FFMPEG_PATH = ffmpeg_path
+        return True
+
     FFMPEG_PATH = None
     return False
 

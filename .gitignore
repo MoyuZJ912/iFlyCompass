@@ -7,3 +7,8 @@ temp/
 __pycache__/
 *.pyc
 lib/
+
+# FFmpeg 二进制（跨平台自动下载）
+tools/ffmpeg/ffmpeg
+tools/ffmpeg/ffprobe
+tools/ffmpeg/ffmpeg.tar.xz

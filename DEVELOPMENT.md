@@ -2,6 +2,34 @@
 
 ## 版本更新
 
+### DEV2.5.2
+
+**跨平台 FFmpeg 支持**
+
+- **问题背景**：
+  - 项目捆绑的 FFmpeg 为 Windows 可执行文件（`tools/ffmpeg/ffmpeg.exe`），Linux 无法使用
+  - `modules/bili/download_service.py` 硬编码 `.exe` 路径，Linux 上 B站视频缓存功能不可用
+- **新增 `utils/ffmpeg.py` 工具模块**：
+  - `get_ffmpeg_path()` — 跨平台 FFmpeg 路径解析，检查顺序：捆绑二进制 → 系统 PATH
+  - `get_ffprobe_path()` — 同上，用于 FFprobe
+  - `ensure_ffmpeg()` — 统一入口，找不到时在 Linux/macOS 上自动下载静态构建
+  - `_download_ffmpeg_linux()` — 从 `johnvansickle.com` 下载静态 FFmpeg（~40MB tar.xz），解压到 `tools/ffmpeg/`
+  - `verify_ffmpeg()` — 验证 FFmpeg 可执行性并返回版本
+- **路径规则**：
+  | 平台 | 捆绑路径 | 回退 |
+  |------|---------|------|
+  | Windows | `tools/ffmpeg/ffmpeg.exe` | `shutil.which('ffmpeg')` |
+  | Linux | `tools/ffmpeg/ffmpeg` | `shutil.which('ffmpeg')` → 自动下载 |
+  | macOS | `tools/ffmpeg/ffmpeg` | `shutil.which('ffmpeg')` → 自动下载 |
+- **变更文件**：
+  - **新增**：`utils/ffmpeg.py`
+  - **修改**：`modules/bili/download_service.py`（`check_ffmpeg()` 改用 `ensure_ffmpeg()`，移除硬编码路径和冗余代码）
+  - **修改**：`utils/__init__.py`（导出 FFmpeg 工具函数）
+  - **更新**：`.gitignore`（忽略 Linux/macOS 捆绑二进制和下载缓存）
+- **行为变化**：
+  - Windows：行为不变，仍然使用捆绑的 `ffmpeg.exe`
+  - Linux/macOS：首次运行 B站功能时自动下载 FFmpeg（如系统未安装），后续直接使用
+
 ### REL2.5.1
 
 **Bug 修复**
