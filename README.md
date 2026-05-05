@@ -2,7 +2,7 @@
 
 ## 项目简介
 
-**版本：REL2.5.0**
+**版本：REL2.5.1**
 
 iFlyCompass 是一个多功能的 Web 应用平台，采用模块化架构设计，提供了多种实用工具和功能，包括：
 
@@ -13,8 +13,8 @@ iFlyCompass 是一个多功能的 Web 应用平台，采用模块化架构设计
   - **请求头修正**：自动推断并设置正确的 Origin/Referer，解决 403 Forbidden
   - **全面资源覆盖**：HTML/CSS/JS/图片/音频/视频/字体等所有静态资源
 - **聊天室功能**：支持创建、加入、管理聊天室，实时消息通信，多人优化模式
-- **小说阅读器**：支持多种编码格式，智能章节解析，阅读进度保存，启动时预扫描缓存
-  - **沉浸式阅读器**：主题切换、翻页动画、低版本 WebView 兼容、续段处理、边界溢出保护
+- **小说阅读器**：整本书缓存架构，本地/云端双列表，断点续传，浏览器端章节解析，完全离线阅读
+  - **沉浸式阅读器**：与小说阅读器融合，浏览器端无缝切换，主题切换、翻页动画、分页引擎
 - **随身听**：网易云音乐播放器，支持搜索、推荐歌单、音乐播放（内网缓存）
 - **视频播放器**：本地视频播放，支持多种格式，Plyr 播放器，Element UI 风格
 - **B站视频**：B站视频缓存与播放，支持首页推荐、搜索视频、搜索UP主，480P画质
@@ -84,21 +84,20 @@ iFlyCompass 是一个多功能的 Web 应用平台，采用模块化架构设计
 
 ### 小说阅读器
 
-- 支持多种编码格式（GBK、GB2312、UTF-16、UTF-8-BOM）
-- **智能章节解析**：V3.1 锚点学习 + 统计验证算法
-  - 五阶段检测：发现 → 模式学习 → 模式扩展 → 统计验证 → 层级推断
-  - 支持中英文多种章节格式
-  - 章节标题前空行强制校验，避免误识别
-- **启动时预扫描缓存**：启动时扫描所有小说，缓存书名、作者、最新章节，API 响应毫秒级
-- 阅读进度保存，自动跳转到上次阅读位置
-- **沉浸式阅读模式**：
+- **整本书缓存架构（v2）**：一次性缓存整本 .txt 文件到浏览器 IndexedDB，支持完全离线阅读
+- **本地/云端双列表**：本地列表显示已缓存的书（服务端关闭也能读），云端列表显示服务端存放的书
+- **下载进度条**：显示总文件大小和已缓存大小，支持 HTTP Range 断点续传
+- **更新检测**：服务端文件更新时提示用户（是/否/不再提示），支持手动更新
+- **浏览器端章节解析**：`assets/js/chapter-parser.js`，支持中文数字章节、阿拉伯数字、英文章节、特殊章节
+- **本地阅读进度**：进度存储在浏览器 IndexedDB，无需服务端同步
+- **智能章节解析**（服务端元数据扫描）：V3.1 锚点学习 + 统计验证算法，五阶段检测
+- **启动时预扫描缓存**：启动时扫描所有小说，缓存书名、作者、最新章节
+- **沉浸式阅读模式**（与小说阅读器融合，浏览器端无缝切换）：
   - 主题选择：日间 5 种主题 + 夜间 2 种主题
   - 日间/夜间模式一键切换
   - 翻页动画：滑动、滚动、淡入淡出、无动画
   - 双层页面结构，动画过程可见两页
   - 设置自动保存到本地存储
-  - **低版本 WebView 兼容**：localStorage mock、ES5 语法兼容
-- 作者信息显示，最新章节显示
 
 ### 随身听
 
@@ -160,7 +159,6 @@ iFlyCompass/
 │   ├── user.py              # User, Passkey 模型
 │   ├── chat.py              # ChatRoom 模型
 │   ├── sticker.py           # UserSticker, PackSticker 模型
-│   ├── novel.py             # NovelReadingProgress 模型
 │   ├── announcement.py      # Announcement, UserAnnouncementStatus 模型
 │   └── drop.py              # DropMessage, DropSettings, DropBlacklist 模型
 ├── utils/                    # 工具函数层
@@ -187,8 +185,7 @@ iFlyCompass/
 │   ├── novel/               # 小说阅读器模块
 │   │   ├── __init__.py
 │   │   ├── routes.py        # 小说阅读器路由
-│   │   ├── api.py           # 小说 API
-│   │   └── parser.py        # 章节解析器
+│   │   └── api.py           # 小说文件流 API（整本书缓存模式）
 │   ├── sticker/             # 表情包管理模块
 │   │   ├── __init__.py
 │   │   ├── routes.py        # 表情包路由
@@ -231,13 +228,18 @@ iFlyCompass/
 │   ├── css/                 # CSS 文件
 │   │   └── drop.css         # Drop 样式
 │   ├── js/                  # JavaScript 文件
-│   │   └── drop.js          # Drop 脚本
-│   └── images/              # 图片文件
+│   │   ├── novel-cache.js       # IndexedDB 小说缓存层（NovelCacheDB v2）
+│   │   ├── chapter-parser.js    # 浏览器端章节解析器
+│   │   ├── offline-handler.js   # 离线请求降级处理
+│   │   ├── drop.js              # Drop 脚本
+│   │   └── sw.js                # Service Worker（PWA 离线缓存）
+│   ├── icons/               # PWA 图标
+│   ├── images/              # 图片文件
+│   └── manifest.json        # PWA 清单
 ├── templates/                # HTML 模板
 │   ├── chat.html            # 聊天室页面
 │   ├── chat-simple.html     # 简化版聊天页面
-│   ├── novel_reader.html    # 小说阅读器页面
-│   ├── immersive_reader.html # 沉浸式阅读器页面
+│   ├── novel_reader.html    # 小说阅读器（含沉浸式阅读，融合为一体）
 │   ├── ncm_player.html      # 随身听页面
 │   ├── video_player.html    # 视频播放器页面
 │   ├── bili_player.html     # B站视频页面

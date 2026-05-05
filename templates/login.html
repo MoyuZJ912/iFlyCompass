@@ -51,6 +51,7 @@
             {% endwith %}
             
             <form class="auth-form" action="/login" method="POST">
+                {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
                 <div class="form-group">
                     <label class="form-label">
                         <span class="material-icons">person</span>
