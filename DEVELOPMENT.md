@@ -2,6 +2,24 @@
 
 ## 版本更新
 
+### REL2.5.1 (正式发布)
+
+**合并 aurumple PR #5 并保留内置 mitmdump**
+
+- **来源**：合并 GitHub Pull Request #5 (REL 2.5.1) from aurumple/main
+- **主要更新**（来自 aurumple）：
+  - 小说离线阅读功能：整本书缓存架构，本地/云端双列表，完全离线阅读
+  - 沉浸式阅读器融合：与小说阅读器整合，浏览器端无缝切换
+  - PWA 应用改造：Service Worker 离线缓存，应用层客户端缓存
+  - Bug 修复：注册错误显示、登录后跳转、沉浸式阅读残留问题
+  - Linux FFmpeg 自动下载支持
+- **保留的本地更改**：
+  - **内置 mitmdump**：`tools/mitmdump.exe` 及 `modules/proxy/proxy_server.py` 的内置化逻辑
+    - 优先查找 `tools/` 目录下的内置 mitmdump
+    - 回退到 pip 安装的 mitmproxy
+    - 最后尝试系统 PATH 和 Python 目录
+  - **项目结构更新**：README.md 中保留 tools/ 目录说明
+
 ### DEV2.5.2
 
 **跨平台 FFmpeg 支持**
