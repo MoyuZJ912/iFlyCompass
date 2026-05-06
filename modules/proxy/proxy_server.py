@@ -23,7 +23,9 @@ def get_local_ip():
 
 def _get_local_mitmdump_path():
     """获取本地内置的 mitmproxy 路径"""
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # 当前文件: modules/proxy/proxy_server.py
+    # 需要往上三层才能到项目根目录
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     
     if sys.platform == "win32":
         mitmdump_exe = os.path.join(project_root, "tools", "mitmproxy", "mitmdump.exe")
@@ -139,7 +141,8 @@ def start_proxy_server(host='0.0.0.0', port=5003):
 
     env = None
     if is_local:
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        # 当前文件: modules/proxy/proxy_server.py，需要往上三层到项目根目录
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         libs_path = os.path.join(project_root, "tools", "mitmproxy", "libs")
         
         env = os.environ.copy()
