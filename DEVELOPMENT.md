@@ -2,7 +2,7 @@
 
 ## 版本更新
 
-### DEV2.5.2
+### REL2.5.1_fix1
 
 **mitmproxy 本地内置 + 跨平台 FFmpeg 支持**
 
