@@ -21,38 +21,14 @@ def get_local_ip():
         return '127.0.0.1'
 
 
-def _check_local_mitmproxy():
-    """检查本地内置的 mitmproxy 是否可用"""
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    libs_dir = os.path.join(project_root, "tools", "mitmproxy", "libs")
-    
-    if os.path.isdir(libs_dir):
-        mitmproxy_dir = os.path.join(libs_dir, "mitmproxy")
-        if os.path.isdir(mitmproxy_dir):
-            return libs_dir
-    
-    return None
-
-
-def _find_mitmdump():
-    """查找 mitmdump 运行方式（优先使用本地内置版本）"""
-    
-    # 1. 优先使用项目内置的 mitmproxy
-    local_libs = _check_local_mitmproxy()
-    if local_libs:
-        print('[WebProxy] 使用本地内置 mitmproxy 模块')
-        return True, local_libs  # (使用本地模块, libs路径)
-    
-    # 2. 检查系统是否安装了 mitmproxy
+def _check_mitmproxy():
+    """检查系统是否安装了 mitmproxy"""
     try:
         import mitmproxy
-        print('[WebProxy] 使用系统安装 mitmproxy 模块')
-        return False, None  # (使用系统模块, 无需额外路径)
+        return True
     except ImportError:
-        pass
-    
-    print('[WebProxy] 未找到 mitmproxy，请确保 mitmproxy 已安装或运行 python tools/install_mitmproxy.py')
-    return None, None
+        print('[WebProxy] 未找到 mitmproxy，请运行: pip install mitmproxy')
+        return False
 
 
 def _update_addon_host():
@@ -93,19 +69,17 @@ def start_proxy_server(host='0.0.0.0', port=5003):
     except Exception:
         pass
 
-    use_local, libs_path = _find_mitmdump()
-    if use_local is None:
-        print('[WebProxy] 未找到 mitmproxy，请确保 mitmproxy 已安装或运行 python tools/install_mitmproxy.py')
+    if not _check_mitmproxy():
         return False
 
     _update_addon_host()
 
     addon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'proxy_addon.py')
 
-    # 使用 Python 模块方式运行 mitmproxy（避免 .exe 硬编码路径问题）
+    # 使用 Python 模块方式运行 mitmproxy
     cmd = [
-        sys.executable,  # 使用当前 Python 解释器
-        '-m', 'mitmproxy.tools.dump',  # 以模块方式运行 mitmdump
+        sys.executable,
+        '-m', 'mitmproxy.tools.dump',
         '--listen-host', host,
         '--listen-port', str(port),
         '--mode', 'regular',
@@ -115,17 +89,6 @@ def start_proxy_server(host='0.0.0.0', port=5003):
         '--set', 'termlog_verbosity=error',
         '-s', addon_path,
     ]
-
-    env = os.environ.copy()
-    if use_local and libs_path:
-        # 使用本地内置的 mitmproxy 模块
-        current_pythonpath = env.get('PYTHONPATH', '')
-        if current_pythonpath:
-            env['PYTHONPATH'] = libs_path + os.pathsep + current_pythonpath
-        else:
-            env['PYTHONPATH'] = libs_path
-        
-        print('[WebProxy] 设置 PYTHONPATH 包含本地依赖库: ' + libs_path)
 
     try:
         # 创建日志文件路径（用于捕获错误信息）
@@ -140,18 +103,15 @@ def start_proxy_server(host='0.0.0.0', port=5003):
         error_log.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Starting mitmdump\n")
         error_log.write(f"Command: {' '.join(cmd)}\n")
         error_log.write(f"Python: {sys.executable}\n")
-        error_log.write(f"PYTHONPATH: {env.get('PYTHONPATH', 'Not set')}\n")
         error_log.write(f"Working Dir: {os.getcwd()}\n")
-        error_log.write(f"Use local: {use_local}\n")
         error_log.write(f"{'='*60}\n")
         error_log.flush()
         
         _proxy_process = subprocess.Popen(
             cmd,
             stdout=subprocess.DEVNULL,
-            stderr=error_log,  # 将错误输出写入日志文件
+            stderr=error_log,
             creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
-            env=env
         )
 
         time.sleep(1.5)
@@ -165,7 +125,7 @@ def start_proxy_server(host='0.0.0.0', port=5003):
             try:
                 with open(log_file, 'r', encoding='utf-8') as f:
                     lines = f.readlines()
-                    last_lines = ''.join(lines[-20:])  # 最后20行
+                    last_lines = ''.join(lines[-20:])
                 print('[WebProxy] mitmdump 进程启动后立即退出，退出码: ' + str(_proxy_process.returncode))
                 print('[WebProxy] 错误日志路径: ' + log_file)
                 print('[WebProxy] 最近错误:\n' + last_lines)
@@ -176,13 +136,8 @@ def start_proxy_server(host='0.0.0.0', port=5003):
             _proxy_process = None
             return False
         
-        # 启动成功，关闭错误日志文件（进程会继续写入）
-        # 注意：不关闭 error_log，让进程继续写入
         print('[WebProxy] 错误日志路径: ' + log_file)
-
-        source_type = "本地内置" if use_local else "系统安装"
-        print('[WebProxy] 代理服务器已启动 ({source}, Python模块模式): http://{host}:{port}'.format(
-            source=source_type,
+        print('[WebProxy] 代理服务器已启动: http://{host}:{port}'.format(
             host=_proxy_host,
             port=str(port)
         ))
