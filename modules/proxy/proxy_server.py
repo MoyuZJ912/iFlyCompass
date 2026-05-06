@@ -39,6 +39,60 @@ def _get_local_mitmdump_path():
     return None
 
 
+def _get_python_scripts_dir():
+    """动态获取 Python Scripts/bin 目录路径"""
+    python_exe = sys.executable
+    python_dir = os.path.dirname(python_exe)
+    
+    # Windows 环境
+    if sys.platform == "win32":
+        # 检查是否在虚拟环境中
+        if hasattr(sys, 'prefix') and sys.prefix != sys.base_prefix:
+            # 虚拟环境：Scripts 目录通常在 Python 根目录
+            scripts_dir = os.path.join(python_dir, 'Scripts')
+            if os.path.isdir(scripts_dir):
+                return scripts_dir
+        
+        # 检查常见的 Scripts 位置
+        candidates = [
+            os.path.join(python_dir, 'Scripts'),  # 标准 Python 安装
+            python_dir,  # 某些环境直接在根目录
+            os.path.join(os.path.dirname(python_dir), 'Scripts'),  # 上级目录
+        ]
+        
+        for candidate in candidates:
+            if os.path.isdir(candidate):
+                return candidate
+        
+        # 默认返回标准路径
+        return os.path.join(python_dir, 'Scripts')
+    
+    # Unix/Linux/macOS 环境
+    else:
+        # 检查是否在虚拟环境中
+        if hasattr(sys, 'prefix') and sys.prefix != sys.base_prefix:
+            # 虚拟环境：bin 目录通常在 Python 根目录
+            bin_dir = os.path.join(python_dir, 'bin')
+            if os.path.isdir(bin_dir):
+                return bin_dir
+        
+        # 检查常见的 bin 位置
+        candidates = [
+            os.path.join(python_dir, 'bin'),  # 标准 Unix Python
+            python_dir,  # 某些环境直接在根目录
+            os.path.join(os.path.dirname(python_dir), 'bin'),  # 上级目录
+            '/usr/local/bin',  # 系统 Python
+            '/usr/bin',  # 系统 Python
+        ]
+        
+        for candidate in candidates:
+            if os.path.isdir(candidate):
+                return candidate
+        
+        # 默认返回标准路径
+        return os.path.join(python_dir, 'bin')
+
+
 def _find_mitmdump():
     """查找 mitmdump 可执行文件（优先使用本地内置版本）"""
     
@@ -48,26 +102,17 @@ def _find_mitmdump():
         print('[WebProxy] 使用本地内置 mitmproxy: ' + local_mitmdump)
         return local_mitmdump, True  # (路径, 是否为本地版本)
     
-    # 2. 回退到系统安装的 mitmproxy（兼容旧环境）
-    python_exe = sys.executable
-    python_dir = os.path.dirname(python_exe)
+    # 2. 动态检测 Python Scripts/bin 目录
+    scripts_dir = _get_python_scripts_dir()
+    exe_name = 'mitmdump.exe' if sys.platform == "win32" else 'mitmdump'
     
-    if sys.platform == "win32":
-        candidates = [
-            os.path.join(python_dir, 'mitmdump.exe'),
-            os.path.join(python_dir, 'Scripts', 'mitmdump.exe'),
-        ]
-    else:
-        candidates = [
-            os.path.join(python_dir, 'bin', 'mitmdump'),
-            os.path.join(python_dir, 'local', 'bin', 'mitmdump'),
-        ]
+    # 3. 在检测到的 Scripts 目录中查找
+    mitmdump_path = os.path.join(scripts_dir, exe_name)
+    if os.path.isfile(mitmdump_path):
+        print('[WebProxy] 使用系统安装 mitmproxy: ' + mitmdump_path)
+        return mitmdump_path, False
     
-    for candidate in candidates:
-        if os.path.isfile(candidate):
-            print('[WebProxy] 使用系统安装 mitmproxy: ' + candidate)
-            return candidate, False
-    
+    # 4. 从系统 PATH 中查找（最后手段）
     try:
         import shutil
         result = shutil.which('mitmdump')
