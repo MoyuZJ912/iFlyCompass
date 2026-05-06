@@ -201,10 +201,28 @@ def start_proxy_server(host='0.0.0.0', port=5003):
         print('[WebProxy] 设置 PYTHONPATH 包含本地依赖库')
 
     try:
+        # 创建日志文件路径（用于捕获错误信息）
+        log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'logs')
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir, exist_ok=True)
+        log_file = os.path.join(log_dir, 'mitmdump_error.log')
+        
+        # 打开日志文件用于捕获错误输出
+        error_log = open(log_file, 'a', encoding='utf-8')
+        error_log.write(f"\n{'='*60}\n")
+        error_log.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Starting mitmdump\n")
+        error_log.write(f"Command: {' '.join(cmd)}\n")
+        error_log.write(f"PYTHONPATH: {env.get('PYTHONPATH', 'Not set') if env else 'Not set'}\n")
+        error_log.write(f"Working Dir: {os.getcwd()}\n")
+        error_log.write(f"mitmdump path: {mitmdump_path}\n")
+        error_log.write(f"is_local: {is_local}\n")
+        error_log.write(f"{'='*60}\n")
+        error_log.flush()
+        
         _proxy_process = subprocess.Popen(
             cmd,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stderr=error_log,  # 将错误输出写入日志文件
             creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
             env=env
         )
@@ -212,9 +230,28 @@ def start_proxy_server(host='0.0.0.0', port=5003):
         time.sleep(1.5)
 
         if _proxy_process.poll() is not None:
-            print('[WebProxy] mitmdump 进程启动后立即退出，退出码: ' + str(_proxy_process.returncode))
+            error_log.write(f"[ERROR] mitmdump exited immediately with code: {_proxy_process.returncode}\n")
+            error_log.flush()
+            error_log.close()
+            
+            # 读取日志文件最后几行错误
+            try:
+                with open(log_file, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+                    last_lines = ''.join(lines[-20:])  # 最后20行
+                print('[WebProxy] mitmdump 进程启动后立即退出，退出码: ' + str(_proxy_process.returncode))
+                print('[WebProxy] 错误日志路径: ' + log_file)
+                print('[WebProxy] 最近错误:\n' + last_lines)
+            except Exception:
+                print('[WebProxy] mitmdump 进程启动后立即退出，退出码: ' + str(_proxy_process.returncode))
+                print('[WebProxy] 错误日志路径: ' + log_file)
+            
             _proxy_process = None
             return False
+        
+        # 启动成功，关闭错误日志文件（进程会继续写入）
+        # 注意：不关闭 error_log，让进程继续写入
+        print('[WebProxy] 错误日志路径: ' + log_file)
 
         source_type = "本地内置" if is_local else "系统安装"
         print('[WebProxy] 代理服务器已启动 ({source}, mitmproxy): http://{host}:{port}'.format(
@@ -225,6 +262,8 @@ def start_proxy_server(host='0.0.0.0', port=5003):
         return True
     except Exception as e:
         print('[WebProxy] 代理服务器启动失败: ' + str(e))
+        import traceback
+        traceback.print_exc()
         _proxy_process = None
         return False
 
