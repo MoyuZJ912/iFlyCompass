@@ -22,47 +22,12 @@ def get_local_ip():
 
 
 def _find_mitmdump():
-    try:
-        import subprocess
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        tools_dir = os.path.join(base_dir, 'tools')
-        if sys.platform == 'win32':
-            mitmdump_path = os.path.join(tools_dir, 'mitmdump.exe')
-        else:
-            mitmdump_path = os.path.join(tools_dir, 'mitmdump')
-        if os.path.isfile(mitmdump_path):
-            return mitmdump_path
-    except Exception:
-        pass
-
-    try:
-        result = subprocess.run(
-            [sys.executable, '-m', 'pip', 'show', 'mitmproxy'],
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
-        if result.returncode == 0:
-            location = None
-            for line in result.stdout.splitlines():
-                if line.startswith('Location:'):
-                    location = line.split(':', 1)[1].strip()
-                    break
-            if location:
-                scripts_dir = os.path.join(location, '..', 'Scripts')
-                scripts_dir = os.path.normpath(scripts_dir)
-                if sys.platform == 'win32':
-                    mitmdump_path = os.path.join(scripts_dir, 'mitmdump.exe')
-                else:
-                    mitmdump_path = os.path.join(scripts_dir, 'mitmdump')
-                if os.path.isfile(mitmdump_path):
-                    return mitmdump_path
-    except Exception:
-        pass
-
-    python_exe = sys.executable
-    python_dir = os.path.dirname(python_exe)
-    mitmdump_path = os.path.join(python_dir, 'mitmdump.exe' if sys.platform == 'win32' else 'mitmdump')
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    tools_dir = os.path.join(base_dir, 'tools')
+    if sys.platform == 'win32':
+        mitmdump_path = os.path.join(tools_dir, 'mitmdump.exe')
+    else:
+        mitmdump_path = os.path.join(tools_dir, 'mitmdump')
     if os.path.isfile(mitmdump_path):
         return mitmdump_path
     try:
@@ -137,15 +102,23 @@ def start_proxy_server(host='0.0.0.0', port=5003):
     try:
         _proxy_process = subprocess.Popen(
             cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
         )
 
         time.sleep(1.5)
 
         if _proxy_process.poll() is not None:
-            print('[WebProxy] mitmdump 进程启动后立即退出，退出码: ' + str(_proxy_process.returncode))
+            stdout, stderr = _proxy_process.communicate()
+            print('[WebProxy] mitmdump 进程启动后立即退出')
+            print('[WebProxy] 退出码: ' + str(_proxy_process.returncode))
+            if stderr:
+                print('[WebProxy] 错误日志:')
+                print(stderr.decode('utf-8', errors='replace'))
+            if stdout:
+                print('[WebProxy] 输出日志:')
+                print(stdout.decode('utf-8', errors='replace'))
             _proxy_process = None
             return False
 
@@ -153,6 +126,8 @@ def start_proxy_server(host='0.0.0.0', port=5003):
         return True
     except Exception as e:
         print('[WebProxy] 代理服务器启动失败: ' + str(e))
+        import traceback
+        traceback.print_exc()
         _proxy_process = None
         return False
 
