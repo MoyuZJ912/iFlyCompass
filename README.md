@@ -2,7 +2,7 @@
 
 ## 项目简介
 
-**版本：REL2.5.1**
+**版本：REL2.5.2**
 
 iFlyCompass 是一个多功能的 Web 应用平台，采用模块化架构设计，提供了多种实用工具和功能，包括：
 
@@ -234,12 +234,8 @@ iFlyCompass/
 │   │   ├── drop.js              # Drop 脚本
 │   │   └── sw.js                # Service Worker（PWA 离线缓存）
 │   ├── icons/               # PWA 图标
-│   └── images/              # 图片文件
-├── tools/                    # 内置工具目录
-│   ├── ffmpeg/              # FFmpeg 视频处理工具
-│   │   ├── ffmpeg.exe       # FFmpeg 可执行文件
-│   │   └── ffprobe.exe      # FFprobe 媒体信息工具
-│   └── mitmdump.exe         # mitmproxy 代理引擎（网页代理功能）
+│   ├── images/              # 图片文件
+│   └── manifest.json        # PWA 清单
 ├── templates/                # HTML 模板
 │   ├── chat.html            # 聊天室页面
 │   ├── chat-simple.html     # 简化版聊天页面

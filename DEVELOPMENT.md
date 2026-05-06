@@ -2,27 +2,61 @@
 
 ## 版本更新
 
-### REL2.5.1 (正式发布)
-
-**合并 aurumple PR #5 并保留内置 mitmdump**
-
-- **来源**：合并 GitHub Pull Request #5 (REL 2.5.1) from aurumple/main
-- **主要更新**（来自 aurumple）：
-  - 小说离线阅读功能：整本书缓存架构，本地/云端双列表，完全离线阅读
-  - 沉浸式阅读器融合：与小说阅读器整合，浏览器端无缝切换
-  - PWA 应用改造：Service Worker 离线缓存，应用层客户端缓存
-  - Bug 修复：注册错误显示、登录后跳转、沉浸式阅读残留问题
-  - Linux FFmpeg 自动下载支持
-- **保留的本地更改**：
-  - **内置 mitmdump**：`tools/mitmdump.exe` 及 `modules/proxy/proxy_server.py` 的内置化逻辑
-    - 优先查找 `tools/` 目录下的内置 mitmdump
-    - 回退到 pip 安装的 mitmproxy
-    - 最后尝试系统 PATH 和 Python 目录
-  - **项目结构更新**：README.md 中保留 tools/ 目录说明
-
 ### DEV2.5.2
 
-**跨平台 FFmpeg 支持**
+**mitmproxy 本地内置 + 跨平台 FFmpeg 支持**
+
+#### 一、mitmproxy 完全本地内置
+
+- **问题背景**：
+  - 网页代理功能依赖系统安装的 mitmproxy，部署时需要额外配置
+  - 不同环境的 mitmproxy 版本可能导致兼容性问题
+  - 目标机器可能没有安装 mitmproxy 或权限不足
+- **新增 `tools/mitmproxy/` 目录**：
+  - 完整内置 mitmproxy 可执行文件（mitmdump.exe）
+  - 内置所有依赖库（28个包，约 30-50MB）到 `tools/mitmproxy/libs/`
+  - 包含：aioquic, cryptography, OpenSSL, flask, tornado, h2, h11 等
+- **新增工具脚本**：
+  - `tools/install_mitmproxy.py` — 一键安装脚本，从 Python 环境复制所有依赖
+    - 自动检测 site-packages 路径
+    - 智能处理不同包名变体（如 pyOpenSSL → OpenSSL）
+    - 创建启动器（.bat/.sh）和版本信息文件
+  - `tools/test_mitmproxy.py` — 测试脚本，验证本地 mitmproxy 是否可用
+    - 检查可执行文件是否存在
+    - 验证依赖库完整性
+    - 测试 mitmdump 运行和模块导入
+  - `tools/mitmproxy/run_mitmdump.bat` — Windows 启动器（自动设置 PYTHONPATH）
+- **修改 `modules/proxy/proxy_server.py`**：
+  - 新增 `_get_local_mitmdump_path()` — 检测本地内置的 mitmdump 路径
+  - 重构 `_find_mitmdump()` — 返回 `(路径, 是否为本地版本)` 元组
+  - 修改 `start_proxy_server()` — 使用本地版本时自动设置 PYTHONPATH
+  - **查找优先级**：本地内置 → 系统 Python Scripts → PATH 环境变量
+- **架构优势**：
+  | 特性 | 说明 |
+  |------|------|
+  | 完全自包含 | 不依赖系统安装的 mitmproxy |
+  | 版本锁定 | 使用固定版本的依赖，避免兼容性问题 |
+  | 零配置 | 自动检测并使用本地版本 |
+  | 向后兼容 | 如果本地版本不存在，自动回退到系统版本 |
+  | 易于维护 | 提供安装/测试脚本，一键重建 |
+- **变更文件**：
+  - **新增**：`tools/install_mitmproxy.py`, `tools/test_mitmproxy.py`
+  - **新增**：`tools/mitmproxy/` （完整目录结构及 README.md）
+  - **修改**：`modules/proxy/proxy_server.py` （优先使用本地版本 + PYTHONPATH 设置）
+  - **修改**：`.gitignore` （添加 mitmproxy 相关注释）
+- **使用方法**：
+  ```bash
+  # 安装（首次或更新时）
+  python tools/install_mitmproxy.py
+
+  # 测试
+  python tools/test_mitmproxy.py
+
+  # 正常使用（自动检测）
+  python app.py  # 网页代理会自动使用本地 mitmproxy
+  ```
+
+#### 二、跨平台 FFmpeg 支持
 
 - **问题背景**：
   - 项目捆绑的 FFmpeg 为 Windows 可执行文件（`tools/ffmpeg/ffmpeg.exe`），Linux 无法使用

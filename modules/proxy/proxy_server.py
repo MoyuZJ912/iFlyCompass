@@ -21,23 +21,61 @@ def get_local_ip():
         return '127.0.0.1'
 
 
+def _get_local_mitmdump_path():
+    """获取本地内置的 mitmproxy 路径"""
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    
+    if sys.platform == "win32":
+        mitmdump_exe = os.path.join(project_root, "tools", "mitmproxy", "mitmdump.exe")
+        if os.path.isfile(mitmdump_exe):
+            return mitmdump_exe
+    
+    mitmdump_unix = os.path.join(project_root, "tools", "mitmproxy", "mitmdump")
+    if os.path.isfile(mitmdump_unix):
+        return mitmdump_unix
+    
+    return None
+
+
 def _find_mitmdump():
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    tools_dir = os.path.join(base_dir, 'tools')
-    if sys.platform == 'win32':
-        mitmdump_path = os.path.join(tools_dir, 'mitmdump.exe')
+    """查找 mitmdump 可执行文件（优先使用本地内置版本）"""
+    
+    # 1. 优先使用项目内置的 mitmproxy
+    local_mitmdump = _get_local_mitmdump_path()
+    if local_mitmdump:
+        print('[WebProxy] 使用本地内置 mitmproxy: ' + local_mitmdump)
+        return local_mitmdump, True  # (路径, 是否为本地版本)
+    
+    # 2. 回退到系统安装的 mitmproxy（兼容旧环境）
+    python_exe = sys.executable
+    python_dir = os.path.dirname(python_exe)
+    
+    if sys.platform == "win32":
+        candidates = [
+            os.path.join(python_dir, 'mitmdump.exe'),
+            os.path.join(python_dir, 'Scripts', 'mitmdump.exe'),
+        ]
     else:
-        mitmdump_path = os.path.join(tools_dir, 'mitmdump')
-    if os.path.isfile(mitmdump_path):
-        return mitmdump_path
+        candidates = [
+            os.path.join(python_dir, 'bin', 'mitmdump'),
+            os.path.join(python_dir, 'local', 'bin', 'mitmdump'),
+        ]
+    
+    for candidate in candidates:
+        if os.path.isfile(candidate):
+            print('[WebProxy] 使用系统安装 mitmproxy: ' + candidate)
+            return candidate, False
+    
     try:
         import shutil
         result = shutil.which('mitmdump')
         if result:
-            return result
+            print('[WebProxy] 从 PATH 找到 mitmproxy: ' + result)
+            return result, False
     except Exception:
         pass
-    return None
+    
+    return None, False
 
 
 def _update_addon_host():
@@ -78,9 +116,9 @@ def start_proxy_server(host='0.0.0.0', port=5003):
     except Exception:
         pass
 
-    mitmdump = _find_mitmdump()
-    if not mitmdump:
-        print('[WebProxy] 未找到 mitmdump，请确保 mitmproxy 已安装')
+    mitmdump_path, is_local = _find_mitmdump()
+    if not mitmdump_path:
+        print('[WebProxy] 未找到 mitmdump，请确保 mitmproxy 已安装或运行 python tools/install_mitmproxy.py')
         return False
 
     _update_addon_host()
@@ -88,7 +126,7 @@ def start_proxy_server(host='0.0.0.0', port=5003):
     addon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'proxy_addon.py')
 
     cmd = [
-        mitmdump,
+        mitmdump_path,
         '--listen-host', host,
         '--listen-port', str(port),
         '--mode', 'regular',
@@ -99,35 +137,46 @@ def start_proxy_server(host='0.0.0.0', port=5003):
         '-s', addon_path,
     ]
 
+    env = None
+    if is_local:
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        libs_path = os.path.join(project_root, "tools", "mitmproxy", "libs")
+        
+        env = os.environ.copy()
+        
+        current_pythonpath = env.get('PYTHONPATH', '')
+        if current_pythonpath:
+            env['PYTHONPATH'] = libs_path + os.pathsep + current_pythonpath
+        else:
+            env['PYTHONPATH'] = libs_path
+        
+        print('[WebProxy] 设置 PYTHONPATH 包含本地依赖库')
+
     try:
         _proxy_process = subprocess.Popen(
             cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
+            env=env
         )
 
         time.sleep(1.5)
 
         if _proxy_process.poll() is not None:
-            stdout, stderr = _proxy_process.communicate()
-            print('[WebProxy] mitmdump 进程启动后立即退出')
-            print('[WebProxy] 退出码: ' + str(_proxy_process.returncode))
-            if stderr:
-                print('[WebProxy] 错误日志:')
-                print(stderr.decode('utf-8', errors='replace'))
-            if stdout:
-                print('[WebProxy] 输出日志:')
-                print(stdout.decode('utf-8', errors='replace'))
+            print('[WebProxy] mitmdump 进程启动后立即退出，退出码: ' + str(_proxy_process.returncode))
             _proxy_process = None
             return False
 
-        print('[WebProxy] 代理服务器已启动 (mitmproxy): http://' + _proxy_host + ':' + str(port))
+        source_type = "本地内置" if is_local else "系统安装"
+        print('[WebProxy] 代理服务器已启动 ({source}, mitmproxy): http://{host}:{port}'.format(
+            source=source_type,
+            host=_proxy_host,
+            port=str(port)
+        ))
         return True
     except Exception as e:
         print('[WebProxy] 代理服务器启动失败: ' + str(e))
-        import traceback
-        traceback.print_exc()
         _proxy_process = None
         return False
 

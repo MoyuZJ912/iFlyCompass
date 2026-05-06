@@ -7,9 +7,13 @@ temp/
 __pycache__/
 *.pyc
 lib/
-CLAUDE.md
 
 # FFmpeg 二进制（跨平台自动下载）
 tools/ffmpeg/ffmpeg
 tools/ffmpeg/ffprobe
 tools/ffmpeg/ffmpeg.tar.xz
+
+# mitmproxy 本地内置版本（已通过 install_mitmproxy.py 安装）
+# 注意：如果需要在 Git 中跟踪这些文件，请删除以下行
+# tools/mitmproxy/
+
