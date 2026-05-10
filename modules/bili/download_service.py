@@ -17,7 +17,8 @@ except Exception as e:
 BILI_DIR = os.path.join(Config.TEMP_DIR, 'bili') if Config.TEMP_DIR else os.path.join(os.path.dirname(__file__), '..', 'temp', 'bili')
 
 FFMPEG_PATH = None
-HAS_QSV = False  # 是否支持 Intel QSV 硬件加速
+HAS_NVENC = False  # 是否支持 NVIDIA NVENC 硬件加速
+HAS_QSV = False    # 是否支持 Intel QSV 硬件加速
 
 QUALITY_MAP = {
     16: '360P',
@@ -56,7 +57,6 @@ def check_ffmpeg():
 
 def check_qsv_support():
     """检测 FFmpeg 是否支持 Intel QSV 硬件编码器"""
-    global HAS_QSV
     if not FFMPEG_PATH:
         return False
     try:
@@ -78,21 +78,87 @@ def check_qsv_support():
         return False
 
 
+def check_nvenc_support():
+    """检测 FFmpeg 是否支持 NVIDIA NVENC 硬件编码器"""
+    if not FFMPEG_PATH:
+        return False
+    try:
+        creationflags = subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+        result = subprocess.run(
+            [FFMPEG_PATH, '-encoders'],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            creationflags=creationflags,
+            timeout=10
+        )
+        has_nvenc = 'h264_nvenc' in result.stdout
+        print(f'[Bili] NVIDIA NVENC 硬件加速支持: {has_nvenc}')
+        return has_nvenc
+    except Exception as e:
+        print(f'[Bili] 检测 NVIDIA NVENC 支持失败: {e}')
+        return False
+
+
 check_ffmpeg()
+HAS_NVENC = check_nvenc_support()
 HAS_QSV = check_qsv_support()
 
 
-def get_video_encoder_params(use_qsv=False):
+def get_video_encoder_params(encoder='x264'):
     """
-    根据是否使用 QSV 返回对应的视频编码参数
-    软件编码时添加 -threads 0 启用多线程加速
+    返回指定编码器的参数
+    encoder: 'nvenc' (NVIDIA), 'qsv' (Intel), 'x264' (软件)
     """
-    if use_qsv:
-        # Intel QSV 硬件编码，-global_quality 范围 0-51，类似 CRF
+    if encoder == 'nvenc':
+        # NVIDIA NVENC 硬件编码，-cq 恒定质量，默认 preset=p4(medium)
+        return ['-c:v', 'h264_nvenc', '-cq', '23']
+    elif encoder == 'qsv':
+        # Intel QSV 硬件编码，-global_quality 范围 0-51
         return ['-c:v', 'h264_qsv', '-global_quality', '23', '-preset', 'veryfast']
     else:
-        # 软件编码，-threads 0 让 x264 自动决定线程数（多线程）
+        # 软件编码，-threads 0 让 x264 自动决定线程数
         return ['-c:v', 'libx264', '-preset', 'fast', '-crf', '23', '-threads', '0']
+
+
+def _get_encoder_priority():
+    """返回按优先级排列的可用编码器列表 [(name, keyword), ...]"""
+    encoders = []
+    if HAS_NVENC:
+        encoders.append(('nvenc', 'nvenc'))
+    if HAS_QSV:
+        encoders.append(('qsv', 'qsv'))
+    encoders.append(('x264', 'libx264'))
+    return encoders
+
+
+def _is_encoder_error(error_lines, keyword):
+    """检查FFmpeg错误输出是否由指定编码器失败引起"""
+    kw = keyword.lower()
+    for line in error_lines:
+        if kw in line.lower():
+            return True
+    # QSV 失败时的额外特征：MFX session 错误
+    if keyword == 'qsv':
+        for line in error_lines:
+            if 'MFX' in line or 'mfx' in line:
+                return True
+    # NVENC 失败时的额外特征：CUDA/GPU 错误
+    if keyword == 'nvenc':
+        for line in error_lines:
+            if 'cuda' in line.lower() or 'nvenc' in line.lower():
+                return True
+    return False
+
+
+def safe_rename(src, dst):
+    """跨平台安全重命名，Windows下目标存在时先删除"""
+    if os.path.exists(dst):
+        try:
+            os.remove(dst)
+        except OSError:
+            pass
+    os.rename(src, dst)
 
 
 def ensure_bili_dir():
@@ -263,20 +329,98 @@ def download_file(url, filepath, task, headers=None):
     return actual_size
 
 
+def _run_ffmpeg_process(cmd, task, action_name='转换'):
+    """运行 FFmpeg 子进程，解析时长和进度。返回 (success, error_output)"""
+    creationflags = subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
+        creationflags=creationflags
+    )
+
+    duration = None
+    error_output = []
+    import re
+    while True:
+        line = process.stderr.readline()
+        if not line and process.poll() is not None:
+            break
+
+        if line:
+            error_output.append(line.strip())
+
+            if 'Duration:' in line:
+                match = re.search(r'Duration: (\d{2}):(\d{2}):(\d{2})\.(\d{2})', line)
+                if match:
+                    h, m, s, ms = int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4))
+                    duration = h * 3600 + m * 60 + s + ms / 100
+                    print(f'[Bili] 视频时长: {duration}秒')
+
+            if 'time=' in line and duration:
+                match = re.search(r'time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})', line)
+                if match:
+                    h, m, s, ms = int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4))
+                    current_time = h * 3600 + m * 60 + s + ms / 100
+                    if duration > 0:
+                        task.converting_progress = int((current_time / duration) * 100)
+
+            if 'Error' in line or 'error' in line:
+                print(f'[Bili] FFmpeg输出: {line.strip()}')
+
+    process.wait()
+    success = process.returncode == 0
+    if not success:
+        print(f'[Bili] FFmpeg{action_name}失败，返回码: {process.returncode}')
+        print(f'[Bili] 错误输出:')
+        for line in error_output[-20:]:
+            print(f'    {line}')
+    return success, error_output
+
+
+def _try_encoders(input_path, output_path, task, build_cmd, action_name='转换'):
+    """按优先级尝试编码器：NVENC → QSV → x264"""
+    encoders = _get_encoder_priority()
+    for i, (encoder_name, keyword) in enumerate(encoders):
+        is_last = (i == len(encoders) - 1)
+        encoder_label = {'nvenc': 'NVENC', 'qsv': 'QSV', 'x264': 'libx264'}[encoder_name]
+        print(f'[Bili] 尝试 {encoder_label} 编码器{action_name}...')
+
+        cmd = build_cmd(encoder_name)
+        print(f'[Bili] FFmpeg命令: {" ".join(cmd)}')
+
+        success, error_output = _run_ffmpeg_process(cmd, task, action_name)
+
+        if success:
+            output_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
+            print(f'[Bili] 视频{action_name}完成: {output_path} ({format_size(output_size)})')
+            return True
+
+        if not is_last and _is_encoder_error(error_output, keyword):
+            next_label = {'nvenc': 'QSV', 'qsv': 'libx264'}[encoder_name]
+            print(f'[Bili] {encoder_label} 编码失败，回退到 {next_label} 重试')
+            continue
+
+        return False
+
+    return False
+
+
 def convert_to_h264(input_path, output_path, task):
     if not FFMPEG_PATH or not os.path.exists(input_path):
         print(f'[Bili] FFmpeg未找到或输入文件不存在，跳过转换')
         if os.path.exists(input_path):
-            os.rename(input_path, output_path)
+            safe_rename(input_path, output_path)
             return True
         return False
 
     input_size = os.path.getsize(input_path)
     print(f'[Bili] 开始转换视频为H264格式: {input_path} -> {output_path} ({format_size(input_size)})')
 
-    try:
-        encoder_params = get_video_encoder_params(HAS_QSV)
-        cmd = [
+    def build_cmd(encoder_name):
+        encoder_params = get_video_encoder_params(encoder_name)
+        return [
             FFMPEG_PATH, '-y',
             '-i', input_path,
         ] + encoder_params + [
@@ -286,65 +430,12 @@ def convert_to_h264(input_path, output_path, task):
             output_path
         ]
 
-        print(f'[Bili] FFmpeg命令: {" ".join(cmd)}')
-
-        creationflags = subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            universal_newlines=True,
-            creationflags=creationflags
-        )
-
-        duration = None
-        error_output = []
-        while True:
-            line = process.stderr.readline()
-            if not line and process.poll() is not None:
-                break
-
-            if line:
-                error_output.append(line.strip())
-
-                if 'Duration:' in line:
-                    import re
-                    match = re.search(r'Duration: (\d{2}):(\d{2}):(\d{2})\.(\d{2})', line)
-                    if match:
-                        h, m, s, ms = int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4))
-                        duration = h * 3600 + m * 60 + s + ms / 100
-                        print(f'[Bili] 视频时长: {duration}秒')
-
-                if 'time=' in line and duration:
-                    import re
-                    match = re.search(r'time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})', line)
-                    if match:
-                        h, m, s, ms = int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4))
-                        current_time = h * 3600 + m * 60 + s + ms / 100
-                        if duration > 0:
-                            task.converting_progress = int((current_time / duration) * 100)
-                            print(f'[Bili] 转换进度: {task.converting_progress}%')
-
-                if 'Error' in line or 'error' in line:
-                    print(f'[Bili] FFmpeg输出: {line.strip()}')
-
-        process.wait()
-
-        if process.returncode == 0:
-            output_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
-            print(f'[Bili] 视频转换完成: {output_path} ({format_size(output_size)})')
-            return True
-        else:
-            print(f'[Bili] FFmpeg转换失败，返回码: {process.returncode}')
-            print(f'[Bili] 错误输出:')
-            for line in error_output[-20:]:
-                print(f'    {line}')
-            return False
-
+    try:
+        return _try_encoders(input_path, output_path, task, build_cmd, '转换')
     except FileNotFoundError:
         print('[Bili] FFmpeg未找到，跳过转换')
         if os.path.exists(input_path):
-            os.rename(input_path, output_path)
+            safe_rename(input_path, output_path)
             return True
         return False
     except Exception as e:
@@ -370,8 +461,8 @@ def merge_and_convert_video_audio(video_path, audio_path, output_path, task):
         print(f'[Bili] 视频文件不存在: {video_path}')
         return False
 
-    try:
-        encoder_params = get_video_encoder_params(HAS_QSV)
+    def build_cmd(encoder_name):
+        encoder_params = get_video_encoder_params(encoder_name)
         cmd = [FFMPEG_PATH, '-y', '-i', video_path]
         if audio_exists:
             cmd.extend(['-i', audio_path])
@@ -381,59 +472,10 @@ def merge_and_convert_video_audio(video_path, audio_path, output_path, task):
         else:
             cmd.extend(['-an'])
         cmd.extend(['-movflags', '+faststart', output_path])
+        return cmd
 
-        print(f'[Bili] FFmpeg命令: {" ".join(cmd)}')
-
-        creationflags = subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            universal_newlines=True,
-            creationflags=creationflags
-        )
-
-        duration = None
-        error_output = []
-        while True:
-            line = process.stderr.readline()
-            if not line and process.poll() is not None:
-                break
-
-            if line:
-                error_output.append(line.strip())
-
-                if 'Duration:' in line:
-                    import re
-                    match = re.search(r'Duration: (\d{2}):(\d{2}):(\d{2})\.(\d{2})', line)
-                    if match:
-                        h, m, s, ms = int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4))
-                        duration = h * 3600 + m * 60 + s + ms / 100
-                        print(f'[Bili] 视频时长: {duration}秒')
-
-                if 'time=' in line and duration:
-                    import re
-                    match = re.search(r'time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})', line)
-                    if match:
-                        h, m, s, ms = int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4))
-                        current_time = h * 3600 + m * 60 + s + ms / 100
-                        if duration > 0:
-                            task.converting_progress = int((current_time / duration) * 100)
-                            print(f'[Bili] 合并进度: {task.converting_progress}%')
-
-        process.wait()
-
-        if process.returncode == 0:
-            output_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
-            print(f'[Bili] 视频合并转换完成: {output_path} ({format_size(output_size)})')
-            return True
-        else:
-            print(f'[Bili] FFmpeg合并转换失败，返回码: {process.returncode}')
-            print(f'[Bili] 错误输出:')
-            for line in error_output[-20:]:
-                print(f'    {line}')
-            return False
-
+    try:
+        return _try_encoders(video_path, output_path, task, build_cmd, '合并')
     except FileNotFoundError:
         print('[Bili] FFmpeg未找到，尝试直接复制')
         return False
@@ -505,7 +547,7 @@ def download_video_task(task):
                 else:
                     print(f'[Bili] 转换失败，保留原始文件')
                     if os.path.exists(temp_merged_path):
-                        os.rename(temp_merged_path, video_path)
+                        safe_rename(temp_merged_path, video_path)
                     task.status = 'completed'
                     task.progress = 100
                     task.error = '视频转换失败，保留原始格式'
@@ -576,7 +618,7 @@ def download_video_task(task):
                             else:
                                 print(f'[Bili] 转换失败，保留原始文件')
                                 if os.path.exists(temp_video_path):
-                                    os.rename(temp_video_path, video_path)
+                                    safe_rename(temp_video_path, video_path)
                                 task.error = '视频转换失败，保留原始格式'
                 else:
                     if os.path.exists(temp_video_path):
@@ -589,7 +631,7 @@ def download_video_task(task):
                             print(f'[Bili] 视频转换成功: {video_path}')
                         else:
                             print(f'[Bili] 转换失败，保留原始文件')
-                            os.rename(temp_video_path, video_path)
+                            safe_rename(temp_video_path, video_path)
                             task.error = '视频转换失败，保留原始格式'
 
                 task.status = 'completed'
