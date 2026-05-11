@@ -325,6 +325,10 @@
                         <i class="el-icon-chat-dot-round"></i>
                         <span slot="title">聊天室</span>
                     </el-menu-item>
+                    <el-menu-item index="ai-chat">
+                        <i class="el-icon-cpu"></i>
+                        <span slot="title">AI 对话</span>
+                    </el-menu-item>
                     <el-menu-item index="settings" v-if="isAdmin">
                         <i class="el-icon-setting"></i>
                         <span slot="title">系统设置</span>
@@ -821,6 +825,8 @@
                         window.location.href = '/board/passkeys';
                     } else if (key === 'chat') {
                         window.location.href = '/board/chat';
+                    } else if (key === 'ai-chat') {
+                        window.location.href = '/board/ai-chat';
                     } else if (key === 'settings') {
                         window.location.href = '/board/settings';
                     }

@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% include "_pwa_head.html" %}
+    <title>AI 对话 - iFlyCompass</title>
+    <link rel="stylesheet" href="/assets/css/loading.css">
+    <link rel="stylesheet" href="/assets/css/material-icons.css">
+    <link rel="stylesheet" href="/assets/css/element-ui.css">
+    <link rel="stylesheet" href="/assets/css/console.css">
+    <link rel="stylesheet" href="/assets/css/drop.css">
+    <style>
+        .user-menu-container {
+            position: relative;
+            cursor: pointer;
+            z-index: 1000;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        
+        .user-info:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .user-info .el-icon-arrow-down {
+            margin-left: 8px;
+            transition: transform 0.3s;
+        }
+        
+        .user-info .el-icon-arrow-down.rotated {
+            transform: rotate(180deg);
+        }
+        
+        .user-dropdown-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 4px;
+            background: #fff;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            min-width: 200px;
+            overflow: hidden;
+        }
+        
+        .user-dropdown-header {
+            padding: 12px 16px;
+            background: #f5f7fa;
+            border-bottom: 1px solid #e8e8e8;
+        }
+        
+        .user-dropdown-header .display-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .user-dropdown-header .username-label {
+            font-size: 12px;
+            color: #999;
+            margin-top: 2px;
+        }
+        
+        .user-dropdown-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            color: #333;
+        }
+        
+        .user-dropdown-item:hover:not(.disabled) {
+            background-color: #f5f7fa;
+        }
+        
+        .user-dropdown-item.disabled {
+            cursor: default;
+        }
+        
+        .user-dropdown-divider {
+            height: 1px;
+            background-color: #e8e8e8;
+            margin: 4px 0;
+        }
+        
+        .user-dropdown-item.logout-item {
+            color: #ff4d4f;
+        }
+        
+        .user-dropdown-item.logout-item:hover {
+            background-color: #fff1f0;
+        }
+        
+        .user-dropdown-item i {
+            margin-right: 8px;
+        }
+        
+        /* AI Chat Styles */
+        .ai-chat-container {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 60px);
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        .ai-chat-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            background: #fff;
+            border-bottom: 1px solid #ebeef5;
+            border-radius: 8px 8px 0 0;
+        }
+        
+        .ai-chat-header .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .ai-chat-header .ai-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 20px;
+        }
+        
+        .ai-chat-header .ai-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #303133;
+        }
+        
+        .ai-chat-header .ai-subtitle {
+            font-size: 12px;
+            color: #909399;
+        }
+        
+        .ai-chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f5f7fa;
+        }
+        
+        .ai-chat-messages .message-item {
+            display: flex;
+            margin-bottom: 20px;
+            animation: messageSlideIn 0.3s ease;
+        }
+        
+        @keyframes messageSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .ai-chat-messages .message-item.user {
+            justify-content: flex-end;
+        }
+        
+        .ai-chat-messages .message-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+        
+        .ai-chat-messages .message-item.assistant .message-avatar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+        }
+        
+        .ai-chat-messages .message-item.user .message-avatar {
+            background: #409EFF;
+            color: #fff;
+            order: 2;
+        }
+        
+        .ai-chat-messages .message-content {
+            max-width: 75%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            line-height: 1.7;
+            word-break: break-word;
+        }
+        
+        .ai-chat-messages .message-item.assistant .message-content {
+            background: #fff;
+            color: #303133;
+            margin-left: 10px;
+            border-top-left-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        
+        .ai-chat-messages .message-item.user .message-content {
+            background: #409EFF;
+            color: #fff;
+            margin-right: 10px;
+            border-top-right-radius: 4px;
+        }
+        
+        .ai-chat-messages .message-content pre {
+            background: #f0f2f5;
+            border-radius: 6px;
+            padding: 12px;
+            overflow-x: auto;
+            margin: 8px 0;
+        }
+        
+        .ai-chat-messages .message-item.user .message-content pre {
+            background: rgba(255,255,255,0.2);
+        }
+        
+        .ai-chat-messages .message-content code {
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+        }
+        
+        .ai-chat-messages .message-content p {
+            margin: 0 0 8px 0;
+        }
+        
+        .ai-chat-messages .message-content p:last-child {
+            margin-bottom: 0;
+        }
+        
+        .ai-chat-messages .message-content ul,
+        .ai-chat-messages .message-content ol {
+            margin: 8px 0;
+            padding-left: 20px;
+        }
+        
+        .ai-chat-messages .message-time {
+            font-size: 11px;
+            color: #c0c4cc;
+            margin-top: 4px;
+            text-align: right;
+        }
+        
+        .ai-chat-messages .message-item.user .message-time {
+            margin-right: 10px;
+        }
+        
+        .ai-chat-messages .message-item.assistant .message-time {
+            margin-left: 10px;
+        }
+        
+        .ai-chat-messages .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 12px 16px;
+        }
+        
+        .ai-chat-messages .typing-indicator span {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #909399;
+            animation: typingBounce 1.4s infinite ease-in-out;
+        }
+        
+        .ai-chat-messages .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        
+        .ai-chat-messages .typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        
+        @keyframes typingBounce {
+            0%, 60%, 100% {
+                transform: translateY(0);
+                opacity: 0.4;
+            }
+            30% {
+                transform: translateY(-8px);
+                opacity: 1;
+            }
+        }
+        
+        .ai-chat-input {
+            padding: 16px 20px;
+            background: #fff;
+            border-top: 1px solid #ebeef5;
+            border-radius: 0 0 8px 8px;
+        }
+        
+        .ai-chat-input .input-wrapper {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+        
+        .ai-chat-input .el-textarea__inner {
+            border-radius: 10px;
+            resize: none;
+        }
+        
+        .ai-chat-input .send-btn {
+            border-radius: 10px;
+            height: 40px;
+            width: 80px;
+            font-size: 15px;
+        }
+        
+        .welcome-message {
+            text-align: center;
+            padding: 60px 20px;
+            color: #909399;
+        }
+        
+        .welcome-message .welcome-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .welcome-message h2 {
+            font-size: 24px;
+            color: #303133;
+            margin: 0 0 8px 0;
+        }
+        
+        .welcome-message p {
+            font-size: 14px;
+            color: #909399;
+        }
+        
+        .token-info {
+            font-size: 11px;
+            color: #c0c4cc;
+            text-align: center;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">加载中...</div>
+    </div>
+    <div id="app">
+        <el-container class="console-container">
+            <el-aside width="64px" class="console-sidebar" :width="isCollapse ? '64px' : '200px'">
+                <div class="sidebar-header" @click="toggleCollapse">
+                    <img src="/assets/images/logo-trans-white.png" alt="Logo" class="sidebar-logo">
+                    <span v-show="!isCollapse" class="sidebar-brand">iFlyCompass</span>
+                    <i v-show="!isCollapse" class="el-icon-s-fold sidebar-toggle" :class="{ 'rotated': !isCollapse }"></i>
+                </div>
+                
+                <el-menu
+                    :default-active="activeMenu"
+                    class="el-menu-vertical-demo"
+                    background-color="#1a365d"
+                    text-color="#ffffff"
+                    active-text-color="#409EFF"
+                    :collapse="isCollapse"
+                    @select="handleMenuClick"
+                >
+                    <el-menu-item index="dashboard">
+                        <i class="el-icon-s-home"></i>
+                        <span slot="title">首页</span>
+                    </el-menu-item>
+                    <el-menu-item index="tools">
+                        <i class="el-icon-s-tools"></i>
+                        <span slot="title">小工具</span>
+                    </el-menu-item>
+                    <el-menu-item index="games">
+                        <i class="el-icon-s-marketing"></i>
+                        <span slot="title">小游戏</span>
+                    </el-menu-item>
+                    <el-menu-item index="users" v-if="isAdmin">
+                        <i class="el-icon-s-custom"></i>
+                        <span slot="title">用户管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="passkeys" v-if="isSuperAdmin">
+                        <i class="el-icon-key"></i>
+                        <span slot="title">Passkey 管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="chat">
+                        <i class="el-icon-chat-dot-round"></i>
+                        <span slot="title">聊天室</span>
+                    </el-menu-item>
+                    <el-menu-item index="ai-chat" class="active">
+                        <i class="el-icon-cpu"></i>
+                        <span slot="title">AI 对话</span>
+                    </el-menu-item>
+                    <el-menu-item index="settings" v-if="isAdmin">
+                        <i class="el-icon-setting"></i>
+                        <span slot="title">系统设置</span>
+                    </el-menu-item>
+                </el-menu>
+            </el-aside>
+            
+            <el-container>
+                <el-header class="console-header">
+                    <div class="header-left">
+                        <h1>AI 对话</h1>
+                    </div>
+                    <div class="header-right">
+                        <div class="user-menu-container" @click="toggleUserMenu">
+                            <span class="user-info">
+                                您好，[[ displayName ]]
+                                <i class="el-icon-arrow-down" :class="{ 'rotated': userMenuVisible }"></i>
+                            </span>
+                            <div class="user-dropdown-menu" v-show="userMenuVisible" @click.stop>
+                                <div class="user-dropdown-header">
+                                    <div class="display-name">[[ displayName ]]</div>
+                                    <div class="username-label">@[[ username ]]</div>
+                                </div>
+                                <div class="user-dropdown-item" @click="openProfileDialog">
+                                    <i class="el-icon-user"></i>
+                                    <span>个人设置</span>
+                                </div>
+                                <div class="user-dropdown-divider"></div>
+                                <div class="user-dropdown-item logout-item" @click="confirmLogout">
+                                    <i class="el-icon-switch-button"></i>
+                                    <span>退出登录</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </el-header>
+                
+                <el-main class="console-content" style="padding: 0;">
+                    <div class="content-wrapper" style="padding: 0;">
+                        <div class="ai-chat-container">
+                            <!-- Messages Area -->
+                            <div class="ai-chat-messages" ref="messagesContainer" @scroll="onScroll">
+                                <div v-if="messages.length === 0 && !isLoading" class="welcome-message">
+                                    <div class="welcome-icon">
+                                        <i class="el-icon-cpu" style="font-size: 64px;"></i>
+                                    </div>
+                                    <h2>你好，我是 AI 助手</h2>
+                                    <p>有什么我可以帮助你的吗？</p>
+                                </div>
+                                
+                                <div v-for="(msg, index) in messages" :key="index" :class="['message-item', msg.role]">
+                                    <div class="message-avatar">
+                                        <i v-if="msg.role === 'assistant'" class="el-icon-cpu"></i>
+                                        <i v-else class="el-icon-user"></i>
+                                    </div>
+                                    <div>
+                                        <div class="message-content" v-html="renderMarkdown(msg.content)"></div>
+                                        <div class="message-time">[[ msg.time ]]</div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Typing Indicator -->
+                                <div v-if="isLoading" class="message-item assistant">
+                                    <div class="message-avatar">
+                                        <i class="el-icon-cpu"></i>
+                                    </div>
+                                    <div class="message-content">
+                                        <div class="typing-indicator">
+                                            <span></span>
+                                            <span></span>
+                                            <span></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Input Area -->
+                            <div class="ai-chat-input">
+                                <div class="input-wrapper">
+                                    <el-input
+                                        type="textarea"
+                                        v-model="inputMessage"
+                                        :rows="2"
+                                        placeholder="输入消息，Enter 发送，Shift+Enter 换行..."
+                                        @keydown.native="handleKeydown"
+                                        :disabled="isLoading"
+                                        resize="none"
+                                    ></el-input>
+                                    <el-button 
+                                        type="primary" 
+                                        class="send-btn"
+                                        @click="sendMessage"
+                                        :disabled="isLoading || !inputMessage.trim()"
+                                        :loading="isLoading"
+                                    >
+                                        <span v-if="!isLoading">发送</span>
+                                    </el-button>
+                                    <el-button 
+                                        type="default" 
+                                        class="send-btn"
+                                        @click="clearHistory"
+                                        :disabled="isLoading || messages.length === 0"
+                                        style="width: auto; padding: 0 12px;"
+                                    >
+                                        清空
+                                    </el-button>
+                                </div>
+                                <div class="token-info" v-if="lastUsage">
+                                    本次消耗: [[ lastUsage.total_tokens ]] tokens
+                                    (提示: [[ lastUsage.prompt_tokens ]], 补全: [[ lastUsage.completion_tokens ]])
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </el-main>
+            </el-container>
+        </el-container>
+    </div>
+
+    <script src="/assets/js/vue.min.js"></script>
+    <script src="/assets/js/element-ui.js"></script>
+    <script src="/assets/js/drop.js"></script>
+    <script>
+        new Vue({
+            el: '#app',
+            delimiters: ['[[', ']]'],
+            data() {
+                return {
+                    isCollapse: {{ 'true' if sidebar_expanded else 'false' }},
+                    activeMenu: 'ai-chat',
+                    displayName: '{{ current_user.display_name }}',
+                    username: '{{ current_user.username }}',
+                    isAdmin: {% if current_user.is_admin or current_user.is_super_admin %}true{% else %}false{% endif %},
+                    isSuperAdmin: {% if current_user.is_super_admin %}true{% else %}false{% endif %},
+                    userMenuVisible: false,
+                    messages: [],
+                    inputMessage: '',
+                    isLoading: false,
+                    lastUsage: null,
+                    streamingContent: ''
+                };
+            },
+            mounted() {
+                this.loadHistory();
+                this.scrollToBottom();
+            },
+            methods: {
+                toggleCollapse() {
+                    this.isCollapse = !this.isCollapse;
+                },
+                toggleUserMenu() {
+                    this.userMenuVisible = !this.userMenuVisible;
+                },
+                handleMenuClick(key) {
+                    this.userMenuVisible = false;
+                    if (key === 'dashboard') {
+                        window.location.href = '/board';
+                    } else if (key === 'tools') {
+                        window.location.href = '/board/tools';
+                    } else if (key === 'games') {
+                        window.location.href = '/board/games';
+                    } else if (key === 'users') {
+                        window.location.href = '/board/users';
+                    } else if (key === 'passkeys') {
+                        window.location.href = '/board/passkeys';
+                    } else if (key === 'chat') {
+                        window.location.href = '/board/chat';
+                    } else if (key === 'ai-chat') {
+                        // Stay on current page
+                    } else if (key === 'settings') {
+                        window.location.href = '/board/settings';
+                    }
+                },
+                openProfileDialog() {
+                    this.userMenuVisible = false;
+                    window.location.href = '/board';
+                },
+                confirmLogout() {
+                    this.userMenuVisible = false;
+                    this.$confirm('确定要退出登录吗？', '提示', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    })
+                    .then(() => {
+                        window.location.href = '/logout';
+                    })
+                    .catch(() => {});
+                },
+                loadHistory() {
+                    fetch('/api/ai-chat/history')
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success && data.history) {
+                                this.messages = data.history.map(msg => ({
+                                    role: msg.role,
+                                    content: msg.content,
+                                    time: ''
+                                }));
+                                this.$nextTick(() => this.scrollToBottom());
+                            }
+                        })
+                        .catch(error => {
+                            console.error('加载历史失败:', error);
+                        });
+                },
+                handleKeydown(e) {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        this.sendMessage();
+                    }
+                },
+                sendMessage() {
+                    const message = this.inputMessage.trim();
+                    if (!message || this.isLoading) return;
+                    
+                    // Add user message
+                    this.messages.push({
+                        role: 'user',
+                        content: message,
+                        time: this.getCurrentTime()
+                    });
+                    this.inputMessage = '';
+                    this.isLoading = true;
+                    this.lastUsage = null;
+                    this.$nextTick(() => this.scrollToBottom());
+                    
+                    // Send to API (non-streaming for simplicity)
+                    fetch('/api/ai-chat/send', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ message: message })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        this.isLoading = false;
+                        if (data.error) {
+                            this.$message.error(data.error);
+                            // Remove the user message if API fails
+                            this.messages.pop();
+                        } else {
+                            this.messages.push({
+                                role: 'assistant',
+                                content: data.message,
+                                time: this.getCurrentTime()
+                            });
+                            if (data.usage) {
+                                this.lastUsage = data.usage;
+                            }
+                            this.$nextTick(() => this.scrollToBottom());
+                        }
+                    })
+                    .catch(error => {
+                        this.isLoading = false;
+                        this.$message.error('请求失败: ' + error.message);
+                    });
+                },
+                clearHistory() {
+                    this.$confirm('确定要清空所有对话历史吗？', '提示', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    })
+                    .then(() => {
+                        fetch('/api/ai-chat/history', {
+                            method: 'DELETE'
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                this.messages = [];
+                                this.lastUsage = null;
+                                this.$message.success('对话历史已清空');
+                            }
+                        })
+                        .catch(error => {
+                            this.$message.error('清空失败');
+                        });
+                    })
+                    .catch(() => {});
+                },
+                scrollToBottom() {
+                    this.$nextTick(() => {
+                        const container = this.$refs.messagesContainer;
+                        if (container) {
+                            container.scrollTop = container.scrollHeight;
+                        }
+                    });
+                },
+                onScroll() {
+                    // Can be used for infinite scroll loading
+                },
+                getCurrentTime() {
+                    const now = new Date();
+                    return now.getHours().toString().padStart(2, '0') + ':' +
+                           now.getMinutes().toString().padStart(2, '0') + ':' +
+                           now.getSeconds().toString().padStart(2, '0');
+                },
+                renderMarkdown(text) {
+                    if (!text) return '';
+                    
+                    // Simple markdown rendering
+                    let html = text;
+                    
+                    // Escape HTML
+                    html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    
+                    // Code blocks with language
+                    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, function(match, lang, code) {
+                        return '<pre><code>' + code.trim() + '</code></pre>';
+                    });
+                    
+                    // Inline code
+                    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+                    
+                    // Bold
+                    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+                    
+                    // Italic
+                    html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+                    
+                    // Headers
+                    html = html.replace(/^### (.+)$/gm, '<h4>$1</h4>');
+                    html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>');
+                    html = html.replace(/^# (.+)$/gm, '<h2>$1</h2>');
+                    
+                    // Unordered lists
+                    html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+                    html = html.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+                    
+                    // Ordered lists
+                    html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+                    
+                    // Line breaks
+                    html = html.replace(/\n\n/g, '</p><p>');
+                    html = html.replace(/\n/g, '<br>');
+                    
+                    // Wrap in paragraph
+                    if (!html.startsWith('<')) {
+                        html = '<p>' + html + '</p>';
+                    }
+                    
+                    return html;
+                }
+            }
+        });
+    </script>
+    <script src="/assets/js/offline-handler.js"></script>
+    <script src="/assets/js/loading.js"></script>
+{% include "_pwa_register.html" %}
+</body>
+</html>

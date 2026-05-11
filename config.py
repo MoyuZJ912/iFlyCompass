@@ -1,9 +1,60 @@
 import os
 import secrets
+import hashlib
+import base64
 import yaml
 from datetime import timedelta
+from cryptography.fernet import Fernet
 
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'instance', 'config.yml')
+
+# ---- Encryption utilities for sensitive config values ----
+
+_fernet = None
+
+def _get_fernet():
+    """Get or create a Fernet instance derived from the Flask SECRET_KEY."""
+    global _fernet
+    if _fernet is not None:
+        return _fernet
+    # Derive a 32-byte key from SECRET_KEY, then base64-urlsafe encode for Fernet
+    secret = Config.SECRET_KEY
+    if not secret:
+        secret = secrets.token_hex(32)
+        Config.SECRET_KEY = secret
+    # Use SHA-256 to get consistent 32 bytes, then base64 encode
+    derived = hashlib.sha256(secret.encode()).digest()
+    fernet_key = base64.urlsafe_b64encode(derived)
+    _fernet = Fernet(fernet_key)
+    return _fernet
+
+def _is_encrypted(value):
+    """Check if a value is already encrypted (prefixed with 'enc:')."""
+    return isinstance(value, str) and value.startswith('enc:')
+
+def encrypt_value(value):
+    """Encrypt a string value. Returns 'enc:<base64>' prefixed string."""
+    if not value:
+        return value
+    f = _get_fernet()
+    encrypted = f.encrypt(value.encode())
+    return 'enc:' + base64.urlsafe_b64encode(encrypted).decode()
+
+def decrypt_value(value):
+    """Decrypt an 'enc:<base64>' prefixed string. Returns plaintext.
+    If value is not encrypted (no 'enc:' prefix), returns as-is for backward compatibility."""
+    if not value:
+        return value
+    if not _is_encrypted(value):
+        # Plaintext value — migrate: encrypt it on next save
+        return value
+    try:
+        f = _get_fernet()
+        encrypted = base64.urlsafe_b64decode(value[4:].encode())
+        return f.decrypt(encrypted).decode()
+    except Exception:
+        # If decryption fails (e.g., secret key changed), return empty
+        return ''
 
 DEFAULT_CONFIG = {
     'flask': {
@@ -104,6 +155,11 @@ def _init_config():
     chat_config = config.get('chat', {})
     
     Config.SECRET_KEY = flask_config.get('secret_key') or os.environ.get('SECRET_KEY') or secrets.token_hex(32)
+    
+    # Persist auto-generated secret_key so encrypted values survive restarts
+    if not flask_config.get('secret_key') and not os.environ.get('SECRET_KEY'):
+        config['flask']['secret_key'] = Config.SECRET_KEY
+        save_config(config)
     Config.PERMANENT_SESSION_LIFETIME = timedelta(days=flask_config.get('session_lifetime_days', 3650))
     
     Config.INSTANCE_DIR = os.path.join(os.path.dirname(__file__), 'instance')
