@@ -26,3 +26,17 @@ class VideoAccessUser(db.Model):
     )
 
     user = db.relationship('User', foreign_keys=[user_id])
+
+
+class VideoFolderAccess(db.Model):
+    __tablename__ = 'video_folder_access'
+
+    id = db.Column(db.Integer, primary_key=True)
+    folder_path = db.Column(db.String(500), unique=True, nullable=False)
+    mode = db.Column(db.String(20), nullable=False, default='public')
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
+                           onupdate=lambda: datetime.now(timezone.utc))
+
+    creator = db.relationship('User', backref=db.backref('video_folder_accesses', lazy='dynamic'))

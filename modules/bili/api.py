@@ -7,7 +7,8 @@ from . import bili_bp
 from .download_service import (
     start_download, get_download_progress, get_all_downloads,
     is_video_cached, get_video_cache_path, get_cached_videos,
-    delete_cached_video, get_video_info, QUALITY_MAP, DEFAULT_QUALITY
+    delete_cached_video, get_video_info, QUALITY_MAP, DEFAULT_QUALITY,
+    cleanup_cache, start_cache_cleanup_scheduler
 )
 
 try:
@@ -354,6 +355,29 @@ def proxy_cover():
     except Exception as e:
         print(f"[Bili] 封面代理失败: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+@bili_bp.route('/api/bili/cache/cleanup', methods=['POST'])
+@login_required
+def trigger_cache_cleanup():
+    """Manually trigger cache cleanup."""
+    result = cleanup_cache()
+    return jsonify({'success': True, **result})
+
+
+@bili_bp.route('/api/bili/cache/stats', methods=['GET'])
+@login_required
+def cache_stats():
+    """Get cache statistics."""
+    cached = get_cached_videos()
+    total_size = sum(c.get('size', 0) for c in cached)
+    return jsonify({
+        'file_count': len(cached),
+        'total_size': total_size,
+        'total_size_display': format_size(total_size) if 'format_size' in dir() else f'{total_size / (1024*1024):.1f} MB',
+        'max_size_mb': 10240,
+        'max_age_days': 30
+    })
 
 
 def format_duration(seconds):

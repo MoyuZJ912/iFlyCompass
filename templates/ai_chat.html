@@ -18,8 +18,9 @@
         /* ── Sidebar ── */
         .history-sidebar {
             width:260px; min-width:260px; background:#fff; border-right:1px solid #e8e8e8;
-            display:flex; flex-direction:column; height:100vh;
+            display:flex; flex-direction:column; height:100vh; transition:all 0.25s ease;
         }
+        .history-sidebar.collapsed { width:0; min-width:0; overflow:hidden; border-right:none; padding:0; }
         .history-sidebar .sb-header {
             padding:14px 16px; border-bottom:1px solid #eee;
             display:flex; align-items:center; justify-content:space-between;
@@ -65,6 +66,12 @@
             height:48px; padding:0 16px; background:#fff; border-bottom:1px solid #e8e8e8;
         }
         .top-bar .bar-left { display:flex; align-items:center; gap:10px; }
+        .sidebar-toggle-btn {
+            width:30px; height:30px; border-radius:6px; cursor:pointer;
+            display:flex; align-items:center; justify-content:center;
+            font-size:16px; color:#666; transition:all 0.12s;
+        }
+        .sidebar-toggle-btn:hover { background:#f0f0f0; color:#4f6ef7; }
         .top-bar .bar-title { font-size:15px; font-weight:600; color:#1a1a1a; }
         .top-bar .bar-right { display:flex; align-items:center; gap:8px; }
 
@@ -163,7 +170,7 @@
     <div id="app">
         <div class="app-layout">
             <!-- History Sidebar -->
-            <div class="history-sidebar">
+            <div class="history-sidebar" :class="{ collapsed: !sidebarVisible }">
                 <div class="sb-header">
                     <span class="sb-title">对话历史</span>
                     <button class="back-btn" @click="goBack" title="返回"><i class="el-icon-arrow-left"></i></button>
@@ -193,6 +200,9 @@
             <div class="main-chat">
                 <div class="top-bar">
                     <div class="bar-left">
+                        <span class="sidebar-toggle-btn" @click="sidebarVisible = !sidebarVisible" title="切换历史栏">
+                            <i :class="sidebarVisible ? 'el-icon-s-fold' : 'el-icon-s-unfold'"></i>
+                        </span>
                         <span class="bar-title">AI 对话</span>
                         <el-popover placement="bottom-start" trigger="click" width="220">
                             <div v-for="m in models" :key="m.id"
@@ -285,7 +295,8 @@
                     models: [],
                     selectedModel: '',
                     enableSearch: false,
-                    enableThinking: false
+                    enableThinking: false,
+                    sidebarVisible: true
                 };
             },
             computed: {
