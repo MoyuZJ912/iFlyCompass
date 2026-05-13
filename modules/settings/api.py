@@ -1,6 +1,7 @@
 from flask import jsonify, request
 from flask_login import login_required, current_user
 from utils import get_settings, update_settings, PASSWORD_STRENGTH_LEVELS
+from config import get_config, save_config
 from . import settings_bp
 
 @settings_bp.route('/api/settings', methods=['GET'])
@@ -144,3 +145,87 @@ def reset_all_settings():
     reset_settings()
     
     return jsonify({'success': True, 'message': '设置已重置为默认值'})
+
+
+@settings_bp.route('/api/settings/ai', methods=['GET'])
+@login_required
+def get_ai_settings():
+    """Get AI settings (API key masked for security)."""
+    if not (current_user.is_admin or current_user.is_super_admin):
+        return jsonify({'error': '权限不足'}), 403
+    
+    config = get_config()
+    ai_config = config.get('ai', {})
+    
+    api_key = ai_config.get('api_key', '')
+    if api_key and len(api_key) > 8:
+        masked_key = api_key[:4] + '*' * (len(api_key) - 8) + api_key[-4:]
+    elif api_key:
+        masked_key = '****'
+    else:
+        masked_key = ''
+    
+    return jsonify({
+        'api_url': ai_config.get('api_url', 'https://api.openai.com/v1/chat/completions'),
+        'api_key_masked': masked_key,
+        'has_api_key': bool(api_key),
+        'model': ai_config.get('model', 'gpt-3.5-turbo'),
+        'max_tokens': ai_config.get('max_tokens', 2048),
+        'temperature': ai_config.get('temperature', 0.7),
+        'system_prompt': ai_config.get('system_prompt', '你是一个有用的AI助手，请用中文回答用户的问题。')
+    })
+
+
+@settings_bp.route('/api/settings/ai', methods=['PUT'])
+@login_required
+def update_ai_settings():
+    """Update AI settings (admin only). API key is write-only."""
+    if not (current_user.is_admin or current_user.is_super_admin):
+        return jsonify({'error': '权限不足'}), 403
+    
+    data = request.json
+    config = get_config()
+    
+    if 'ai' not in config:
+        config['ai'] = {}
+    
+    if 'api_key' in data and data['api_key']:
+        key = data['api_key'].strip()
+        # Only update if it's a real key (not masked)
+        if key and '****' not in key:
+            config['ai']['api_key'] = key
+    
+    if 'api_url' in data:
+        url = data['api_url'].strip()
+        if url:
+            config['ai']['api_url'] = url
+    
+    if 'model' in data:
+        model = data['model'].strip()
+        if model:
+            config['ai']['model'] = model
+    
+    if 'max_tokens' in data:
+        try:
+            mt = int(data['max_tokens'])
+            if 100 <= mt <= 16384:
+                config['ai']['max_tokens'] = mt
+        except (ValueError, TypeError):
+            pass
+    
+    if 'temperature' in data:
+        try:
+            temp = float(data['temperature'])
+            if 0.0 <= temp <= 2.0:
+                config['ai']['temperature'] = temp
+        except (ValueError, TypeError):
+            pass
+    
+    if 'system_prompt' in data:
+        sp = data['system_prompt'].strip()
+        if sp:
+            config['ai']['system_prompt'] = sp
+    
+    save_config(config)
+    
+    return jsonify({'success': True, 'message': 'AI设置已保存'})

@@ -115,6 +115,12 @@
             flex-shrink: 0;
         }
 
+        .folder-access-btn {
+            margin-left: 8px; cursor: pointer; font-size: 14px;
+            color: #909399; padding: 2px 6px; border-radius: 4px; flex-shrink: 0;
+        }
+        .folder-access-btn:hover { color: #409EFF; background: #ecf5ff; }
+
         .video-category-body {
             overflow: hidden;
             transition: max-height 0.3s ease;
@@ -497,6 +503,9 @@
                                         <i class="el-icon-folder category-icon"></i>
                                         <span class="category-name">[[ category.name ]]</span>
                                         <span class="category-count">[[ category.videos.length ]]</span>
+                                        <span v-if="isAdmin && category.name !== '未分类'" class="folder-access-btn" @click.stop="openFolderAccess(category)" title="文件夹访问控制">
+                                            <i :class="category.folder_access && category.folder_access.mode !== 'public' ? 'el-icon-lock' : 'el-icon-unlock'"></i>
+                                        </span>
                                     </div>
                                     <div class="video-category-body" :class="{ collapsed: collapsedCategories[category.name] }" :style="{ maxHeight: collapsedCategories[category.name] ? '0' : (category.videos.length * 70 + 20) + 'px' }">
                                         <div
@@ -695,6 +704,48 @@
                 <el-button type="primary" @click="saveAccessControl" :loading="accessSaving">保存</el-button>
             </span>
         </el-dialog>
+
+        <!-- 文件夹访问控制对话框 -->
+        <el-dialog title="文件夹访问控制" :visible.sync="folderAccessDialogVisible" width="500px" :close-on-click-modal="false">
+            <el-form label-width="80px" size="small">
+                <el-form-item label="文件夹">
+                    <el-input :value="folderAccessForm.folderName" disabled></el-input>
+                </el-form-item>
+                <el-form-item label="访问模式">
+                    <el-radio-group v-model="folderAccessForm.mode">
+                        <el-radio label="public">公开</el-radio>
+                        <el-radio label="admin_only">仅管理员</el-radio>
+                        <el-radio label="whitelist">白名单</el-radio>
+                        <el-radio label="blacklist">黑名单</el-radio>
+                    </el-radio-group>
+                </el-form-item>
+                <el-form-item v-if="folderAccessForm.mode === 'whitelist' || folderAccessForm.mode === 'blacklist'" label="选择用户">
+                    <el-select v-model="folderAccessForm.addUserId" filterable remote reserve-keyword
+                        placeholder="搜索用户" :remote-method="searchFolderAccessUsers"
+                        :loading="folderAccessUserSearching" @change="addFolderAccessUser" size="small" style="width:100%;">
+                        <el-option v-for="u in folderAccessUserSearchResults" :key="u.id"
+                            :label="u.display_name + ' (' + u.username + ')'" :value="u.id"></el-option>
+                    </el-select>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">
+                        <el-tag v-for="u in folderAccessForm.users" :key="u.id" closable
+                            @close="removeFolderAccessUser(u.id)" size="small"
+                            :type="folderAccessForm.mode === 'blacklist' ? 'warning' : ''">[[ u.display_name ]]</el-tag>
+                    </div>
+                </el-form-item>
+                <el-form-item>
+                    <div style="color:#909399;font-size:12px;line-height:1.6;">
+                        <div v-if="folderAccessForm.mode === 'public'">所有用户均可查看此文件夹</div>
+                        <div v-if="folderAccessForm.mode === 'admin_only'">仅管理员可查看此文件夹</div>
+                        <div v-if="folderAccessForm.mode === 'whitelist'">仅白名单用户和管理员可查看</div>
+                        <div v-if="folderAccessForm.mode === 'blacklist'">黑名单用户不可查看</div>
+                    </div>
+                </el-form-item>
+            </el-form>
+            <span slot="footer" class="dialog-footer">
+                <el-button @click="folderAccessDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="saveFolderAccess" :loading="folderAccessSaving">保存</el-button>
+            </span>
+        </el-dialog>
     </div>
 
     <script src="/assets/js/vue.min.js"></script>
@@ -764,6 +815,17 @@
                     accessUserSearching: false,
                     accessUserSearchResults: [],
                     accessForm: {
+                        mode: 'public',
+                        users: [],
+                        addUserId: null
+                    },
+                    folderAccessDialogVisible: false,
+                    folderAccessDialogCategory: null,
+                    folderAccessSaving: false,
+                    folderAccessUserSearching: false,
+                    folderAccessUserSearchResults: [],
+                    folderAccessForm: {
+                        folderName: '',
                         mode: 'public',
                         users: [],
                         addUserId: null
@@ -1175,6 +1237,72 @@
                         self.accessSaving = false;
                         self.$message.error('保存失败');
                     });
+                },
+                // ─── Folder access control ───
+                openFolderAccess(category) {
+                    this.folderAccessDialogCategory = category;
+                    var fa = category.folder_access;
+                    if (fa) {
+                        this.folderAccessForm.mode = fa.mode;
+                        this.folderAccessForm.users = (fa.users || []).slice();
+                    } else {
+                        this.folderAccessForm.mode = 'public';
+                        this.folderAccessForm.users = [];
+                    }
+                    this.folderAccessForm.folderName = category.name;
+                    this.folderAccessForm.addUserId = null;
+                    this.folderAccessUserSearchResults = [];
+                    this.folderAccessDialogVisible = true;
+                },
+                searchFolderAccessUsers(keyword) {
+                    var self = this;
+                    if (!keyword) { self.folderAccessUserSearchResults = []; return; }
+                    self.folderAccessUserSearching = true;
+                    fetch('/api/video/access/users/search?keyword=' + encodeURIComponent(keyword))
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            self.folderAccessUserSearchResults = data;
+                            self.folderAccessUserSearching = false;
+                        }).catch(function() { self.folderAccessUserSearching = false; });
+                },
+                addFolderAccessUser(userId) {
+                    var self = this;
+                    var exists = this.folderAccessForm.users.some(function(u) { return u.id === userId; });
+                    if (!exists) {
+                        var found = this.folderAccessUserSearchResults.find(function(u) { return u.id === userId; });
+                        if (found) {
+                            self.folderAccessForm.users.push({
+                                id: found.id, username: found.username,
+                                nickname: found.nickname, display_name: found.display_name
+                            });
+                        }
+                    }
+                    this.$nextTick(function() { self.folderAccessForm.addUserId = null; });
+                },
+                removeFolderAccessUser(userId) {
+                    this.folderAccessForm.users = this.folderAccessForm.users.filter(function(u) { return u.id !== userId; });
+                },
+                saveFolderAccess() {
+                    var self = this;
+                    var cat = this.folderAccessDialogCategory;
+                    if (!cat) return;
+                    self.folderAccessSaving = true;
+                    var userIds = this.folderAccessForm.users.map(function(u) { return u.id; });
+                    fetch('/api/video/folder-access/' + encodeURIComponent(cat.name), {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ mode: self.folderAccessForm.mode, users: userIds })
+                    })
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        self.folderAccessSaving = false;
+                        if (data.error) { self.$message.error(data.error); }
+                        else {
+                            self.$message.success('文件夹访问控制更新成功');
+                            self.folderAccessDialogVisible = false;
+                            self.loadVideos();
+                        }
+                    }).catch(function() { self.folderAccessSaving = false; self.$message.error('保存失败'); });
                 },
                 toggleCollapse() {
                     this.isCollapse = !this.isCollapse;

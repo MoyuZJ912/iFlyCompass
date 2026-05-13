@@ -4,7 +4,7 @@ from flask import jsonify, request, Response
 from flask_login import login_required, current_user
 from config import Config
 from extensions import db
-from models.video import VideoAccessControl, VideoAccessUser
+from models.video import VideoAccessControl, VideoAccessUser, VideoFolderAccess
 from models.user import User
 from . import video_bp
 
@@ -55,6 +55,28 @@ def _get_video_access_info(video_path):
             })
 
     return {'mode': acl.mode, 'users': user_list}
+
+
+def _get_folder_access_info(folder_path):
+    try:
+        acl = VideoFolderAccess.query.filter_by(folder_path=folder_path).first()
+        if not acl:
+            return {'mode': 'public', 'users': []}
+        users = VideoAccessUser.query.filter_by(video_path='__folder__' + folder_path).all()
+    except Exception:
+        return {'mode': 'public', 'users': []}
+    user_list = []
+    for u in users:
+        user_obj = User.query.get(u.user_id)
+        if user_obj:
+            user_list.append({
+                'id': user_obj.id,
+                'username': user_obj.username,
+                'nickname': user_obj.nickname or '',
+                'display_name': user_obj.display_name
+            })
+    return {'mode': acl.mode, 'users': user_list}
+
 
 def _get_video_files_categorized():
     _ensure_videos_dir()
@@ -281,3 +303,56 @@ def search_users_for_access():
         'nickname': u.nickname or '',
         'display_name': u.display_name
     } for u in users])
+
+
+# ─── Folder-level access control ───
+
+@video_bp.route('/api/video/folder-access/<path:folder_path>', methods=['GET'])
+@login_required
+def get_folder_access(folder_path):
+    if not (current_user.is_admin or current_user.is_super_admin):
+        return jsonify({'error': '权限不足'}), 403
+    info = _get_folder_access_info(folder_path)
+    return jsonify(info)
+
+
+@video_bp.route('/api/video/folder-access/<path:folder_path>', methods=['PUT'])
+@login_required
+def update_folder_access(folder_path):
+    if not (current_user.is_admin or current_user.is_super_admin):
+        return jsonify({'error': '权限不足'}), 403
+
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': '无效请求数据'}), 400
+
+    mode = data.get('mode')
+    if mode not in ('public', 'admin_only', 'whitelist', 'blacklist'):
+        return jsonify({'error': '无效的访问模式'}), 400
+
+    user_ids = data.get('users', [])
+    folder_key = '__folder__' + folder_path
+
+    acl = VideoFolderAccess.query.filter_by(folder_path=folder_path).first()
+    if acl:
+        acl.mode = mode
+        acl.updated_at = db.func.now()
+    else:
+        acl = VideoFolderAccess(
+            folder_path=folder_path,
+            mode=mode,
+            created_by=current_user.id
+        )
+        db.session.add(acl)
+    db.session.commit()
+
+    VideoAccessUser.query.filter_by(video_path=folder_key).delete()
+    db.session.commit()
+
+    for uid in user_ids:
+        existing = VideoAccessUser.query.filter_by(video_path=folder_key, user_id=uid).first()
+        if not existing:
+            db.session.add(VideoAccessUser(video_path=folder_key, user_id=uid))
+    db.session.commit()
+
+    return jsonify({'message': '文件夹访问控制更新成功', 'mode': mode})

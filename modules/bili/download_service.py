@@ -16,6 +16,14 @@ except Exception as e:
 
 BILI_DIR = os.path.join(Config.TEMP_DIR, 'bili') if Config.TEMP_DIR else os.path.join(os.path.dirname(__file__), '..', 'temp', 'bili')
 
+# Cache cleanup settings
+CACHE_MAX_SIZE_MB = 10240   # 10 GB max cache size
+CACHE_MAX_AGE_DAYS = 30     # Remove files older than 30 days
+CACHE_CHECK_INTERVAL = 3600 # Check every hour
+
+_cleanup_thread = None
+_cleanup_running = False
+
 FFMPEG_PATH = None
 HAS_QSV = False  # 是否支持 Intel QSV 硬件加速
 
@@ -672,3 +680,98 @@ def delete_cached_video(bvid):
 def get_video_info(bvid):
     info, cid = get_video_info_sync(bvid)
     return info
+
+
+def cleanup_cache(max_size_mb=None, max_age_days=None):
+    """Auto-cleanup cache: remove old/over-limit files."""
+    if max_size_mb is None:
+        max_size_mb = CACHE_MAX_SIZE_MB
+    if max_age_days is None:
+        max_age_days = CACHE_MAX_AGE_DAYS
+
+    ensure_bili_dir()
+    files = []
+    now = time.time()
+    max_age_seconds = max_age_days * 86400
+
+    try:
+        for fname in os.listdir(BILI_DIR):
+            if fname.endswith('.mp4'):
+                fpath = os.path.join(BILI_DIR, fname)
+                stat = os.stat(fpath)
+                files.append({
+                    'path': fpath,
+                    'name': fname,
+                    'size': stat.st_size,
+                    'mtime': stat.st_mtime
+                })
+    except Exception as e:
+        print(f'[Bili] 扫描缓存目录失败: {e}')
+        return {'deleted': 0, 'freed_bytes': 0}
+
+    deleted = 0
+    freed = 0
+
+    # Remove files older than max_age_days
+    for f in files[:]:
+        if now - f['mtime'] > max_age_seconds:
+            try:
+                os.remove(f['path'])
+                freed += f['size']
+                deleted += 1
+                files.remove(f)
+                print(f'[Bili] 清理过期缓存: {f["name"]}')
+            except Exception as e:
+                print(f'[Bili] 删除过期文件失败 {f["name"]}: {e}')
+
+    # If total size still exceeds limit, remove oldest first
+    total_size = sum(f['size'] for f in files)
+    max_bytes = max_size_mb * 1024 * 1024
+    if total_size > max_bytes:
+        files.sort(key=lambda x: x['mtime'])
+        for f in files:
+            if total_size <= max_bytes:
+                break
+            try:
+                os.remove(f['path'])
+                total_size -= f['size']
+                freed += f['size']
+                deleted += 1
+                print(f'[Bili] 清理超限缓存: {f["name"]} ({format_size(f["size"])})')
+            except Exception as e:
+                print(f'[Bili] 删除超限文件失败 {f["name"]}: {e}')
+
+    if deleted > 0:
+        print(f'[Bili] 缓存清理完成: 删除 {deleted} 个文件, 释放 {format_size(freed)}')
+    return {'deleted': deleted, 'freed_bytes': freed, 'freed_display': format_size(freed)}
+
+
+def start_cache_cleanup_scheduler():
+    """Start a background thread that periodically cleans cache."""
+    global _cleanup_thread, _cleanup_running
+    if _cleanup_running:
+        return
+    _cleanup_running = True
+
+    def _run():
+        print('[Bili] 缓存自动清理已启动')
+        while _cleanup_running:
+            time.sleep(CACHE_CHECK_INTERVAL)
+            try:
+                result = cleanup_cache()
+                if result['deleted'] > 0:
+                    print(f'[Bili] 定期清理: {result}')
+            except Exception as e:
+                print(f'[Bili] 定期清理异常: {e}')
+
+    _cleanup_thread = threading.Thread(target=_run, daemon=True)
+    _cleanup_thread.start()
+
+
+def stop_cache_cleanup_scheduler():
+    global _cleanup_running
+    _cleanup_running = False
+
+
+# Auto-start cache cleanup on import (runs once on first load)
+start_cache_cleanup_scheduler()
