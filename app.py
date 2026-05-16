@@ -53,6 +53,24 @@ def run_migrations(app):
             conn.commit()
             print("数据库迁移完成！")
         
+        if 'session_version' not in columns:
+            print("正在迁移数据库：添加 session_version 字段...")
+            cursor.execute("ALTER TABLE user ADD COLUMN session_version INTEGER DEFAULT 0")
+            conn.commit()
+            print("数据库迁移完成！")
+
+        if 'line_height' not in columns:
+            print("正在迁移数据库：添加 line_height 字段...")
+            cursor.execute("ALTER TABLE user ADD COLUMN line_height REAL DEFAULT 1.6")
+            conn.commit()
+            print("数据库迁移完成！")
+
+        if 'letter_spacing' not in columns:
+            print("正在迁移数据库：添加 letter_spacing 字段...")
+            cursor.execute("ALTER TABLE user ADD COLUMN letter_spacing REAL DEFAULT 0.0")
+            conn.commit()
+            print("数据库迁移完成！")
+        
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='announcement'")
         if not cursor.fetchone():
             print("正在迁移数据库：创建 announcement 表...")
@@ -140,6 +158,23 @@ def run_migrations(app):
             conn.commit()
             print("数据库迁移完成！")
         
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='drop_read'")
+        if not cursor.fetchone():
+            print("正在迁移数据库：创建 drop_read 表...")
+            cursor.execute('''
+                CREATE TABLE drop_read (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    drop_id INTEGER NOT NULL,
+                    created_at DATETIME,
+                    FOREIGN KEY (user_id) REFERENCES user(id),
+                    FOREIGN KEY (drop_id) REFERENCES drop_message(id),
+                    CONSTRAINT unique_drop_read UNIQUE (user_id, drop_id)
+                )
+            ''')
+            conn.commit()
+            print("数据库迁移完成！")
+        
         cursor.execute("PRAGMA table_info(chat_room)")
         chat_room_columns = [column[1] for column in cursor.fetchall()]
         
@@ -179,6 +214,45 @@ def run_migrations(app):
                     CONSTRAINT unique_video_access_user UNIQUE (video_path, user_id)
                 )
             ''')
+            conn.commit()
+            print("数据库迁移完成！")
+        
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='video_folder_access'")
+        if not cursor.fetchone():
+            print("正在迁移数据库：创建 video_folder_access 表...")
+            cursor.execute('''
+                CREATE TABLE video_folder_access (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    folder_path VARCHAR(500) NOT NULL UNIQUE,
+                    mode VARCHAR(20) NOT NULL DEFAULT 'public',
+                    created_by INTEGER,
+                    created_at DATETIME,
+                    updated_at DATETIME,
+                    FOREIGN KEY (created_by) REFERENCES user(id)
+                )
+            ''')
+            conn.commit()
+            print("数据库迁移完成！")
+        
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='bili_video_user'")
+        if not cursor.fetchone():
+            print("正在迁移数据库：创建 bili_video_user 表...")
+            cursor.execute('''
+                CREATE TABLE bili_video_user (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    bvid VARCHAR(20) NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    added_at DATETIME,
+                    last_watched_at DATETIME,
+                    FOREIGN KEY (user_id) REFERENCES user(id),
+                    CONSTRAINT unique_bili_video_user UNIQUE (bvid, user_id)
+                )
+            ''')
+            
+            # 创建索引以加速查询
+            cursor.execute('CREATE INDEX idx_bili_video_user_bvid ON bili_video_user(bvid)')
+            cursor.execute('CREATE INDEX idx_bili_video_user_user_id ON bili_video_user(user_id)')
+            
             conn.commit()
             print("数据库迁移完成！")
 
@@ -228,6 +302,25 @@ def create_app():
     
     from modules.proxy.proxy_server import start_proxy_server
     start_proxy_server()
+    
+    # 注册程序退出钩子，终止所有 FFmpeg 转换进程
+    import atexit
+    def cleanup_on_exit():
+        try:
+            from modules.bili.download_service import terminate_all_ffmpeg_processes
+            result = terminate_all_ffmpeg_processes()
+            if result['terminated_count'] > 0:
+                print(f'[App] 程序退出时已终止 {result["terminated_count"]} 个 FFmpeg 进程')
+        except Exception as e:
+            print(f'[App] 退出清理失败: {e}')
+    
+    atexit.register(cleanup_on_exit)
+    
+    # 注册 Flask 应用上下文销毁时的清理
+    @app.teardown_appcontext
+    def shutdown_session(exception=None):
+        # 这里可以添加其他清理逻辑
+        pass
     
     return app
 

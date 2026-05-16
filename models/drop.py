@@ -36,3 +36,18 @@ class DropBlacklist(db.Model):
     
     user = db.relationship('User', foreign_keys=[user_id], backref=db.backref('blocked_users', lazy='dynamic'))
     blocked_user = db.relationship('User', foreign_keys=[blocked_user_id])
+
+class DropRead(db.Model):
+    __tablename__ = 'drop_read'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    drop_id = db.Column(db.Integer, db.ForeignKey('drop_message.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'drop_id', name='unique_drop_read'),
+    )
+    
+    user = db.relationship('User', backref=db.backref('read_drops', lazy='dynamic'))
+    drop = db.relationship('DropMessage', backref=db.backref('read_by', lazy='dynamic'))

@@ -2,6 +2,337 @@
 
 ## 版本更新
 
+### REL2.5.3
+
+**AI 对话功能增强**
+
+- **思考模式开关**：
+  - **功能概述**：用户可在AI对话界面选择是否启用深度推理模式
+  - **实现逻辑**：
+    - 前端新增 `enable_thinking` 开关控件
+    - 发送消息时将 `enable_thinking` 参数传递给后端
+    - 后端根据模型能力判断是否支持思考模式
+    - 不支持思考的模型（如DeepSeek-V3），该开关无效，无论开启或关闭都不影响响应
+  - **技术实现**：
+    - 前端：在 `ai_chat.html` 中添加开关组件，绑定到Vue数据模型
+    - 后端：`modules/ai_chat/api.py` 的 `send_message()` 和 `stream_message()` 方法处理参数
+    - API兼容性：支持DeepSeek-R1等推理模型的 `reasoning_effort` 参数
+  - **用户体验**：
+    - 开关状态持久化到localStorage
+    - 切换模型时自动判断是否显示开关
+    - 不支持的模型自动隐藏开关并禁用
+
+- **打字机效果输出**：
+  - **功能概述**：流式响应时逐字显示AI回复，模拟真实打字效果
+  - **实现方式**：
+    - 使用Server-Sent Events (SSE) 实现真正的流式传输
+    - 前端接收每个token后立即渲染到界面
+    - 添加光标闪烁动画，提升视觉反馈
+  - **前端优化**：
+    - 在 `templates/ai_chat.html` 中实现消息逐字追加逻辑
+    - 使用CSS动画创建光标效果（`@keyframes blink`）
+    - 支持中途停止生成（AbortController）
+  - **性能考虑**：
+    - 使用requestAnimationFrame优化渲染频率
+    - 批量处理高频token更新，避免过度重绘
+    - 保持滚动位置跟随最新内容
+  - **代码变更**：
+    - `templates/ai_chat.html`：新增流式响应处理函数、光标动画样式
+    - `modules/ai_chat/api.py`：优化SSE事件格式，包含content、reasoning_content、usage等字段
+
+**B站视频播放器全面优化**
+
+- **下载进度卡在0%问题修复**：
+  - **问题描述**：前端UI显示"获取视频信息 0%"但后台已完成下载转换
+  - **根本原因**：
+    - 后端任务状态未及时更新为'fetching'
+    - 前端使用对象引用而非独立响应式变量，Vue无法检测变化
+  - **解决方案**：
+    - **后端修改**（`modules/bili/download_service.py`）：
+      - 在 `start_download()` 函数中立即设置 `task.status = 'fetching'`
+      - 同时初始化 `task.progress = 0`
+      - 确保任务开始前状态已正确设置
+    - **前端修改**（`templates/bili_player.html`）：
+      - 将 `downloadProgress` 对象拆分为独立的响应式变量：`dlStatus`, `dlProgress`
+      - 使用Vue的独立data属性确保每个变量都能被正确追踪
+      - 添加CSS过渡动画使进度条平滑更新
+  - **验证结果**：进度条从"获取视频信息 0%"正确过渡到下载百分比，实时反映后台进度
+
+- **控制栏智能显示与隐藏**：
+  - **需求背景**：播放器底部操作栏（暂停/播放、进度条、音量、倍速、全屏）完全不显示
+  - **实现方案**：
+    - 移除 `<video>` 元素的原生 `controls` 属性
+    - 使用自定义CSS控制Plyr控制栏的可见性
+    - 默认完全隐藏（opacity: 0, visibility: hidden）
+    - 鼠标悬停时平滑显示（transition: opacity 0.3s ease）
+  - **CSS实现细节**（`templates/bili_player.html`）：
+    ```css
+    .plyr__controls {
+        display: flex !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+        transition: opacity 0.3s ease,
+                    visibility 0.3s ease !important;
+    }
+    .plyr:hover .plyr__controls {
+        opacity: 1 !important;
+        visibility: visible !important;
+        pointer-events: auto !important;
+    }
+    ```
+  - **交互体验**：鼠标移入播放器区域→控制栏淡入→可操作；鼠标移出→控制栏完全消失
+
+- **精简控制按钮**：
+  - **移除的功能**：
+    - 画中画播放（pip）：移动端和嵌入式场景不需要
+    - 下载按钮：避免绕过缓存管理机制
+    - 从头开始播放（restart）：减少误操作
+  - **保留的核心功能**：
+    - 播放/暂停切换
+    - 进度条拖拽
+    - 音量调节
+    - 倍速选择（0.5x, 0.75x, 1x, 1.25x, 1.5x, 2x）
+    - 全屏切换
+  - **配置变更**（Plyr初始化）：
+    ```javascript
+    controls: [
+        'play',           // 播放/暂停
+        'progress',       // 进度条
+        'current-time',   // 当前时间
+        'mute',           // 静音
+        'volume',         // 音量
+        'speed',          // 倍速
+        'fullscreen'      // 全屏
+    ]
+    ```
+
+- **竖屏视频适配**：
+  - **问题**：B站竖屏短视频（9:16比例）超出播放器容器边界
+  - **解决方案**：
+    - CSS添加 `object-fit: contain` 确保视频完整显示
+    - 设置最大宽高比限制，防止变形
+    - 播放器容器使用flex布局自适应
+  - **测试覆盖**：横屏16:9、竖屏9:16、方形1:1等多种比例
+
+- **转换状态管理优化**：
+  - **问题场景**：视频A正在转换中，点击已缓存的视频B时，转换中的页面重叠在新页面上
+  - **解决策略**：
+    - 切换视频时隐藏当前转换中的overlay
+    - 记录转换状态到全局变量，返回时重新显示
+    - 使用z-index层级管理多个叠加层
+  - **状态机设计**：
+    ```
+    idle → fetching → downloading → converting → completed
+     ↑                                                    |
+     └────────────────────────────────────────────────────┘
+    ```
+  - **缓存列表显示**：转换中的视频显示"正在下载中"/"正在缓存中"状态标签
+
+- **访问权限控制系统**：
+  - **核心设计**：用户只能访问自己缓存的视频或被授权的视频
+  - **数据库模型**（`models/bili_video.py`）：
+    - 新增 `BiliVideoUser` 关联表：记录用户-视频关系
+    - 字段：user_id, bvid, added_at
+  - **权限规则**：
+    - 用户下载新视频 → 自动加入该用户的视频列表
+    - 其他用户下载相同视频 → 仅添加关联记录，不重复下载文件
+    - 删除缓存 → 只删除当前用户的记录，不影响其他用户
+    - 所有用户都移除 → 真正删除本地文件
+  - **7天自动清理**：
+    - 定时任务检查视频最后观看时间
+    - 超过7天无人观看的视频自动标记清理
+    - 清理时检查关联记录数，确保不影响其他用户
+  - **API端点权限检查**：
+    - `GET /api/bili/cached`：只返回当前用户的视频列表
+    - `GET /api/bili/play/<bvid>`：验证用户是否有权访问
+    - `DELETE /api/bili/delete/<bvid>`：只删除当前用户记录
+  - **前端适配**：
+    - 缓存列表只显示有权限的视频
+    - 删除操作提示"从你的列表中移除"
+    - 下载时检测是否已存在："该视频已在你的缓存中"
+
+**密码管理与安全增强**
+
+- **密码重置后强制登出所有设备**：
+  - **功能概述**：用户修改密码后，所有使用旧密码登录的会话立即失效
+  - **实现原理**：
+    - 修改密码时生成新的session token
+    - 使所有旧的session失效（清除服务端session存储）
+    - 客户端下次请求时被重定向到登录页
+  - **技术实现**（`modules/auth/api.py`）：
+    - `change_password()` API端点修改
+    - 调用Flask-Login的 `logout_user()` 清除当前会话
+    - 查询并删除该用户的所有其他session记录
+  - **安全性**：
+    - 即使攻击者持有旧cookie也无法继续使用
+    - 防止会话固定攻击（Session Fixation）
+    - 符合OWASP最佳实践
+
+- **一键退出所有设备**：
+  - **功能入口**：个人设置页面 → 安全设置区域
+  - **功能描述**：无需修改密码即可立即退出所有登录设备的当前账号
+  - **适用场景**：
+    - 在公共电脑登录后忘记退出
+    - 怀疑账号被盗用
+    - 需要紧急撤销所有会话
+  - **API设计**：
+    - `POST /api/auth/logout-all-devices`
+    - 参数：无（使用当前登录用户身份）
+    - 返回：{success: true, message: "已成功登出所有设备"}
+  - **前端实现**：
+    - 在所有页面的个人设置下拉菜单中添加按钮
+    - 点击后弹出确认对话框："确定要退出所有设备的登录吗？"
+    - 确认后调用API，成功后跳转到登录页
+  - **用户体验优化**：
+    - 显示当前在线设备数量（可选）
+    - 操作后提示"将在所有设备上重新登录"
+    - 当前设备立即跳转登录页
+
+**沉浸式阅读器排版优化**
+
+- **行间距与字间距调节**：
+  - **功能概述**：允许用户自定义沉浸式阅读器的行间距和字符间距，设置保存在服务端用户数据库中
+  - **UI设计**：
+    - 设置面板在主题颜色和翻页动画之间新增两个滑块控件
+    - **行间距调节**：范围 1.0 - 3.0（默认1.6），步进0.1，实时显示数值（保留1位小数）
+    - **字间距调节**：范围 0.0 - 1.0em（默认0），步进0.05，实时显示数值（保留2位小数）
+    - 使用Material Icons图标：`format_line_spacing`（行间距）和 `text_fields`（字间距）
+    - 自定义滑块样式，适配主题色（使用CSS变量 `--imm-text`, `--imm-toc-border`）
+    - 滑块头悬停放大效果，提升交互体验
+  - **数据持久化方案**：
+    - **服务端存储**：设置保存在User模型的 `line_height` 和 `letter_spacing` 字段中
+    - **跨设备同步**：换设备登录后自动加载用户的排版设置
+    - **API接口**：复用 `/api/user/profile` 接口
+      - GET请求返回当前用户的排版设置
+      - PUT请求接受并保存新值（带参数验证）
+    - **前端加载时机**：页面初始化时通过 `immLoadSettings()` 从服务端获取
+    - **保存机制**：拖动滑块时立即调用 `immSaveSpacingToServer()` 保存到服务端
+  - **CSS样式应用**：
+    - **正确选择器**：样式应用到 `.imm-page-layer`（而非 `.imm-page-content` 容器）
+    ```javascript
+    var layers = document.querySelectorAll('.imm-page-layer');
+    layers.forEach(function(layer) {
+        layer.style.lineHeight = lineHeight;        // 行内高度
+        layer.style.letterSpacing = letterSpacing;   // 字符间距
+        
+        // 段落间额外间距
+        paragraphs.forEach(function(p) {
+            p.style.marginBottom = ((lineHeight - 1) * 0.5) + 'em';
+        });
+    });
+    ```
+  - **行间距双重控制机制**：
+    - **行内高度**（line-height）：控制同一行文字的垂直间距
+    - **段落间距**（margin-bottom）：控制不同段落之间的空白距离
+    - **计算公式**：`段落间距 = (行高值 - 1) × 0.5em`
+    - **示例效果**：
+      | 行高设置 | 行内间距 | 段落间距 | 视觉效果 |
+      |---------|---------|---------|---------|
+      | 1.2 | 紧凑 | 0.1em | 非常密集 |
+      | 1.6（默认）| 标准 | 0.3em | 舒适阅读 |
+      | 2.0 | 宽松 | 0.5em | 轻松阅读 |
+      | 2.5 | 很宽松 | 0.75cm | 大字版体验 |
+      | 3.0 | 超宽松 | 1.0em | 老年人友好 |
+  - **分页算法动态适配**：
+    - **核心挑战**：调整排版参数后每页容纳的文字数量发生变化，需要重新分页
+    - **解决方案**：修改 `immCalcDims()` 函数动态计算页面容量
+    ```javascript
+    function immCalcDims() {
+        // 基础计算
+        var lh = IMM_FONT * userLineHeight;
+        
+        // 段落间距影响
+        var paragraphSpacing = (userLineHeight - 1) * 0.5 * IMM_FONT;
+        var effectiveLh = lh + paragraphSpacing;  // 有效行高 = 行内 + 段间
+        
+        // 计算每页行数（使用有效行高）
+        var lpp = Math.floor(h / effectiveLh * 0.95) - 3;
+        
+        // 字符间距影响每行字符数
+        var charWidth = (IMM_FONT * 0.6) + (IMM_FONT * userLetterSpacing);
+        var cpl = Math.floor(w / charWidth * 0.95) - 2;
+        
+        return { linesPerPage: lpp, charsPerLine: cpl };
+    }
+    ```
+    - **自动重分页触发**：用户调整滑块时调用 `immApplySpacing()`
+      1. 立即应用CSS样式（视觉反馈）
+      2. 防抖300ms后执行重新分页（性能优化）
+      3. 保持当前阅读位置（如果页数减少则调整到最后页）
+      4. 渲染更新后的内容
+  - **性能优化策略**：
+    - **防抖机制**（Debounce）：300ms延迟避免频繁重算
+    - **选择性更新**：只在参数实际变化时才触发重分页
+    - **位置保持**：重分页后自动调整当前页码，避免跳回章节开头
+  - **数据库模型变更**：
+    - **文件**：`models/user.py`
+    - **新增字段**：
+      ```python
+      line_height = db.Column(db.Float, default=1.6)       # 行间距
+      letter_spacing = db.Column(db.Float, default=0.0)     # 字间距
+      ```
+  - **数据库迁移脚本**：
+    - **文件**：`app.py` 的 `run_migrations()` 函数
+    - **迁移逻辑**：
+      ```python
+      if 'line_height' not in columns:
+          cursor.execute("ALTER TABLE user ADD COLUMN line_height REAL DEFAULT 1.6")
+      
+      if 'letter_spacing' not in columns:
+          cursor.execute("ALTER TABLE user ADD COLUMN letter_spacing REAL DEFAULT 0.0")
+      ```
+    - **自动执行**：应用启动时检测并添加缺失字段，无需手动干预
+  - **API验证逻辑**：
+    - **文件**：`modules/auth/api.py`
+    - **PUT /api/user/profile 验证规则**：
+      - `line_height`：必须是数字，范围 1.0 - 3.0
+      - `letter_spacing`：必须是数字，范围 0.0 - 1.0
+      - 超出范围返回400错误及中文提示信息
+  - **代码变更清单**：
+    - `models/user.py`：新增两个字段定义
+    - `app.py`：添加数据库迁移代码
+    - `modules/auth/api.py`：
+      - GET `/api/user/profile` 返回排版设置
+      - PUT `/api/user/profile` 接受并验证排版参数
+    - `templates/novel_reader.html`：
+      - 新增HTML：两个滑块控件及数值显示标签
+      - 新增CSS：完整的滑块样式（轨道、滑块头、悬停效果、主题适配）
+      - 新增/修改JavaScript函数：
+        - `immUpdateLineHeight(value)` - 处理行间距滑块事件
+        - `immUpdateLetterSpacing(value)` - 处理字间距滑块事件
+        - `immApplySpacing()` - 应用样式并触发重分页
+        - `immSaveSpacingToServer()` - 保存设置到服务端
+        - `immLoadSettings()` - 从服务端加载设置（增强版）
+        - `immCalcDims()` - 动态分页算法（适配新参数）
+  - **用户体验优化**：
+    - **实时预览**：拖动滑块立即看到文字排版变化
+    - **精确显示**：滑块旁显示当前数值，方便微调
+    - **平滑过渡**：防抖机制确保流畅体验
+    - **数据安全**：服务端存储避免浏览器清缓存丢失设置
+    - **多设备同步**：手机、平板、电脑保持一致的阅读体验
+
+**Drop消息系统改进**
+
+- **已读标记机制**：
+  - **问题背景**：Drop消息每次进入页面都会重复显示，用户无法关闭，只能关闭接收功能
+  - **解决方案**：服务端记录每个用户已查看的Drop消息ID，不再重复推送
+  - **实现方案**：
+    - 数据库新增 `UserDropRead` 表（或在现有表中添加字段）
+    - 字段：user_id, drop_message_id, read_at
+    - API轮询时过滤已读消息：`WHERE id NOT IN (SELECT drop_message_id FROM user_drop_reads WHERE user_id = ?)`
+  - **API变更**：
+    - `GET /api/drop/poll`：增加过滤逻辑
+    - `POST /api/drop/mark-read`：标记消息为已读（可选，也可在poll时自动标记）
+  - **前端适配**：
+    - Drop气泡显示后自动标记为已读
+    - 关闭气泡即确认已读
+    - localStorage备份lastId作为辅助去重机制
+  - **用户体验改善**：
+    - 每条Drop消息只会显示一次
+    - 用户可以安心关闭Drop而不担心遗漏重要信息
+    - 管理员发送的Drop确保所有在线用户都能看到一次
+
 ### REL2.5.2
 
 **mitmproxy 优化 + FFmpeg 恢复**
@@ -13,36 +344,31 @@
   - 生产环境路径不同，导致无法创建进程
   - 错误：`Fatal error in launcher: Unable to create process`
   - `python -m mitmproxy.tools.dump` 模块方式会立即退出
-
 - **解决方案**：
   - 删除本地内置的 mitmproxy 和所有依赖库（tools/mitmproxy/）
   - 改用系统安装的 mitmproxy（`pip install mitmproxy`）
   - 使用 `mitmdump` 命令直接运行
   - 使用 `CREATE_NEW_CONSOLE` 创建独立的控制台窗口
-
 - **代码变更**：
   - 删除 `_check_local_mitmproxy()` 函数
   - 简化 `_check_mitmproxy()` 只检查系统安装
   - 修改 `start_proxy_server()`：
-    * 使用 `mitmdump` 命令
-    * 使用 `CREATE_NEW_CONSOLE` 创建新窗口
-    * 不重定向 stdout/stderr，让日志显示在独立窗口
-    * 移除 `console_eventlog_verbosity` 和 `termlog_verbosity` 参数
-
+    - 使用 `mitmdump` 命令
+    - 使用 `CREATE_NEW_CONSOLE` 创建新窗口
+    - 不重定向 stdout/stderr，让日志显示在独立窗口
+    - 移除 `console_eventlog_verbosity` 和 `termlog_verbosity` 参数
 - **删除文件**：
   - `tools/mitmproxy/` 目录（包含 mitmdump.exe 和所有依赖库）
   - `tools/install_mitmproxy.py`（安装脚本）
   - `tools/test_mitmproxy.py`（测试脚本）
   - `tools/diagnose_mitmproxy.py`（诊断工具）
-
 - **优势**：
-  | 特性 | 说明 |
-  |------|------|
+  | 特性   | 说明                  |
+  | ---- | ------------------- |
   | 进程可见 | 独立窗口显示 mitmproxy 日志 |
-  | 易于调试 | 实时查看所有请求和错误 |
-  | 代码简洁 | 减少 44 行代码 |
-  | 稳定运行 | 使用正确的 mitmdump 命令 |
-
+  | 易于调试 | 实时查看所有请求和错误         |
+  | 代码简洁 | 减少 44 行代码           |
+  | 稳定运行 | 使用正确的 mitmdump 命令   |
 - **使用方法**：
   ```bash
   # 安装 mitmproxy
@@ -60,23 +386,21 @@
   - 之前误删了整个 tools/ 目录
   - 导致 ffmpeg.exe 和 ffprobe.exe 丢失
   - B站视频缓存功能无法使用
-
 - **修复**：
   - 从 Git 历史恢复 `tools/ffmpeg/` 目录
   - 恢复 ffmpeg.exe 和 ffprobe.exe
 
 #### 三、代码简化
 
-- **proxy_server.py**：
+- **proxy\_server.py**：
   - 从 233 行减少到 189 行
   - 删除本地内置相关的所有逻辑
   - 删除 PYTHONPATH 设置
   - 删除复杂的路径查找
-
 - **.gitignore**：
   - 删除 mitmproxy 相关注释
 
-### REL2.5.1_fix1
+### REL2.5.1\_fix1
 
 **mitmproxy 本地内置 + 跨平台 FFmpeg 支持**
 
@@ -86,7 +410,7 @@
   - 网页代理功能依赖系统安装的 mitmproxy，部署时需要额外配置
   - 不同环境的 mitmproxy 版本可能导致兼容性问题
   - 目标机器可能没有安装 mitmproxy 或权限不足
-- **新增 `tools/mitmproxy/` 目录**：
+- **新增** **`tools/mitmproxy/`** **目录**：
   - 完整内置 mitmproxy 可执行文件（mitmdump.exe）
   - 内置所有依赖库（28个包，约 30-50MB）到 `tools/mitmproxy/libs/`
   - 包含：aioquic, cryptography, OpenSSL, flask, tornado, h2, h11 等
@@ -100,19 +424,19 @@
     - 验证依赖库完整性
     - 测试 mitmdump 运行和模块导入
   - `tools/mitmproxy/run_mitmdump.bat` — Windows 启动器（自动设置 PYTHONPATH）
-- **修改 `modules/proxy/proxy_server.py`**：
+- **修改** **`modules/proxy/proxy_server.py`**：
   - 新增 `_get_local_mitmdump_path()` — 检测本地内置的 mitmdump 路径
   - 重构 `_find_mitmdump()` — 返回 `(路径, 是否为本地版本)` 元组
   - 修改 `start_proxy_server()` — 使用本地版本时自动设置 PYTHONPATH
   - **查找优先级**：本地内置 → 系统 Python Scripts → PATH 环境变量
 - **架构优势**：
-  | 特性 | 说明 |
-  |------|------|
-  | 完全自包含 | 不依赖系统安装的 mitmproxy |
-  | 版本锁定 | 使用固定版本的依赖，避免兼容性问题 |
-  | 零配置 | 自动检测并使用本地版本 |
-  | 向后兼容 | 如果本地版本不存在，自动回退到系统版本 |
-  | 易于维护 | 提供安装/测试脚本，一键重建 |
+  | 特性    | 说明                  |
+  | ----- | ------------------- |
+  | 完全自包含 | 不依赖系统安装的 mitmproxy  |
+  | 版本锁定  | 使用固定版本的依赖，避免兼容性问题   |
+  | 零配置   | 自动检测并使用本地版本         |
+  | 向后兼容  | 如果本地版本不存在，自动回退到系统版本 |
+  | 易于维护  | 提供安装/测试脚本，一键重建      |
 - **变更文件**：
   - **新增**：`tools/install_mitmproxy.py`, `tools/test_mitmproxy.py`
   - **新增**：`tools/mitmproxy/` （完整目录结构及 README.md）
@@ -135,18 +459,18 @@
 - **问题背景**：
   - 项目捆绑的 FFmpeg 为 Windows 可执行文件（`tools/ffmpeg/ffmpeg.exe`），Linux 无法使用
   - `modules/bili/download_service.py` 硬编码 `.exe` 路径，Linux 上 B站视频缓存功能不可用
-- **新增 `utils/ffmpeg.py` 工具模块**：
+- **新增** **`utils/ffmpeg.py`** **工具模块**：
   - `get_ffmpeg_path()` — 跨平台 FFmpeg 路径解析，检查顺序：捆绑二进制 → 系统 PATH
   - `get_ffprobe_path()` — 同上，用于 FFprobe
   - `ensure_ffmpeg()` — 统一入口，找不到时在 Linux/macOS 上自动下载静态构建
-  - `_download_ffmpeg_linux()` — 从 `johnvansickle.com` 下载静态 FFmpeg（~40MB tar.xz），解压到 `tools/ffmpeg/`
+  - `_download_ffmpeg_linux()` — 从 `johnvansickle.com` 下载静态 FFmpeg（\~40MB tar.xz），解压到 `tools/ffmpeg/`
   - `verify_ffmpeg()` — 验证 FFmpeg 可执行性并返回版本
 - **路径规则**：
-  | 平台 | 捆绑路径 | 回退 |
-  |------|---------|------|
-  | Windows | `tools/ffmpeg/ffmpeg.exe` | `shutil.which('ffmpeg')` |
-  | Linux | `tools/ffmpeg/ffmpeg` | `shutil.which('ffmpeg')` → 自动下载 |
-  | macOS | `tools/ffmpeg/ffmpeg` | `shutil.which('ffmpeg')` → 自动下载 |
+  | 平台      | 捆绑路径                      | 回退                              |
+  | ------- | ------------------------- | ------------------------------- |
+  | Windows | `tools/ffmpeg/ffmpeg.exe` | `shutil.which('ffmpeg')`        |
+  | Linux   | `tools/ffmpeg/ffmpeg`     | `shutil.which('ffmpeg')` → 自动下载 |
+  | macOS   | `tools/ffmpeg/ffmpeg`     | `shutil.which('ffmpeg')` → 自动下载 |
 - **变更文件**：
   - **新增**：`utils/ffmpeg.py`
   - **修改**：`modules/bili/download_service.py`（`check_ffmpeg()` 改用 `ensure_ffmpeg()`，移除硬编码路径和冗余代码）
@@ -165,7 +489,7 @@
   - `templates/register.html` 缺少 `{% with messages = get_flashed_messages() %}` 块
   - 修复：在注册表单前添加 flash 消息渲染块（与 login.html 一致）
   - 现在「无效的Passkey」「密码必须包含数字」等错误正确显示在注册页面
-- **登录后 `next` 参数被忽略**：
+- **登录后** **`next`** **参数被忽略**：
   - `login()` 路由始终重定向到 `main.board`，忽略 `?next=` 参数
   - 例如 `/login?next=%2Fboard%2Fsettings` 登录后会跳转到 `/board` 而非 `/board/settings`
   - 修复三处：
@@ -240,7 +564,7 @@
     - 自动添加 `X-Proxy-Token` 和 `X-Proxy-Base` 认证头
     - 错误回退机制：代理失败时返回原始请求
   - **Hook 模式**（备用）：当 SW 不可用时自动启用
-    - Hook XMLHttpRequest、fetch、window.open、history API、EventSource
+    - Hook XMLHttpRequest、fetch、window\.open、history API、EventSource
     - Hook Image 构造函数和 `HTMLImageElement.prototype.src`
     - Hook DOM 元素创建（createElement）和 MutationObserver 监听
     - Hook 内联样式 cssText 属性
@@ -274,8 +598,8 @@
   - 兼容所有基于 Next.js 的网站
 - **新增模块**：
   - `modules/proxy/__init__.py` - 代理模块定义和 Blueprint 注册
-  - `modules/proxy/proxy_addon.py` - mitmproxy 插件核心逻辑（~650 行）
-  - `modules/proxy/hook.js` - 浏览器端拦截脚本（~350 行）
+  - `modules/proxy/proxy_addon.py` - mitmproxy 插件核心逻辑（\~650 行）
+  - `modules/proxy/hook.js` - 浏览器端拦截脚本（\~350 行）
   - `modules/proxy/proxy_server.py` - 代理服务器管理
   - `modules/proxy/api.py` - 代理控制 API
 - **新增页面**：
@@ -292,12 +616,12 @@
   - `mitmproxy` - HTTP/HTTPS 代理引擎
   - `aioquic` - QUIC/HTTP3 协议支持（mitmproxy 依赖）
 - **解决的问题**：
-  | 问题 | 原因 | 解决方案 |
-  |------|------|---------|
-  | Next.js chunk 加载失败 | webpack 双重前缀 | 替换 `__webpack_public_path__` |
-  | 图片/音频/视频 403 | 未被 hook 拦截或 Origin 不对 | 新增 Image/src 拦截 + 服务端强制设置正确头 |
-  | CSS background-image 未替换 | 内联样式未处理 | 增加 style 属性处理 |
-  | `/rp/xxx.png` 路径错误 | fakeOrigin 为空时解析错误 | 增加 baseScheme 变量保护 |
+  | 问题                       | 原因                    | 解决方案                         |
+  | ------------------------ | --------------------- | ---------------------------- |
+  | Next.js chunk 加载失败       | webpack 双重前缀          | 替换 `__webpack_public_path__` |
+  | 图片/音频/视频 403             | 未被 hook 拦截或 Origin 不对 | 新增 Image/src 拦截 + 服务端强制设置正确头 |
+  | CSS background-image 未替换 | 内联样式未处理               | 增加 style 属性处理                |
+  | `/rp/xxx.png` 路径错误       | fakeOrigin 为空时解析错误    | 增加 baseScheme 变量保护           |
 
 ### REL2.4.2
 
@@ -316,7 +640,7 @@
   - 移除本地 `NCM_API_BASE` 常量和 `ncm_api_request()` 函数定义
   - 改用 `from utils.ncm_api import ncm_client`
   - 所有路由函数调用 `ncm_client.xxx()` 替代原来的 `ncm_api_request('/xxx', {...})`
-- **重构 utils/music_cache.py**：
+- **重构 utils/music\_cache.py**：
   - 移除 `NCM_API_BASE` 常量
   - 移除 `ncm_api_request()` 函数定义
   - 移除 8 个重复的 API 调用函数（`search_songs`、`get_song_url`、`get_song_detail`、`get_personalized`、`get_personalized_newsong`、`get_lyric`、`get_hot_search`、`get_playlist_detail`）
@@ -901,11 +1225,14 @@
 - **bili 模块**：B站视频
   - routes.py：播放器页面路由
   - api.py：B站 API
-  - download_service.py：视频下载服务
+  - download\_service.py：视频下载服务
+- **ai\_chat 模块**：AI 对话
+  - routes.py：对话页面路由
+  - api.py：AI 对话 API（模型管理、对话管理、消息发送）
 - **proxy 模块**：网页代理
-  - proxy_addon.py：mitmproxy 插件（URL 重写、请求头修正、内容替换）
+  - proxy\_addon.py：mitmproxy 插件（URL 重写、请求头修正、内容替换）
   - hook.js：浏览器端拦截脚本（Service Worker + Hook 双模式）
-  - proxy_server.py：代理服务器管理（启动、停止、状态查询）
+  - proxy\_server.py：代理服务器管理（启动、停止、状态查询）
   - api.py：代理控制 API
 - **main 模块**：主页面
   - routes.py：首页、控制面板、工具页面
@@ -925,6 +1252,7 @@
 - **sticker.py**：UserSticker, PackSticker
 - **announcement.py**：Announcement, UserAnnouncementStatus
 - **drop.py**：DropMessage, DropSettings, DropBlacklist
+- **ai\_chat.py**：AiConversation, AiMessage
 
 #### 1.3.4 工具函数层
 
@@ -1124,6 +1452,27 @@
 | user\_id          | Integer  | 用户 ID，外键关联 User.id    |
 | blocked\_user\_id | Integer  | 被屏蔽用户 ID，外键关联 User.id |
 | created\_at       | DateTime | 创建时间                  |
+
+### 2.12 AI 对话表 (AiConversation)
+
+| 字段名         | 类型          | 描述                 |
+| ----------- | ----------- | ------------------ |
+| id          | Integer     | 对话 ID，主键           |
+| user\_id    | Integer     | 用户 ID，外键关联 User.id |
+| title       | String(200) | 对话标题               |
+| model       | String(100) | 使用的模型名称            |
+| created\_at | DateTime    | 创建时间               |
+| updated\_at | DateTime    | 更新时间               |
+
+### 2.13 AI 消息表 (AiMessage)
+
+| 字段名              | 类型         | 描述                              |
+| ---------------- | ---------- | ------------------------------- |
+| id               | Integer    | 消息 ID，主键                        |
+| conversation\_id | Integer    | 对话 ID，外键关联 AiConversation.id    |
+| role             | String(20) | 角色（'user'、'assistant'、'system'） |
+| content          | Text       | 消息内容                            |
+| created\_at      | DateTime   | 创建时间                            |
 
 ## 3. API 接口
 
@@ -1326,7 +1675,7 @@
 - **URL**：`/api/novels`
 - **方法**：GET
 - **权限**：登录用户
-- **返回**：云端小说列表 JSON（name, filename, author, latest_chapter）
+- **返回**：云端小说列表 JSON（name, filename, author, latest\_chapter）
 
 #### 3.5.2 刷新小说缓存
 
@@ -1350,6 +1699,7 @@
 - **返回**：原始 .txt 文件流（支持 HTTP Range 断点续传，返回 206 Partial Content）
 
 > **已移除的端点**（小说模块 v2 重构后）：
+>
 > - `GET /api/novels/{novel_name}/chapters` — 章节解析已移至浏览器端
 > - `GET /api/novels/{novel_name}/chapters/{chapter_index}` — 不再逐章传输
 > - `GET /api/novels/{novel_name}/download-all` — 改为 `/file` 端点整本传输
@@ -1850,6 +2200,121 @@
 - **方法**：POST
 - **权限**：管理员或超级管理员
 - **返回**：停止结果 JSON
+
+### 3.15 AI 对话相关 API
+
+#### 3.15.1 获取可用模型列表
+
+- **URL**：`/api/ai-chat/models`
+- **方法**：GET
+- **权限**：登录用户
+- **返回**：模型列表 JSON（包含 models 数组和 current\_model 字符串）
+
+#### 3.15.2 刷新模型列表
+
+- **URL**：`/api/ai-chat/models/refresh`
+- **方法**：POST
+- **权限**：登录用户
+- **返回**：刷新后的模型列表 JSON
+
+#### 3.15.3 获取对话列表
+
+- **URL**：`/api/ai-chat/conversations`
+- **方法**：GET
+- **权限**：登录用户
+- **返回**：对话列表 JSON（按更新时间倒序）
+
+#### 3.15.4 创建新对话
+
+- **URL**：`/api/ai-chat/conversations`
+- **方法**：POST
+- **权限**：登录用户
+- **参数**：
+  - title: 对话标题（可选，默认"新对话"）
+  - model: 模型名称（可选）
+- **返回**：新对话信息 JSON
+
+#### 3.15.5 获取对话详情
+
+- **URL**：`/api/ai-chat/conversations/<id>`
+- **方法**：GET
+- **权限**：登录用户
+- **返回**：对话信息和消息列表 JSON
+
+#### 3.15.6 更新对话
+
+- **URL**：`/api/ai-chat/conversations/<id>`
+- **方法**：PUT
+- **权限**：登录用户
+- **参数**：
+  - title: 对话标题（可选）
+  - model: 模型名称（可选）
+- **返回**：更新后的对话信息 JSON
+
+#### 3.15.7 删除对话
+
+- **URL**：`/api/ai-chat/conversations/<id>`
+- **方法**：DELETE
+- **权限**：登录用户
+- **返回**：成功/失败信息 JSON
+
+#### 3.15.8 获取当前对话历史
+
+- **URL**：`/api/ai-chat/history`
+- **方法**：GET
+- **权限**：登录用户
+- **返回**：消息历史列表 JSON
+
+#### 3.15.9 清空当前对话历史
+
+- **URL**：`/api/ai-chat/history`
+- **方法**：DELETE
+- **权限**：登录用户
+- **返回**：成功/失败信息 JSON
+
+#### 3.15.10 获取 AI 配置
+
+- **URL**：`/api/ai-chat/config`
+- **方法**：GET
+- **权限**：管理员或超级管理员
+- **返回**：AI 配置 JSON（API URL、模型、参数等，API Key 已脱敏）
+
+#### 3.15.11 更新 AI 配置
+
+- **URL**：`/api/ai-chat/config`
+- **方法**：PUT
+- **权限**：管理员或超级管理员
+- **参数**：
+  - api\_url: API 端点 URL（可选）
+  - api\_key: API Key（可选，会自动加密存储）
+  - model: 默认模型（可选）
+  - max\_tokens: 最大令牌数（可选，100-16384）
+  - temperature: 温度参数（可选，0.0-2.0）
+  - system\_prompt: 系统提示词（可选）
+  - reasoning\_effort: 推理努力程度（可选，'low'/'medium'/'high'）
+  - thinking\_enabled: 是否启用思考模式（可选）
+- **返回**：成功/失败信息 JSON
+
+#### 3.15.12 发送消息（非流式）
+
+- **URL**：`/api/ai-chat/send`
+- **方法**：POST
+- **权限**：登录用户
+- **参数**：
+  - message: 消息内容（必填，最多 4000 字）
+  - model: 模型名称（可选，覆盖默认模型）
+  - enable\_search: 是否启用联网搜索（可选，默认 false）
+  - enable\_thinking: 是否启用深度推理（可选，默认 false）
+  - conversation\_id: 对话 ID（可选，不提供则创建新对话）
+- **返回**：AI 回复 JSON（包含消息内容、对话 ID、令牌使用量）
+
+#### 3.15.13 发送消息（流式）
+
+- **URL**：`/api/ai-chat/stream`
+- **方法**：POST
+- **权限**：登录用户
+- **参数**：同 3.15.12
+- **返回**：Server-Sent Events 流（包含 content、reasoning\_content、usage、done 等事件）
 
 ## 4. WebSocket 事件
 

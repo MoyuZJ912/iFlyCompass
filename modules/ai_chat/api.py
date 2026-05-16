@@ -532,8 +532,12 @@ def send_message_stream():
             payload = _build_payload(config, messages, stream=True,
                                      model_override=model_override,
                                      enable_thinking=enable_thinking)
+            
+            # 发送初始连接确认，确保客户端知道连接已建立
+            yield f"data: {json.dumps({'connected': True})}\n\n"
+            
             resp = requests.post(config['api_url'], headers=headers, json=payload,
-                                 timeout=120, stream=True)
+                                timeout=120, stream=True)
 
             if resp.status_code != 200:
                 error_detail = resp.text
@@ -581,5 +585,13 @@ def send_message_stream():
         if full_response:
             _save_msg(conv.id, 'assistant', full_response)
 
-    return Response(stream_with_context(generate()), mimetype='text/event-stream',
-                    headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+    return Response(stream_with_context(generate()), 
+                    mimetype='text/event-stream',
+                    headers={
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache',
+                        'Expires': '0',
+                        'X-Accel-Buffering': 'no',
+                        'Connection': 'keep-alive',
+                        'Transfer-Encoding': 'chunked'
+                    })

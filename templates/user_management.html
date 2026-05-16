@@ -335,6 +335,12 @@
                                 <el-form-item label="新密码" v-if="isSuperAdmin">
                                     <el-input v-model="profileForm.password" type="password" placeholder="留空则不修改密码"></el-input>
                                 </el-form-item>
+                                <el-form-item label="设备管理">
+                                    <el-button type="danger" size="small" @click="logoutAllDevices" :loading="logoutAllLoading">
+                                        <i class="el-icon-switch-button"></i> 退出所有设备
+                                    </el-button>
+                                    <div style="font-size:11px;color:#999;margin-top:4px;">退出所有设备后，需要重新登录</div>
+                                </el-form-item>
                             </el-form>
                             <span slot="footer" class="dialog-footer">
                                 <el-button @click="profileDialogVisible = false">取消</el-button>
@@ -423,7 +429,8 @@
                         nickname: '',
                         password: ''
                     },
-                    userMenuVisible: false
+                    userMenuVisible: false,
+                    logoutAllLoading: false
                 };
             },
             computed: {
@@ -708,6 +715,36 @@
                     .catch(error => {
                         console.error('保存失败:', error);
                     });
+                },
+                logoutAllDevices() {
+                    var self = this;
+                    this.$confirm('确定要退出所有设备吗？退出后需要重新登录。', '退出所有设备', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    }).then(() => {
+                        self.logoutAllLoading = true;
+                        fetch('/api/user/logout-all', {
+                            method: 'POST'
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            self.logoutAllLoading = false;
+                            if (data.success) {
+                                self.$message.success('已退出所有设备，请重新登录');
+                                setTimeout(function() {
+                                    window.location.href = '/login';
+                                }, 1000);
+                            } else {
+                                self.$message.error(data.error || '操作失败');
+                            }
+                        })
+                        .catch(error => {
+                            self.logoutAllLoading = false;
+                            console.error('退出所有设备失败:', error);
+                            self.$message.error('操作失败');
+                        });
+                    }).catch(() => {});
                 }
             }
         });

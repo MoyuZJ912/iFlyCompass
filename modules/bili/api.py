@@ -1,8 +1,9 @@
 import re
 import asyncio
+from datetime import datetime, timezone
 import requests
 from flask import jsonify, request, send_file
-from flask_login import login_required
+from flask_login import login_required, current_user
 from . import bili_bp
 from .download_service import (
     start_download, get_download_progress, get_all_downloads,
@@ -10,6 +11,8 @@ from .download_service import (
     delete_cached_video, get_video_info, QUALITY_MAP, DEFAULT_QUALITY,
     cleanup_cache, start_cache_cleanup_scheduler
 )
+from models.bili_video import BiliVideoUser
+from extensions import db
 
 try:
     from bilibili_api import select_client
@@ -250,16 +253,57 @@ def get_video_detail(bvid):
 @login_required
 def download_video(bvid):
     try:
-        if is_video_cached(bvid):
-            return jsonify({'status': 'cached', 'message': '视频已缓存'})
+        # 检查视频文件是否已缓存
+        file_cached = is_video_cached(bvid)
         
+        # 检查用户是否已添加该视频到列表
+        existing_record = BiliVideoUser.query.filter_by(
+            bvid=bvid, 
+            user_id=current_user.id
+        ).first()
+        
+        if existing_record:
+            # 用户已有该视频，直接返回成功
+            return jsonify({
+                'status': 'exists_in_list',
+                'message': '视频已在您的缓存列表中',
+                'file_cached': file_cached
+            })
+        
+        if file_cached:
+            # 文件已缓存但用户没有记录，添加用户记录
+            new_record = BiliVideoUser(
+                bvid=bvid,
+                user_id=current_user.id,
+                added_at=datetime.now(timezone.utc)
+            )
+            db.session.add(new_record)
+            db.session.commit()
+            
+            return jsonify({
+                'status': 'added_to_list',
+                'message': '视频已添加到您的缓存列表'
+            })
+        
+        # 文件未缓存，需要下载
         task = start_download(bvid)
         if task:
+            # 创建用户记录（标记为下载中）
+            new_record = BiliVideoUser(
+                bvid=bvid,
+                user_id=current_user.id,
+                added_at=datetime.now(timezone.utc)
+            )
+            db.session.add(new_record)
+            db.session.commit()
+            
             return jsonify({'status': 'started', 'task': task.to_dict()})
         else:
             return jsonify({'status': 'cached', 'message': '视频已缓存'})
     except Exception as e:
         print(f'[Bili] 启动下载异常: {e}')
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 
@@ -284,7 +328,32 @@ def list_downloads():
 @bili_bp.route('/api/bili/cached')
 @login_required
 def list_cached():
-    return jsonify(get_cached_videos())
+    try:
+        # 获取当前用户的视频列表
+        user_videos = BiliVideoUser.query.filter_by(user_id=current_user.id).all()
+        user_bvids = [uv.bvid for uv in user_videos]
+        
+        # 获取所有缓存视频的状态
+        all_cached = get_cached_videos()
+        
+        # 过滤出用户有权限访问的视频，并添加额外信息
+        result = []
+        for video in all_cached:
+            if video['bvid'] in user_bvids:
+                # 找到对应的用户记录
+                uv = next((u for u in user_videos if u.bvid == video['bvid']), None)
+                if uv:
+                    video['added_at'] = uv.added_at.isoformat() if uv.added_at else None
+                    video['last_watched_at'] = uv.last_watched_at.isoformat() if uv.last_watched_at else None
+                
+                result.append(video)
+        
+        return jsonify(result)
+    except Exception as e:
+        print(f'[Bili] 获取缓存列表异常: {e}')
+        import traceback
+        traceback.print_exc()
+        return jsonify([])
 
 
 @bili_bp.route('/api/bili/cached_titles', methods=['POST'])
@@ -312,9 +381,50 @@ def get_cached_titles():
 @bili_bp.route('/api/bili/delete/<bvid>', methods=['DELETE'])
 @login_required
 def delete_video(bvid):
-    if delete_cached_video(bvid):
-        return jsonify({'success': True})
-    return jsonify({'error': '视频不存在'}), 404
+    try:
+        # 查找用户的记录
+        user_record = BiliVideoUser.query.filter_by(
+            bvid=bvid,
+            user_id=current_user.id
+        ).first()
+        
+        if not user_record:
+            return jsonify({'error': '视频不在您的缓存列表中'}), 404
+        
+        # 删除用户的记录
+        db.session.delete(user_record)
+        
+        # 检查是否还有其他用户引用该视频
+        other_users_count = BiliVideoUser.query.filter(
+            BiliVideoUser.bvid == bvid,
+            BiliVideoUser.user_id != current_user.id
+        ).count()
+        
+        if other_users_count == 0:
+            # 没有其他用户使用，可以删除物理文件
+            file_deleted = delete_cached_video(bvid)
+            if not file_deleted:
+                return jsonify({'error': '视频文件删除失败'}), 500
+            
+            db.session.commit()
+            return jsonify({
+                'success': True,
+                'message': '已从您的缓存列表中移除，视频文件已删除'
+            })
+        else:
+            # 还有其他用户在使用，只删除记录，保留文件
+            db.session.commit()
+            return jsonify({
+                'success': True,
+                'message': f'已从您的缓存列表中移除（仍有 {other_users_count} 位用户使用该视频）',
+                'other_users_count': other_users_count
+            })
+            
+    except Exception as e:
+        print(f'[Bili] 删除视频异常: {e}')
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
 
 @bili_bp.route('/api/bili/play/<bvid>')

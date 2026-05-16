@@ -77,6 +77,7 @@ def api_users():
         
         if 'password' in data and data['password']:
             user.set_password(data['password'])
+            user.invalidate_all_sessions()
         if 'is_admin' in data and current_user.is_super_admin and not user.is_super_admin:
             user.is_admin = data['is_admin']
         db.session.commit()
@@ -116,7 +117,9 @@ def api_user_profile():
             'nickname_min_length': settings.get('nickname_min_length', 2),
             'nickname_max_length': settings.get('nickname_max_length', 20),
             'allow_change_password': settings.get('allow_change_password', True),
-            'allow_self_password_reset': settings.get('allow_self_password_reset', False)
+            'allow_self_password_reset': settings.get('allow_self_password_reset', False),
+            'line_height': current_user.line_height or 1.6,
+            'letter_spacing': current_user.letter_spacing or 0.0
         })
     
     elif request.method == 'PUT':
@@ -166,8 +169,77 @@ def api_user_profile():
                 current_user.security_question = None
                 current_user.security_answer_hash = None
         
+        if 'line_height' in data:
+            try:
+                line_height = float(data['line_height'])
+                if 1.0 <= line_height <= 3.0:
+                    current_user.line_height = line_height
+                else:
+                    return jsonify({'error': '行间距必须在1.0到3.0之间'}), 400
+            except (ValueError, TypeError):
+                return jsonify({'error': '行间距必须是数字'}), 400
+        
+        if 'letter_spacing' in data:
+            try:
+                letter_spacing = float(data['letter_spacing'])
+                if 0.0 <= letter_spacing <= 1.0:
+                    current_user.letter_spacing = letter_spacing
+                else:
+                    return jsonify({'error': '字间距必须在0.0到1.0之间'}), 400
+            except (ValueError, TypeError):
+                return jsonify({'error': '字间距必须是数字'}), 400
+        
         db.session.commit()
         return jsonify({'success': True, 'display_name': current_user.display_name})
+
+@auth_bp.route('/api/user/change-password', methods=['POST'])
+@login_required
+def api_change_password():
+    settings = get_settings()
+
+    allow_change_password = settings.get('allow_change_password', True)
+    if not allow_change_password and not current_user.is_super_admin:
+        return jsonify({'error': '系统已禁用密码修改功能'}), 400
+
+    data = request.json
+
+    old_password = data.get('old_password', '')
+    new_password = data.get('new_password', '')
+
+    if not old_password:
+        return jsonify({'error': '请输入当前密码'}), 400
+
+    if not new_password:
+        return jsonify({'error': '请输入新密码'}), 400
+
+    if len(new_password) < 6:
+        return jsonify({'error': '新密码长度不能少于6位'}), 400
+
+    # 验证旧密码
+    if not current_user.check_password(old_password):
+        return jsonify({'error': '当前密码错误'}), 401
+
+    # 验证新密码强度
+    password_strength = settings.get('password_strength', 1)
+    allow_weak_password = settings.get('allow_weak_password', False)
+
+    is_valid_password, password_error = validate_password_strength(new_password, password_strength)
+    if not is_valid_password:
+        return jsonify({'error': password_error}), 400
+
+    if not allow_weak_password and is_weak_password(new_password):
+        return jsonify({'error': '密码过于简单，请使用更强的密码'}), 400
+
+    # 设置新密码并使所有会话失效
+    current_user.set_password(new_password)
+    current_user.invalidate_all_sessions()
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'message': '密码修改成功'
+    })
 
 @auth_bp.route('/api/passkeys', methods=['GET', 'POST', 'DELETE'])
 @login_required
@@ -314,6 +386,15 @@ def api_forgot_password_reset():
         return jsonify({'error': '密码过于简单，请使用更强的密码'}), 400
     
     user.set_password(new_password)
+    user.invalidate_all_sessions()
     db.session.commit()
     
     return jsonify({'success': True, 'message': '密码重置成功'})
+
+@auth_bp.route('/api/user/logout-all', methods=['POST'])
+@login_required
+def api_logout_all():
+    current_user.invalidate_all_sessions()
+    db.session.commit()
+    logout_user()
+    return jsonify({'success': True, 'message': '已退出所有设备'})

@@ -160,6 +160,8 @@
         }
         .toggle-chip:hover { border-color:#4f6ef7; color:#4f6ef7; }
         .toggle-chip.active { background:#eef0ff; border-color:#4f6ef7; color:#4f6ef7; }
+        .toggle-chip.disabled { opacity:0.4; cursor:not-allowed; }
+        .toggle-chip.disabled:hover { border-color:#dcdcdc; color:#666; }
         .toggle-chip i { font-size:13px; }
         .refresh-models-btn { font-size:11px; color:#999; cursor:pointer; margin-left:auto; }
         .refresh-models-btn:hover { color:#4f6ef7; }
@@ -177,6 +179,26 @@
         }
         .thinking-section i { font-size:14px; flex-shrink:0; margin-top:1px; }
         .thinking-content { flex:1; word-break:break-word; max-height:200px; overflow-y:auto; }
+
+        /* ── Typing Cursor Animation ── */
+        .typing-cursor {
+            display:inline-block;
+            width:2px;
+            height:1.1em;
+            background-color:#4f6ef7;
+            margin-left:2px;
+            vertical-align:text-bottom;
+            animation:cursorBlink 0.8s infinite;
+            border-radius:1px;
+        }
+        @keyframes cursorBlink {
+            0%, 50% { opacity:1; }
+            51%, 100% { opacity:0; }
+        }
+
+        .msg-bubble.streaming .typing-cursor {
+            background-color:#4f6ef7;
+        }
     </style>
 </head>
 <body>
@@ -265,7 +287,7 @@
                                 <i class="el-icon-view"></i>
                                 <div class="thinking-content">[[ msg.thinking ]]</div>
                             </div>
-                            <div v-if="msg.content" class="msg-bubble" v-html="renderMd(msg.content)"></div>
+                            <div v-if="msg.content" :class="['msg-bubble', { streaming: isStreamingIndex(idx) }]" v-html="renderMd(msg.content) + (isStreamingIndex(idx) ? '<span class=\"typing-cursor\"></span>' : '')"></div>
                         </div>
                     </div>
                     <div v-if="isLoading" class="msg-row assistant">
@@ -288,7 +310,9 @@
                         <div class="toggle-chip" :class="{active:enableSearch}" @click="enableSearch=!enableSearch">
                             <i class="el-icon-search"></i> 联网搜索
                         </div>
-                        <div class="toggle-chip" :class="{active:enableThinking}" @click="enableThinking=!enableThinking">
+                        <div class="toggle-chip" :class="{active:enableThinking,disabled:!supportsThinking}" 
+                             @click="supportsThinking && (enableThinking=!enableThinking)"
+                             :title="supportsThinking ? '启用深度思考模式' : '当前模型不支持思考功能'">
                             <i class="el-icon-view"></i> 深度思考
                         </div>
                     </div>
@@ -323,6 +347,10 @@
                 <el-form-item label="系统提示词">
                     <el-input type="textarea" v-model="aiConfig.system_prompt" :rows="3" placeholder="你是一个有用的AI助手，请用中文回答用户的问题。"></el-input>
                 </el-form-item>
+                <el-form-item label="思考功能">
+                    <el-switch v-model="aiConfig.thinking_enabled" active-text="启用" inactive-text="禁用"></el-switch>
+                    <div style="font-size:11px;color:#999;margin-top:2px;">启用后，用户可在对话中开启深度思考模式（仅推理模型支持）</div>
+                </el-form-item>
             </el-form>
             <span slot="footer">
                 <el-button @click="showSettings = false">取消</el-button>
@@ -350,6 +378,7 @@
                     messages: [],
                     inputMessage: '',
                     isLoading: false,
+                    streamingIndex: -1,
                     models: [],
                     selectedModel: '',
                     enableSearch: false,
@@ -365,7 +394,8 @@
                         model: 'deepseek-chat',
                         max_tokens: 2048,
                         temperature: 0.7,
-                        system_prompt: '你是一个有用的AI助手，请用中文回答用户的问题。'
+                        system_prompt: '你是一个有用的AI助手，请用中文回答用户的问题。',
+                        thinking_enabled: false
                     }
                 };
             },
@@ -374,6 +404,17 @@
                     var self = this;
                     var m = this.models.find(function(x) { return x.id === self.selectedModel; });
                     return m ? m.name : '选择模型';
+                },
+                supportsThinking() {
+                    if (!this.aiConfig.thinking_enabled) {
+                        return false;
+                    }
+                    var modelId = this.selectedModel.toLowerCase();
+                    return modelId.includes('reasoner') || 
+                           modelId.includes('r1') || 
+                           modelId.includes('thinking') ||
+                           modelId.includes('o1') ||
+                           modelId.includes('o3');
                 }
             },
             async mounted() {
@@ -403,6 +444,9 @@
                     } catch(e) { this.$message.error('刷新失败'); }
                 },
                 selectModel(id) { this.selectedModel = id; },
+                isStreamingIndex(idx) {
+                    return this.streamingIndex === idx;
+                },
                 async loadConversations() {
                     try {
                         var r = await fetch('/api/ai-chat/conversations');
@@ -474,6 +518,7 @@
                     // Add a placeholder for streaming assistant response
                     this.messages.push({ role:'assistant', content:'', thinking:'' });
                     var assistantIdx = this.messages.length - 1;
+                    this.streamingIndex = assistantIdx;
                     this.$nextTick(function() { self.scrollToBottom(); });
 
                     try {
@@ -484,7 +529,7 @@
                                 message: msg,
                                 model: self.selectedModel || undefined,
                                 enable_search: self.enableSearch,
-                                enable_thinking: self.enableThinking,
+                                enable_thinking: self.supportsThinking && self.enableThinking,
                                 conversation_id: self.currentConvId || undefined
                             })
                         });
@@ -492,6 +537,7 @@
                         if (!r.ok) {
                             var errData = await r.json().catch(function() { return {error: '请求失败 (' + r.status + ')'}; });
                             self.isLoading = false;
+                            self.streamingIndex = -1;
                             self.$message.error(errData.error || '请求失败');
                             self.messages.pop(); // remove assistant placeholder
                             self.messages.pop(); // remove user msg
@@ -519,6 +565,7 @@
                                         var chunk = JSON.parse(ds);
                                         if (chunk.error) {
                                             self.isLoading = false;
+                                            self.streamingIndex = -1;
                                             self.$message.error(chunk.error);
                                             self.messages.pop(); // remove assistant placeholder
                                             self.messages.pop(); // remove user msg
@@ -548,6 +595,7 @@
                             }
                         }
                         self.isLoading = false;
+                        self.streamingIndex = -1;
                         if (!self.messages[assistantIdx].content && !self.messages[assistantIdx].thinking) {
                             self.messages.pop(); // remove empty assistant
                             self.$message.error('AI 未返回内容');
@@ -555,6 +603,7 @@
                         self.$nextTick(function() { self.scrollToBottom(); });
                     } catch(e) {
                         self.isLoading = false;
+                        self.streamingIndex = -1;
                         self.$message.error('请求失败: ' + e.message);
                     }
                 },
@@ -592,6 +641,7 @@
                             this.aiConfig.max_tokens = d.max_tokens || 2048;
                             this.aiConfig.temperature = d.temperature || 0.7;
                             this.aiConfig.system_prompt = d.system_prompt || '你是一个有用的AI助手，请用中文回答用户的问题。';
+                            this.aiConfig.thinking_enabled = d.thinking_enabled || false;
                             this.aiConfig.api_key = '';
                         }
                     } catch(e) { console.error('加载AI配置失败:', e); }
@@ -605,7 +655,8 @@
                             model: this.aiConfig.model,
                             max_tokens: this.aiConfig.max_tokens,
                             temperature: this.aiConfig.temperature,
-                            system_prompt: this.aiConfig.system_prompt
+                            system_prompt: this.aiConfig.system_prompt,
+                            thinking_enabled: this.aiConfig.thinking_enabled
                         };
                         if (this.aiConfig.api_key && this.aiConfig.api_key.trim() && this.aiConfig.api_key.indexOf('****') === -1) {
                             payload.api_key = this.aiConfig.api_key.trim();

@@ -20,6 +20,7 @@ def login():
         if user and user.check_password(password):
             login_user(user, remember=True)
             session.permanent = True
+            session['_session_version'] = user.session_version or 0
             user_sessions[username] = request.cookies.get('session')
 
             next_page = request.form.get('next', '')

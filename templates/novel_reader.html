@@ -365,6 +365,55 @@
             margin-bottom: 12px; display: flex; align-items: center; gap: 6px; opacity: 0.85;
         }
         .imm-settings-label .material-icons { font-size: 16px; opacity: 0.7; }
+        .imm-spacing-control {
+            display: flex; align-items: center; gap: 12px;
+            padding: 4px 0;
+        }
+        .imm-spacing-control input[type="range"] {
+            flex: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 6px;
+            background: var(--imm-toc-border, rgba(128,128,128,0.3));
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+        }
+        .imm-spacing-control input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--imm-text, #333);
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            transition: transform 0.2s ease;
+        }
+        .imm-spacing-control input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+        }
+        .imm-spacing-control input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--imm-text, #333);
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            border: none;
+            transition: transform 0.2s ease;
+        }
+        .imm-spacing-control input[type="range"]::-moz-range-thumb:hover {
+            transform: scale(1.1);
+        }
+        .imm-spacing-value {
+            min-width: 40px;
+            text-align: center;
+            color: var(--imm-text);
+            font-size: 13px;
+            font-weight: 500;
+            opacity: 0.8;
+        }
         .imm-theme-options { display: flex; gap: 12px; flex-wrap: wrap; }
         .imm-theme-option { display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; }
         .imm-theme-option:hover { transform: translateY(-2px); }
@@ -581,6 +630,28 @@
             </div>
             <div class="imm-settings-section">
                 <div class="imm-settings-label">
+                    <span class="material-icons">format_line_spacing</span>
+                    行间距
+                </div>
+                <div class="imm-spacing-control">
+                    <input type="range" id="imm-line-height-slider" min="1.0" max="3.0" step="0.1" value="1.6"
+                           oninput="immUpdateLineHeight(this.value)">
+                    <span id="imm-line-height-value" class="imm-spacing-value">1.6</span>
+                </div>
+            </div>
+            <div class="imm-settings-section">
+                <div class="imm-settings-label">
+                    <span class="material-icons">text_fields</span>
+                    字间距
+                </div>
+                <div class="imm-spacing-control">
+                    <input type="range" id="imm-letter-spacing-slider" min="0.0" max="1.0" step="0.05" value="0.0"
+                           oninput="immUpdateLetterSpacing(this.value)">
+                    <span id="imm-letter-spacing-value" class="imm-spacing-value">0.0</span>
+                </div>
+            </div>
+            <div class="imm-settings-section">
+                <div class="imm-settings-label">
                     <span class="material-icons">auto_stories</span>翻页动画
                 </div>
                 <div class="imm-anim-options" id="imm-anim-options">
@@ -644,7 +715,7 @@
                 { name: '玄素灰', bg: '#3C3F43', text: '#DCDFE1', barBg: 'rgba(60,63,67,0.95)' }
             ]
         };
-        var immSettings = { mode: 'day', themeIndex: 1, animation: 'slide' };
+        var immSettings = { mode: 'day', themeIndex: 1, animation: 'slide', lineHeight: 1.6, letterSpacing: 0.0 };
         var immPages = [];
         var immCurrentPage = 0;
         var immMenuVisible = false;
@@ -1001,9 +1072,90 @@
                     if (p.animation !== undefined) immSettings.animation = p.animation;
                 }
             } catch(e) {}
+            
+            fetch('/api/user/profile')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.line_height !== undefined) {
+                        immSettings.lineHeight = data.line_height;
+                        document.getElementById('imm-line-height-slider').value = data.line_height;
+                        document.getElementById('imm-line-height-value').textContent = data.line_height.toFixed(1);
+                    }
+                    if (data.letter_spacing !== undefined) {
+                        immSettings.letterSpacing = data.letter_spacing;
+                        document.getElementById('imm-letter-spacing-slider').value = data.letter_spacing;
+                        document.getElementById('imm-letter-spacing-value').textContent = data.letterSpacing.toFixed(2);
+                    }
+                    immApplySpacing();
+                })
+                .catch(err => console.error('[Imm] 加载排版设置失败:', err));
         }
 
         function immSaveSettings() { localStorage.setItem('immersiveReaderSettings', JSON.stringify(immSettings)); }
+
+        function immUpdateLineHeight(value) {
+            immSettings.lineHeight = parseFloat(value);
+            document.getElementById('imm-line-height-value').textContent = parseFloat(value).toFixed(1);
+            immApplySpacing();
+            immSaveSpacingToServer();
+        }
+
+        function immUpdateLetterSpacing(value) {
+            immSettings.letterSpacing = parseFloat(value);
+            document.getElementById('imm-letter-spacing-value').textContent = parseFloat(value).toFixed(2);
+            immApplySpacing();
+            immSaveSpacingToServer();
+        }
+
+        function immApplySpacing() {
+            var layers = document.querySelectorAll('.imm-page-layer');
+            if (layers.length > 0) {
+                var lineHeight = immSettings.lineHeight || 1.6;
+                var letterSpacing = (immSettings.letterSpacing || 0.0) + 'em';
+                
+                layers.forEach(function(layer) {
+                    layer.style.lineHeight = lineHeight;
+                    layer.style.letterSpacing = letterSpacing;
+                    
+                    var paragraphs = layer.querySelectorAll('p, div:not(.imm-chapter-title):not(.imm-continuation)');
+                    paragraphs.forEach(function(p) {
+                        p.style.marginBottom = ((lineHeight - 1) * 0.5) + 'em';
+                    });
+                });
+            }
+            
+            if (immRepaginateTimeout) clearTimeout(immRepaginateTimeout);
+            immRepaginateTimeout = setTimeout(function() {
+                if (currentNovelContent && chapters.length > 0) {
+                    var ch = chapters[currentChapter];
+                    if (ch && currentNovelContent[ch.content]) {
+                        immPaginate(currentNovelContent[ch.content]);
+                        if (immCurrentPage >= immPages.length) {
+                            immCurrentPage = Math.max(0, immPages.length - 1);
+                        }
+                        immRenderPage();
+                    }
+                }
+            }, 300);
+        }
+
+        var immRepaginateTimeout = null;
+
+        function immSaveSpacingToServer() {
+            fetch('/api/user/profile', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    line_height: immSettings.lineHeight,
+                    letter_spacing: immSettings.letterSpacing
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success) console.error('[Imm] 保存排版设置失败:', data.error);
+            })
+            .catch(err => console.error('[Imm] 保存排版设置失败:', err));
+        }
 
         function immApplyTheme() {
             var themeList = immSettings.mode === 'day' ? IMM_THEMES.day : IMM_THEMES.night;
@@ -1068,9 +1220,20 @@
             var container = document.querySelector('.imm-page-content');
             var w = container.clientWidth || (window.innerWidth - IMM_PAD_X * 2);
             var h = container.clientHeight || (window.innerHeight - IMM_PAD_Y * 2);
-            var lh = IMM_FONT * IMM_LH;
-            var lpp = Math.max(Math.floor(h / lh * 0.95) - 3, 5);
-            var cpl = Math.max(Math.floor(w / (IMM_FONT * 0.6) * 0.95) - 2, 10);
+            
+            var userLineHeight = immSettings.lineHeight || 1.6;
+            var userLetterSpacing = immSettings.letterSpacing || 0.0;
+            
+            var lh = IMM_FONT * userLineHeight;
+            
+            var paragraphSpacing = (userLineHeight - 1) * 0.5 * IMM_FONT;
+            var effectiveLh = lh + paragraphSpacing;
+            
+            var lpp = Math.max(Math.floor(h / effectiveLh * 0.95) - 3, 5);
+            
+            var charWidth = (IMM_FONT * 0.6) + (IMM_FONT * userLetterSpacing);
+            var cpl = Math.max(Math.floor(w / charWidth * 0.95) - 2, 10);
+            
             return { linesPerPage: lpp, charsPerLine: cpl, w: w, h: h };
         }
 

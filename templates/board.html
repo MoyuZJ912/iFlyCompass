@@ -439,44 +439,73 @@
         <el-dialog
             title="个人设置"
             :visible.sync="profileDialogVisible"
-            width="500px"
+            width="550px"
         >
-            <el-form :model="profileForm" label-width="100px" class="profile-dialog-form">
-                <el-form-item label="用户名">
-                    <el-input :value="username" disabled></el-input>
-                </el-form-item>
-                <el-form-item label="昵称" v-if="profileSettings.allowNickname">
-                    <el-input 
-                        v-model="profileForm.nickname" 
-                        :placeholder="'请输入昵称（' + profileSettings.nicknameMinLength + '-' + profileSettings.nicknameMaxLength + '字）'"
-                        :maxlength="profileSettings.nicknameMaxLength"
-                    ></el-input>
-                </el-form-item>
-                <el-form-item label="新密码" v-if="profileSettings.allowChangePassword || isSuperAdmin">
-                    <el-input 
-                        v-model="profileForm.password" 
-                        type="password" 
-                        placeholder="留空则不修改密码"
-                        show-password
-                    ></el-input>
-                </el-form-item>
-                <el-divider v-if="profileSettings.allowSelfPasswordReset"></el-divider>
-                <el-form-item label="安全问题" v-if="profileSettings.allowSelfPasswordReset">
-                    <el-input 
-                        v-model="profileForm.securityQuestion" 
-                        placeholder="例如：您的出生城市是？"
-                    ></el-input>
-                </el-form-item>
-                <el-form-item label="安全问题答案" v-if="profileSettings.allowSelfPasswordReset">
-                    <el-input 
-                        v-model="profileForm.securityAnswer" 
-                        placeholder="请输入答案"
-                    ></el-input>
-                </el-form-item>
-            </el-form>
+            <el-tabs v-model="profileActiveTab">
+                <el-tab-pane label="基本信息" name="basic">
+                    <el-form :model="profileForm" label-width="100px" class="profile-dialog-form">
+                        <el-form-item label="用户名">
+                            <el-input :value="username" disabled></el-input>
+                        </el-form-item>
+                        <el-form-item label="昵称" v-if="profileSettings.allowNickname">
+                            <el-input
+                                v-model="profileForm.nickname"
+                                :placeholder="'请输入昵称（' + profileSettings.nicknameMinLength + '-' + profileSettings.nicknameMaxLength + '字）'"
+                                :maxlength="profileSettings.nicknameMaxLength"
+                            ></el-input>
+                        </el-form-item>
+                        <el-divider v-if="profileSettings.allowSelfPasswordReset"></el-divider>
+                        <el-form-item label="安全问题" v-if="profileSettings.allowSelfPasswordReset">
+                            <el-input
+                                v-model="profileForm.securityQuestion"
+                                placeholder="例如：您的出生城市是？"
+                            ></el-input>
+                        </el-form-item>
+                        <el-form-item label="安全问题答案" v-if="profileSettings.allowSelfPasswordReset">
+                            <el-input
+                                v-model="profileForm.securityAnswer"
+                                placeholder="请输入答案"
+                            ></el-input>
+                        </el-form-item>
+                    </el-form>
+                </el-tab-pane>
+
+                <el-tab-pane label="安全设置" name="security">
+                    <div style="margin-bottom: 20px;">
+                        <h4 style="margin-bottom: 15px; color: #303133;">修改密码</h4>
+                        <el-form :model="passwordForm" label-width="100px" size="small">
+                            <el-form-item label="当前密码">
+                                <el-input v-model="passwordForm.old_password" type="password" placeholder="请输入当前密码" show-password></el-input>
+                            </el-form-item>
+                            <el-form-item label="新密码">
+                                <el-input v-model="passwordForm.new_password" type="password" placeholder="请输入新密码" show-password></el-input>
+                            </el-form-item>
+                            <el-form-item label="确认新密码">
+                                <el-input v-model="passwordForm.confirm_password" type="password" placeholder="请再次输入新密码" show-password></el-input>
+                            </el-form-item>
+                            <el-form-item>
+                                <el-button type="primary" @click="changePassword" :loading="passwordChanging">修改密码</el-button>
+                            </el-form-item>
+                        </el-form>
+                    </div>
+
+                    <el-divider></el-divider>
+
+                    <div>
+                        <h4 style="margin-bottom: 15px; color: #303133;">会话管理</h4>
+                        <p style="font-size: 13px; color: #909399; margin-bottom: 10px;">
+                            退出所有设备的登录状态（包括当前设备），需要重新登录。
+                        </p>
+                        <el-button type="danger" plain size="small" @click="logoutAllDevices" :loading="logoutAllLoading">
+                            <i class="el-icon-switch-button"></i> 退出所有设备
+                        </el-button>
+                    </div>
+                </el-tab-pane>
+            </el-tabs>
+
             <span slot="footer" class="dialog-footer">
-                <el-button @click="profileDialogVisible = false">取消</el-button>
-                <el-button type="primary" @click="saveProfile">保存</el-button>
+                <el-button @click="profileDialogVisible = false">关闭</el-button>
+                <el-button type="primary" @click="saveProfile" v-if="profileActiveTab === 'basic'">保存</el-button>
             </span>
         </el-dialog>
         
@@ -567,12 +596,20 @@
                     isSuperAdmin: {% if current_user.is_super_admin %}true{% else %}false{% endif %},
                     userMenuVisible: false,
                     profileDialogVisible: false,
+                    profileActiveTab: 'basic',
                     profileForm: {
                         nickname: '',
                         password: '',
                         securityQuestion: '',
                         securityAnswer: ''
                     },
+                    passwordForm: {
+                        old_password: '',
+                        new_password: '',
+                        confirm_password: ''
+                    },
+                    passwordChanging: false,
+                    logoutAllLoading: false,
                     profileSettings: {
                         allowNickname: true,
                         nicknameMinLength: 2,
@@ -735,6 +772,98 @@
                         console.error('保存失败:', error);
                         this.$message.error('保存失败');
                     }.bind(this));
+                },
+                changePassword() {
+                    var self = this;
+
+                    if (!this.passwordForm.old_password) {
+                        this.$message.warning('请输入当前密码');
+                        return;
+                    }
+
+                    if (!this.passwordForm.new_password) {
+                        this.$message.warning('请输入新密码');
+                        return;
+                    }
+
+                    if (this.passwordForm.new_password.length < 6) {
+                        this.$message.warning('新密码长度不能少于6位');
+                        return;
+                    }
+
+                    if (this.passwordForm.new_password !== this.passwordForm.confirm_password) {
+                        this.$message.warning('两次输入的新密码不一致');
+                        return;
+                    }
+
+                    this.$confirm('确定要修改密码吗？修改后所有设备需要重新登录。', '确认修改', {
+                        confirmButtonText: '确定修改',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    }).then(function() {
+                        self.passwordChanging = true;
+
+                        fetch('/api/user/change-password', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                old_password: self.passwordForm.old_password,
+                                new_password: self.passwordForm.new_password
+                            })
+                        })
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            self.passwordChanging = false;
+                            if (data.error) {
+                                self.$message.error(data.error);
+                            } else {
+                                self.$message.success('密码修改成功，请重新登录');
+                                self.profileDialogVisible = false;
+                                setTimeout(function() {
+                                    window.location.href = '/logout';
+                                }, 1500);
+                            }
+                        })
+                        .catch(function(e) {
+                            self.passwordChanging = false;
+                            console.error(e);
+                            self.$message.error('修改失败');
+                        });
+                    }).catch(function() {});
+                },
+                logoutAllDevices() {
+                    var self = this;
+
+                    this.$confirm('确定要退出所有设备的登录状态吗？这将包括当前设备，退出后需要重新登录。', '退出所有设备', {
+                        confirmButtonText: '确定退出',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    }).then(function() {
+                        self.logoutAllLoading = true;
+
+                        fetch('/api/user/logout-all', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' }
+                        })
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            self.logoutAllLoading = false;
+                            if (data.error) {
+                                self.$message.error(data.error);
+                            } else {
+                                self.$message.success('已退出所有设备');
+                                self.profileDialogVisible = false;
+                                setTimeout(function() {
+                                    window.location.href = '/logout';
+                                }, 1000);
+                            }
+                        })
+                        .catch(function(e) {
+                            self.logoutAllLoading = false;
+                            console.error(e);
+                            self.$message.error('操作失败');
+                        });
+                    }).catch(function() {});
                 },
                 confirmNotification() {
                     if (!this.currentNotification) return;

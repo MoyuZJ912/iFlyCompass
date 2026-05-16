@@ -87,6 +87,7 @@
             
             var bubble = document.createElement('div');
             bubble.className = 'drop-bubble';
+            bubble.dataset.dropId = drop.id;
             bubble.innerHTML = 
                 '<div class="drop-bubble-header">' +
                     '<span class="drop-sender-name">' + this.escapeHtml(drop.sender_name) + '</span>' +
@@ -106,7 +107,7 @@
             
             var closeBtn = bubble.querySelector('.drop-close-btn');
             closeBtn.onclick = function() {
-                self.hideDrop(bubble);
+                self.hideDrop(bubble, drop.id);
             };
             
             var blockBtn = bubble.querySelector('.drop-block-btn');
@@ -120,14 +121,23 @@
             };
             
             setTimeout(function() {
-                self.hideDrop(bubble);
+                self.hideDrop(bubble, drop.id);
             }, 15000);
         },
         
-        hideDrop: function(bubble) {
+        hideDrop: function(bubble, dropId) {
             var self = this;
             bubble.classList.remove('show');
             bubble.classList.add('hide');
+            
+            if (dropId) {
+                sfetch('/api/drop/mark-read/' + dropId, {
+                    method: 'POST'
+                }).catch(function(error) {
+                    console.error('[Drop] 标记已读失败:', error);
+                });
+            }
+            
             setTimeout(function() {
                 if (bubble.parentNode) {
                     bubble.parentNode.removeChild(bubble);
@@ -157,6 +167,7 @@
         
         doBlockUser: function(userId, senderName, bubble) {
             var self = this;
+            var dropId = bubble.dataset.dropId;
             
             sfetch('/api/drop/blacklist', {
                 method: 'POST',
@@ -174,7 +185,7 @@
                 if (!data) return;
                 if (data.success) {
                     self.showMessage('success', '已屏蔽用户 ' + senderName);
-                    self.hideDrop(bubble);
+                    self.hideDrop(bubble, dropId);
                 } else {
                     self.showMessage('error', data.error || '屏蔽失败');
                 }

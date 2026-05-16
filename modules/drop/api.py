@@ -2,7 +2,7 @@ from flask import jsonify, request
 from flask_login import login_required, current_user
 from datetime import datetime, timezone, timedelta
 from extensions import db
-from models.drop import DropMessage, DropSettings, DropBlacklist
+from models.drop import DropMessage, DropSettings, DropBlacklist, DropRead
 from models.user import User
 from . import drop_bp
 
@@ -107,9 +107,12 @@ def poll_drop():
     
     last_id = request.args.get('last_id', 0, type=int)
     
+    read_drop_ids = [r.drop_id for r in DropRead.query.filter_by(user_id=current_user.id).all()]
+    
     drops = DropMessage.query.filter(
         DropMessage.id > last_id,
-        DropMessage.sender_id != current_user.id
+        DropMessage.sender_id != current_user.id,
+        ~DropMessage.id.in_(read_drop_ids)
     ).order_by(DropMessage.id.desc()).limit(5).all()
     
     result = []
@@ -128,6 +131,30 @@ def poll_drop():
         'drops': result,
         'last_id': drops[0].id if drops else last_id
     })
+
+@drop_bp.route('/api/drop/mark-read/<int:drop_id>', methods=['POST'])
+@login_required
+def mark_drop_read(drop_id):
+    drop = DropMessage.query.get(drop_id)
+    if not drop:
+        return jsonify({'error': 'Drop 不存在'}), 404
+    
+    existing = DropRead.query.filter_by(
+        user_id=current_user.id,
+        drop_id=drop_id
+    ).first()
+    
+    if existing:
+        return jsonify({'success': True, 'message': '已标记为已读'})
+    
+    read = DropRead(
+        user_id=current_user.id,
+        drop_id=drop_id
+    )
+    db.session.add(read)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': '已标记为已读'})
 
 @drop_bp.route('/api/drop/status', methods=['GET'])
 @login_required

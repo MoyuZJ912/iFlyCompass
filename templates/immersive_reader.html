@@ -232,6 +232,47 @@
 
         .settings-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 110; display: none; }
         .settings-overlay.visible { display: block; }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: var(--reader-toc-border);
+            outline: none;
+            transition: background 0.2s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--reader-text);
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            transition: transform 0.1s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--reader-text);
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            border: none;
+            transition: transform 0.1s;
+        }
+
+        input[type="range"]::-moz-range-thumb:hover {
+            transform: scale(1.1);
+        }
     </style>
 </head>
 <body>
@@ -305,6 +346,28 @@
                     <span id="theme-label">主题颜色</span>
                 </div>
                 <div class="theme-options" id="theme-options"></div>
+            </div>
+            <div class="settings-section">
+                <div class="settings-label">
+                    <span class="material-icons">format_line_spacing</span>
+                    行间距
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <input type="range" id="line-spacing-slider" min="1.5" max="3.0" step="0.1"
+                           value="2.0" style="flex: 1;" onchange="setLineSpacing(this.value)">
+                    <span id="line-spacing-value" style="min-width: 40px; font-size: 13px; color: var(--reader-text);">2.0</span>
+                </div>
+            </div>
+            <div class="settings-section">
+                <div class="settings-label">
+                    <span class="material-icons">space_bar</span>
+                    字间距
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <input type="range" id="letter-spacing-slider" min="-1" max="5" step="0.5"
+                           value="0" style="flex: 1;" onchange="setLetterSpacing(this.value)">
+                    <span id="letter-spacing-value" style="min-width: 40px; font-size: 13px; color: var(--reader-text);">0px</span>
+                </div>
             </div>
             <div class="settings-section">
                 <div class="settings-label">
@@ -386,9 +449,9 @@
         var isChapterLoading = false;
         var isAnimating = false;
 
-        var settings = { mode: 'day', themeIndex: 1, animation: 'slide' };
+        var settings = { mode: 'day', themeIndex: 1, animation: 'slide', lineSpacing: 2.0, letterSpacing: 0 };
         var FONT_SIZE = 18;
-        var LINE_HEIGHT = 2;
+        var LINE_HEIGHT_BASE = 2;
         var PADDING_VERTICAL = 80;
         var PADDING_HORIZONTAL = 40;
         var TITLE_FONT_SIZE = 22;
@@ -404,6 +467,8 @@
                     if (p.mode !== undefined) settings.mode = p.mode;
                     if (p.themeIndex !== undefined) settings.themeIndex = p.themeIndex;
                     if (p.animation !== undefined) settings.animation = p.animation;
+                    if (p.lineSpacing !== undefined) settings.lineSpacing = p.lineSpacing;
+                    if (p.letterSpacing !== undefined) settings.letterSpacing = p.letterSpacing;
                 } catch(e) {}
             }
         }
@@ -425,6 +490,15 @@
             root.setProperty('--reader-loading-spinner', theme.text);
             updateModeButton();
             updateThemeOptions();
+            applySpacing();
+        }
+
+        function applySpacing() {
+            var lineH = FONT_SIZE * settings.lineSpacing;
+            document.querySelectorAll('.page-layer').forEach(function(layer) {
+                layer.style.lineHeight = settings.lineSpacing;
+                layer.style.letterSpacing = settings.letterSpacing + 'px';
+            });
         }
 
         function updateModeButton() {
@@ -460,6 +534,45 @@
             });
         }
 
+        function setLineSpacing(value) {
+            var val = parseFloat(value);
+            if (isNaN(val)) return;
+            settings.lineSpacing = Math.max(1.5, Math.min(3.0, val));
+            saveSettings();
+            applySpacing();
+            document.getElementById('line-spacing-value').textContent = settings.lineSpacing.toFixed(1);
+            
+            // 重新分页
+            if (chapterCache[currentChapter]) {
+                paginateContent(chapterCache[currentChapter]);
+                currentPage = 0;
+                renderPage();
+            }
+        }
+
+        function setLetterSpacing(value) {
+            var val = parseFloat(value);
+            if (isNaN(val)) return;
+            settings.letterSpacing = Math.max(-1, Math.min(5, val));
+            saveSettings();
+            applySpacing();
+            document.getElementById('letter-spacing-value').textContent = settings.letterSpacing + 'px';
+            
+            // 重新分页
+            if (chapterCache[currentChapter]) {
+                paginateContent(chapterCache[currentChapter]);
+                currentPage = 0;
+                renderPage();
+            }
+        }
+
+        function updateSpacingSliders() {
+            document.getElementById('line-spacing-slider').value = settings.lineSpacing;
+            document.getElementById('line-spacing-value').textContent = settings.lineSpacing.toFixed(1);
+            document.getElementById('letter-spacing-slider').value = settings.letterSpacing;
+            document.getElementById('letter-spacing-value').textContent = settings.letterSpacing + 'px';
+        }
+
         function toggleSettings() {
             var panel = document.getElementById('settings-panel');
             var overlay = document.getElementById('settings-overlay');
@@ -468,6 +581,10 @@
             panel.classList.toggle('visible', show);
             overlay.classList.toggle('visible', show);
             btn.classList.toggle('active', show);
+            if (show) {
+                updateSpacingSliders();
+                updateAnimationOptions();
+            }
         }
         function closeSettings() {
             document.getElementById('settings-panel').classList.remove('visible');
@@ -480,9 +597,10 @@
             var container = document.querySelector('.page-content');
             var w = container.clientWidth || (window.innerWidth - PADDING_HORIZONTAL * 2);
             var h = container.clientHeight || (window.innerHeight - PADDING_VERTICAL * 2);
-            var lineH = FONT_SIZE * LINE_HEIGHT;
+            var lineH = FONT_SIZE * settings.lineSpacing;
+            var charW = FONT_SIZE * 0.6 + settings.letterSpacing;
             var lpp = Math.max(Math.floor(h / lineH * 0.95) - 3, 5);
-            var cpl = Math.max(Math.floor(w / (FONT_SIZE * 0.6) * 0.95) - 2, 10);
+            var cpl = Math.max(Math.floor(w / charW * 0.95) - 2, 10);
             return { linesPerPage: lpp, charsPerLine: cpl, containerWidth: w, containerHeight: h };
         }
 
@@ -493,6 +611,7 @@
                 loadSettings();
                 applyTheme();
                 updateAnimationOptions();
+                applySpacing();
                 document.getElementById('novel-title').textContent = currentNovel;
                 document.getElementById('novel-author').textContent = currentAuthor;
                 updateTime();
@@ -583,7 +702,7 @@
             var lpp = dims.linesPerPage;
             var cpl = dims.charsPerLine;
             var titleH = TITLE_FONT_SIZE * TITLE_LINE_HEIGHT + TITLE_MARGIN_BOTTOM;
-            var nlh = FONT_SIZE * LINE_HEIGHT;
+            var nlh = FONT_SIZE * settings.lineSpacing;
             var titleLines = Math.ceil(titleH / nlh);
 
             var paragraphs = content.split('\n');

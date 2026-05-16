@@ -21,11 +21,18 @@ CACHE_MAX_SIZE_MB = 10240   # 10 GB max cache size
 CACHE_MAX_AGE_DAYS = 30     # Remove files older than 30 days
 CACHE_CHECK_INTERVAL = 3600 # Check every hour
 
+# Auto cleanup for unused videos (configurable, default 7 days)
+UNUSED_VIDEO_AUTO_CLEANUP_DAYS = 7  # 可配置的变量，以后可以通过设置界面调整
+
 _cleanup_thread = None
 _cleanup_running = False
 
+# Active FFmpeg process tracking
+active_ffmpeg_processes = {}  # {bvid: subprocess.Popen}
+
 FFMPEG_PATH = None
-HAS_QSV = False  # 是否支持 Intel QSV 硬件加速
+HAS_NVENC = False  # 是否支持 NVIDIA NVENC 硬件加速
+HAS_QSV = False    # 是否支持 Intel QSV 硬件加速
 
 QUALITY_MAP = {
     16: '360P',
@@ -64,7 +71,6 @@ def check_ffmpeg():
 
 def check_qsv_support():
     """检测 FFmpeg 是否支持 Intel QSV 硬件编码器"""
-    global HAS_QSV
     if not FFMPEG_PATH:
         return False
     try:
@@ -86,21 +92,87 @@ def check_qsv_support():
         return False
 
 
+def check_nvenc_support():
+    """检测 FFmpeg 是否支持 NVIDIA NVENC 硬件编码器"""
+    if not FFMPEG_PATH:
+        return False
+    try:
+        creationflags = subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+        result = subprocess.run(
+            [FFMPEG_PATH, '-encoders'],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            creationflags=creationflags,
+            timeout=10
+        )
+        has_nvenc = 'h264_nvenc' in result.stdout
+        print(f'[Bili] NVIDIA NVENC 硬件加速支持: {has_nvenc}')
+        return has_nvenc
+    except Exception as e:
+        print(f'[Bili] 检测 NVIDIA NVENC 支持失败: {e}')
+        return False
+
+
 check_ffmpeg()
+HAS_NVENC = check_nvenc_support()
 HAS_QSV = check_qsv_support()
 
 
-def get_video_encoder_params(use_qsv=False):
+def get_video_encoder_params(encoder='x264'):
     """
-    根据是否使用 QSV 返回对应的视频编码参数
-    软件编码时添加 -threads 0 启用多线程加速
+    返回指定编码器的参数
+    encoder: 'nvenc' (NVIDIA), 'qsv' (Intel), 'x264' (软件)
     """
-    if use_qsv:
-        # Intel QSV 硬件编码，-global_quality 范围 0-51，类似 CRF
+    if encoder == 'nvenc':
+        # NVIDIA NVENC 硬件编码，-cq 恒定质量，默认 preset=p4(medium)
+        return ['-c:v', 'h264_nvenc', '-cq', '23']
+    elif encoder == 'qsv':
+        # Intel QSV 硬件编码，-global_quality 范围 0-51
         return ['-c:v', 'h264_qsv', '-global_quality', '23', '-preset', 'veryfast']
     else:
-        # 软件编码，-threads 0 让 x264 自动决定线程数（多线程）
+        # 软件编码，-threads 0 让 x264 自动决定线程数
         return ['-c:v', 'libx264', '-preset', 'fast', '-crf', '23', '-threads', '0']
+
+
+def _get_encoder_priority():
+    """返回按优先级排列的可用编码器列表 [(name, keyword), ...]"""
+    encoders = []
+    if HAS_NVENC:
+        encoders.append(('nvenc', 'nvenc'))
+    if HAS_QSV:
+        encoders.append(('qsv', 'qsv'))
+    encoders.append(('x264', 'libx264'))
+    return encoders
+
+
+def _is_encoder_error(error_lines, keyword):
+    """检查FFmpeg错误输出是否由指定编码器失败引起"""
+    kw = keyword.lower()
+    for line in error_lines:
+        if kw in line.lower():
+            return True
+    # QSV 失败时的额外特征：MFX session 错误
+    if keyword == 'qsv':
+        for line in error_lines:
+            if 'MFX' in line or 'mfx' in line:
+                return True
+    # NVENC 失败时的额外特征：CUDA/GPU 错误
+    if keyword == 'nvenc':
+        for line in error_lines:
+            if 'cuda' in line.lower() or 'nvenc' in line.lower():
+                return True
+    return False
+
+
+def safe_rename(src, dst):
+    """跨平台安全重命名，Windows下目标存在时先删除"""
+    if os.path.exists(dst):
+        try:
+            os.remove(dst)
+        except OSError:
+            pass
+    os.rename(src, dst)
 
 
 def ensure_bili_dir():
@@ -160,22 +232,63 @@ def is_video_cached(bvid):
 
 
 def get_cached_videos():
+    """获取所有视频的缓存状态（包括已完成、下载中、转换中）"""
     ensure_bili_dir()
-    videos = []
+    videos = {}
+    
+    # 首先扫描已缓存的文件
     try:
         for filename in os.listdir(BILI_DIR):
             if filename.endswith('.mp4'):
                 bvid = filename[:-4]
                 filepath = os.path.join(BILI_DIR, filename)
                 size = os.path.getsize(filepath)
-                videos.append({
+                videos[bvid] = {
                     'bvid': bvid,
+                    'status': 'completed',
+                    'progress': 100,
                     'size': size,
-                    'size_display': format_size(size)
-                })
+                    'size_display': format_size(size),
+                    'converting_progress': 100
+                }
     except Exception as e:
         print(f'[Bili] 扫描缓存目录失败: {e}')
-    return videos
+    
+    # 然后合并正在下载/转换中的任务
+    with download_lock:
+        for bvid, task in download_tasks.items():
+            if task.status != 'completed':
+                task_dict = task.to_dict()
+                # 如果文件已经存在但任务还在转换中，更新状态
+                if bvid in videos:
+                    videos[bvid].update({
+                        'status': task.status,
+                        'progress': task_dict.get('progress', 0),
+                        'converting_progress': task_dict.get('converting_progress', 0),
+                        'speed_display': task_dict.get('speed_display', ''),
+                        'downloaded_display': task_dict.get('downloaded_display', ''),
+                        'total_display': task_dict.get('total_display', ''),
+                        'queue_position': task_dict.get('queue_position', 0),
+                        'error': task_dict.get('error')
+                    })
+                else:
+                    # 文件还不存在，添加到列表
+                    videos[bvid] = {
+                        'bvid': bvid,
+                        'status': task.status,
+                        'progress': task_dict.get('progress', 0),
+                        'converting_progress': task_dict.get('converting_progress', 0),
+                        'size': 0,
+                        'size_display': '计算中...',
+                        'speed_display': task_dict.get('speed_display', ''),
+                        'downloaded_display': task_dict.get('downloaded_display', ''),
+                        'total_display': task_dict.get('total_display', ''),
+                        'queue_position': task_dict.get('queue_position', 0),
+                        'error': task_dict.get('error'),
+                        'title': getattr(task, 'title', bvid)
+                    }
+    
+    return list(videos.values())
 
 
 def format_size(size):
@@ -271,20 +384,111 @@ def download_file(url, filepath, task, headers=None):
     return actual_size
 
 
+def _run_ffmpeg_process(cmd, task, action_name='转换'):
+    """运行 FFmpeg 子进程，解析时长和进度。返回 (success, error_output)"""
+    global active_ffmpeg_processes
+    
+    creationflags = subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
+        creationflags=creationflags
+    )
+    
+    # 追踪活跃的 FFmpeg 进程
+    if hasattr(task, 'bvid') and task.bvid:
+        active_ffmpeg_processes[task.bvid] = process
+        print(f'[Bili] 开始追踪 FFmpeg 进程: {task.bvid} (PID: {process.pid})')
+
+    duration = None
+    error_output = []
+    import re
+    while True:
+        line = process.stderr.readline()
+        if not line and process.poll() is not None:
+            break
+
+        if line:
+            error_output.append(line.strip())
+
+            if 'Duration:' in line:
+                match = re.search(r'Duration: (\d{2}):(\d{2}):(\d{2})\.(\d{2})', line)
+                if match:
+                    h, m, s, ms = int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4))
+                    duration = h * 3600 + m * 60 + s + ms / 100
+                    print(f'[Bili] 视频时长: {duration}秒')
+
+            if 'time=' in line and duration:
+                match = re.search(r'time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})', line)
+                if match:
+                    h, m, s, ms = int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4))
+                    current_time = h * 3600 + m * 60 + s + ms / 100
+                    if duration > 0:
+                        task.converting_progress = int((current_time / duration) * 100)
+
+            if 'Error' in line or 'error' in line:
+                print(f'[Bili] FFmpeg输出: {line.strip()}')
+
+    process.wait()
+    
+    # 从追踪列表中移除
+    if hasattr(task, 'bvid') and task.bvid and task.bvid in active_ffmpeg_processes:
+        del active_ffmpeg_processes[task.bvid]
+        print(f'[Bili] FFmpeg 进程已完成: {task.bvid}')
+    
+    success = process.returncode == 0
+    if not success:
+        print(f'[Bili] FFmpeg{action_name}失败，返回码: {process.returncode}')
+        print(f'[Bili] 错误输出:')
+        for line in error_output[-20:]:
+            print(f'    {line}')
+    return success, error_output
+
+
+def _try_encoders(input_path, output_path, task, build_cmd, action_name='转换'):
+    """按优先级尝试编码器：NVENC → QSV → x264"""
+    encoders = _get_encoder_priority()
+    for i, (encoder_name, keyword) in enumerate(encoders):
+        is_last = (i == len(encoders) - 1)
+        encoder_label = {'nvenc': 'NVENC', 'qsv': 'QSV', 'x264': 'libx264'}[encoder_name]
+        print(f'[Bili] 尝试 {encoder_label} 编码器{action_name}...')
+
+        cmd = build_cmd(encoder_name)
+        print(f'[Bili] FFmpeg命令: {" ".join(cmd)}')
+
+        success, error_output = _run_ffmpeg_process(cmd, task, action_name)
+
+        if success:
+            output_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
+            print(f'[Bili] 视频{action_name}完成: {output_path} ({format_size(output_size)})')
+            return True
+
+        if not is_last and _is_encoder_error(error_output, keyword):
+            next_label = {'nvenc': 'QSV', 'qsv': 'libx264'}[encoder_name]
+            print(f'[Bili] {encoder_label} 编码失败，回退到 {next_label} 重试')
+            continue
+
+        return False
+
+    return False
+
+
 def convert_to_h264(input_path, output_path, task):
     if not FFMPEG_PATH or not os.path.exists(input_path):
         print(f'[Bili] FFmpeg未找到或输入文件不存在，跳过转换')
         if os.path.exists(input_path):
-            os.rename(input_path, output_path)
+            safe_rename(input_path, output_path)
             return True
         return False
 
     input_size = os.path.getsize(input_path)
     print(f'[Bili] 开始转换视频为H264格式: {input_path} -> {output_path} ({format_size(input_size)})')
 
-    try:
-        encoder_params = get_video_encoder_params(HAS_QSV)
-        cmd = [
+    def build_cmd(encoder_name):
+        encoder_params = get_video_encoder_params(encoder_name)
+        return [
             FFMPEG_PATH, '-y',
             '-i', input_path,
         ] + encoder_params + [
@@ -294,65 +498,12 @@ def convert_to_h264(input_path, output_path, task):
             output_path
         ]
 
-        print(f'[Bili] FFmpeg命令: {" ".join(cmd)}')
-
-        creationflags = subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            universal_newlines=True,
-            creationflags=creationflags
-        )
-
-        duration = None
-        error_output = []
-        while True:
-            line = process.stderr.readline()
-            if not line and process.poll() is not None:
-                break
-
-            if line:
-                error_output.append(line.strip())
-
-                if 'Duration:' in line:
-                    import re
-                    match = re.search(r'Duration: (\d{2}):(\d{2}):(\d{2})\.(\d{2})', line)
-                    if match:
-                        h, m, s, ms = int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4))
-                        duration = h * 3600 + m * 60 + s + ms / 100
-                        print(f'[Bili] 视频时长: {duration}秒')
-
-                if 'time=' in line and duration:
-                    import re
-                    match = re.search(r'time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})', line)
-                    if match:
-                        h, m, s, ms = int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4))
-                        current_time = h * 3600 + m * 60 + s + ms / 100
-                        if duration > 0:
-                            task.converting_progress = int((current_time / duration) * 100)
-                            print(f'[Bili] 转换进度: {task.converting_progress}%')
-
-                if 'Error' in line or 'error' in line:
-                    print(f'[Bili] FFmpeg输出: {line.strip()}')
-
-        process.wait()
-
-        if process.returncode == 0:
-            output_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
-            print(f'[Bili] 视频转换完成: {output_path} ({format_size(output_size)})')
-            return True
-        else:
-            print(f'[Bili] FFmpeg转换失败，返回码: {process.returncode}')
-            print(f'[Bili] 错误输出:')
-            for line in error_output[-20:]:
-                print(f'    {line}')
-            return False
-
+    try:
+        return _try_encoders(input_path, output_path, task, build_cmd, '转换')
     except FileNotFoundError:
         print('[Bili] FFmpeg未找到，跳过转换')
         if os.path.exists(input_path):
-            os.rename(input_path, output_path)
+            safe_rename(input_path, output_path)
             return True
         return False
     except Exception as e:
@@ -378,8 +529,8 @@ def merge_and_convert_video_audio(video_path, audio_path, output_path, task):
         print(f'[Bili] 视频文件不存在: {video_path}')
         return False
 
-    try:
-        encoder_params = get_video_encoder_params(HAS_QSV)
+    def build_cmd(encoder_name):
+        encoder_params = get_video_encoder_params(encoder_name)
         cmd = [FFMPEG_PATH, '-y', '-i', video_path]
         if audio_exists:
             cmd.extend(['-i', audio_path])
@@ -389,59 +540,10 @@ def merge_and_convert_video_audio(video_path, audio_path, output_path, task):
         else:
             cmd.extend(['-an'])
         cmd.extend(['-movflags', '+faststart', output_path])
+        return cmd
 
-        print(f'[Bili] FFmpeg命令: {" ".join(cmd)}')
-
-        creationflags = subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            universal_newlines=True,
-            creationflags=creationflags
-        )
-
-        duration = None
-        error_output = []
-        while True:
-            line = process.stderr.readline()
-            if not line and process.poll() is not None:
-                break
-
-            if line:
-                error_output.append(line.strip())
-
-                if 'Duration:' in line:
-                    import re
-                    match = re.search(r'Duration: (\d{2}):(\d{2}):(\d{2})\.(\d{2})', line)
-                    if match:
-                        h, m, s, ms = int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4))
-                        duration = h * 3600 + m * 60 + s + ms / 100
-                        print(f'[Bili] 视频时长: {duration}秒')
-
-                if 'time=' in line and duration:
-                    import re
-                    match = re.search(r'time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})', line)
-                    if match:
-                        h, m, s, ms = int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4))
-                        current_time = h * 3600 + m * 60 + s + ms / 100
-                        if duration > 0:
-                            task.converting_progress = int((current_time / duration) * 100)
-                            print(f'[Bili] 合并进度: {task.converting_progress}%')
-
-        process.wait()
-
-        if process.returncode == 0:
-            output_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
-            print(f'[Bili] 视频合并转换完成: {output_path} ({format_size(output_size)})')
-            return True
-        else:
-            print(f'[Bili] FFmpeg合并转换失败，返回码: {process.returncode}')
-            print(f'[Bili] 错误输出:')
-            for line in error_output[-20:]:
-                print(f'    {line}')
-            return False
-
+    try:
+        return _try_encoders(video_path, output_path, task, build_cmd, '合并')
     except FileNotFoundError:
         print('[Bili] FFmpeg未找到，尝试直接复制')
         return False
@@ -461,6 +563,7 @@ def download_video_task(task):
         with download_lock:
             active_downloads += 1
             task.status = 'fetching'
+            task.progress = 0
             task.queue_position = 0
 
         try:
@@ -490,6 +593,8 @@ def download_video_task(task):
                 stream = streams[0]
                 url = stream.url
                 task.status = 'downloading'
+                task.progress = 0
+                print(f'[Bili] 状态已更新为: downloading')
                 download_file(url, temp_merged_path, task, headers)
 
                 merged_size = os.path.getsize(temp_merged_path) if os.path.exists(temp_merged_path) else 0
@@ -499,6 +604,8 @@ def download_video_task(task):
 
                 task.status = 'converting'
                 task.converting_progress = 0
+                task.progress = 100
+                print(f'[Bili] 状态已更新为: converting, 下载进度: 100%')
                 print(f'[Bili] 开始转换为H264格式')
                 success = convert_to_h264(temp_merged_path, video_path, task)
 
@@ -509,14 +616,16 @@ def download_video_task(task):
                         pass
                     task.status = 'completed'
                     task.progress = 100
-                    print(f'[Bili] 视频处理成功: {video_path}')
+                    task.converting_progress = 100
+                    print(f'[Bili] 视频处理成功: {video_path}, 状态: completed')
                 else:
                     print(f'[Bili] 转换失败，保留原始文件')
                     if os.path.exists(temp_merged_path):
-                        os.rename(temp_merged_path, video_path)
+                        safe_rename(temp_merged_path, video_path)
                     task.status = 'completed'
                     task.progress = 100
                     task.error = '视频转换失败，保留原始格式'
+                    print(f'[Bili] 状态: completed (转换失败但保留文件)')
 
             elif len(streams) >= 2:
                 print(f'[Bili] 双流模式下载（音视频分离）')
@@ -540,6 +649,8 @@ def download_video_task(task):
                     print(f'[Bili] 音频流URL: {audio_url[:100]}...')
 
                 task.status = 'downloading'
+                task.progress = 0
+                print(f'[Bili] 状态已更新为: downloading')
 
                 print(f'[Bili] 开始下载视频流')
                 download_file(video_url, temp_video_path, task, headers)
@@ -558,6 +669,8 @@ def download_video_task(task):
 
                 task.status = 'converting'
                 task.converting_progress = 0
+                task.progress = 100
+                print(f'[Bili] 状态已更新为: converting, 下载进度: 100%')
                 print(f'[Bili] 开始合并并转换为H264格式')
 
                 if audio_url and os.path.exists(temp_audio_path) and os.path.exists(temp_video_path):
@@ -584,7 +697,7 @@ def download_video_task(task):
                             else:
                                 print(f'[Bili] 转换失败，保留原始文件')
                                 if os.path.exists(temp_video_path):
-                                    os.rename(temp_video_path, video_path)
+                                    safe_rename(temp_video_path, video_path)
                                 task.error = '视频转换失败，保留原始格式'
                 else:
                     if os.path.exists(temp_video_path):
@@ -597,19 +710,20 @@ def download_video_task(task):
                             print(f'[Bili] 视频转换成功: {video_path}')
                         else:
                             print(f'[Bili] 转换失败，保留原始文件')
-                            os.rename(temp_video_path, video_path)
+                            safe_rename(temp_video_path, video_path)
                             task.error = '视频转换失败，保留原始格式'
 
                 task.status = 'completed'
                 task.progress = 100
-                print(f'[Bili] 下载完成: {video_path}')
+                task.converting_progress = 100
+                print(f'[Bili] 下载完成: {video_path}, 状态: completed')
             else:
                 raise Exception('未找到可用的下载地址')
 
         except Exception as e:
             task.status = 'error'
             task.error = str(e)
-            print(f'[Bili] 下载失败 {task.bvid}: {e}')
+            print(f'[Bili] 下载失败 {task.bvid}: {e}, 状态: error')
             import traceback
             traceback.print_exc()
         finally:
@@ -650,6 +764,9 @@ def start_download(bvid):
                 print(f'[Bili] 下载任务排队中: {bvid}, 队列位置: {task.queue_position}')
             else:
                 task.queue_position = 0
+                task.status = 'fetching'
+                task.progress = 0
+                print(f'[Bili] 开始下载任务: {bvid}, 状态已设置为 fetching')
                 executor.submit(download_video_task, task)
 
             return task
@@ -746,6 +863,94 @@ def cleanup_cache(max_size_mb=None, max_age_days=None):
     return {'deleted': deleted, 'freed_bytes': freed, 'freed_display': format_size(freed)}
 
 
+def cleanup_unused_videos(days=None):
+    """清理指定天数内无人观看的视频（可配置，默认7天）"""
+    from datetime import datetime, timezone, timedelta
+    try:
+        from models.bili_video import BiliVideoUser
+        from extensions import db
+    except ImportError:
+        print('[Bili] 无法导入数据库模型，跳过未使用视频清理')
+        return {'deleted_count': 0, 'deleted_files': [], 'error': '数据库模块不可用'}
+    
+    if days is None:
+        days = UNUSED_VIDEO_AUTO_CLEANUP_DAYS
+    
+    threshold = datetime.now(timezone.utc) - timedelta(days=days)
+    
+    print(f'[Bili] 开始清理 {days} 天未观看的视频...')
+    
+    # 找出所有超过阈值未观看的记录
+    unused_records = []
+    try:
+        unused_records = BiliVideoUser.query.filter(
+            BiliVideoUser.last_watched_at < threshold,
+            BiliVideoUser.last_watched_at.isnot(None)  # 排除从未观看过的记录
+        ).all()
+        
+        # 也包括 last_watched_at 为 None 且 added_at 超过阈值的记录（添加后从未观看）
+        old_new_records = BiliVideoUser.query.filter(
+            BiliVideoUser.last_watched_at.is_(None),
+            BiliVideoUser.added_at < threshold
+        ).all()
+        
+        unused_records.extend(old_new_records)
+    except Exception as e:
+        print(f'[Bili] 查询未使用视频失败: {e}')
+        return {'deleted_count': 0, 'deleted_files': [], 'error': str(e)}
+    
+    deleted_files = []
+    deleted_count = 0
+    
+    for record in unused_records:
+        bvid = record.bvid
+        
+        try:
+            # 检查是否还有其他用户引用该视频
+            other_users_count = BiliVideoUser.query.filter(
+                BiliVideoUser.bvid == bvid,
+                BiliVideoUser.user_id != record.user_id
+            ).count()
+            
+            if other_users_count == 0:
+                # 没有其他用户使用，可以删除文件和记录
+                filepath = os.path.join(BILI_DIR, f'{bvid}.mp4')
+                
+                if os.path.exists(filepath):
+                    try:
+                        os.remove(filepath)
+                        deleted_files.append(bvid)
+                        print(f'[Bili] 已删除未使用视频文件: {bvid}.mp4')
+                    except Exception as e:
+                        print(f'[Bili] 删除文件失败 {bvid}: {e}')
+            
+            # 删除用户的记录（无论文件是否被删除）
+            db.session.delete(record)
+            deleted_count += 1
+            
+        except Exception as e:
+            print(f'[Bili] 处理未使用视频记录失败 {record.id}: {e}')
+    
+    # 提交所有更改
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print(f'[Bili] 清理未使用视频提交失败: {e}')
+        return {'deleted_count': 0, 'deleted_files': [], 'error': f'提交失败: {str(e)}'}
+    
+    result = {
+        'deleted_count': deleted_count,
+        'deleted_files': deleted_files,
+        'deleted_files_count': len(deleted_files)
+    }
+    
+    if deleted_count > 0 or len(deleted_files) > 0:
+        print(f'[Bili] 未使用视频清理完成: 删除 {deleted_count} 条记录, 删除 {len(deleted_files)} 个文件')
+    
+    return result
+
+
 def start_cache_cleanup_scheduler():
     """Start a background thread that periodically cleans cache."""
     global _cleanup_thread, _cleanup_running
@@ -758,9 +963,16 @@ def start_cache_cleanup_scheduler():
         while _cleanup_running:
             time.sleep(CACHE_CHECK_INTERVAL)
             try:
+                # 执行常规缓存清理（基于文件大小和年龄）
                 result = cleanup_cache()
                 if result['deleted'] > 0:
                     print(f'[Bili] 定期清理: {result}')
+                
+                # 执行未使用视频清理（基于观看时间）
+                unused_result = cleanup_unused_videos()
+                if unused_result.get('deleted_count', 0) > 0 or len(unused_result.get('deleted_files', [])) > 0:
+                    print(f'[Bili] 未使用视频定期清理: {unused_result}')
+                    
             except Exception as e:
                 print(f'[Bili] 定期清理异常: {e}')
 
@@ -771,6 +983,65 @@ def start_cache_cleanup_scheduler():
 def stop_cache_cleanup_scheduler():
     global _cleanup_running
     _cleanup_running = False
+
+
+def terminate_all_ffmpeg_processes():
+    """终止所有活跃的 FFmpeg 转换进程（程序退出时调用）"""
+    global active_ffmpeg_processes
+    
+    if not active_ffmpeg_processes:
+        print('[Bili] 没有活跃的 FFmpeg 进程需要终止')
+        return {'terminated_count': 0, 'errors': []}
+    
+    print(f'[Bili] 正在终止 {len(active_ffmpeg_processes)} 个 FFmpeg 进程...')
+    
+    terminated_count = 0
+    errors = []
+    
+    for bvid, process in list(active_ffmpeg_processes.items()):
+        try:
+            if process.poll() is None:  # 进程仍在运行
+                print(f'[Bili] 终止 FFmpeg 进程: {bvid} (PID: {process.pid})')
+                
+                # 先尝试优雅终止 (terminate)
+                process.terminate()
+                
+                try:
+                    # 等待最多5秒让进程正常退出
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    # 超时，强制杀死进程 (kill)
+                    print(f'[Bili] 优雅终止超时，强制杀死进程: {bvid}')
+                    process.kill()
+                    try:
+                        process.wait(timeout=2)
+                    except:
+                        pass
+                
+                terminated_count += 1
+            else:
+                print(f'[Bili] 进程已结束: {bvid}')
+                terminated_count += 1
+            
+            del active_ffmpeg_processes[bvid]
+            
+        except Exception as e:
+            error_msg = f'终止 FFmpeg 进程失败 {bvid}: {e}'
+            errors.append(error_msg)
+            print(f'[Bili] {error_msg}')
+    
+    result = {
+        'terminated_count': terminated_count,
+        'total_tracked': len(active_ffmpeg_processes) + terminated_count,
+        'errors': errors
+    }
+    
+    if terminated_count > 0:
+        print(f'[Bili] FFmpeg 进程终止完成: 成功终止 {terminated_count} 个进程')
+        if errors:
+            print(f'[Bili] 错误数量: {len(errors)}')
+    
+    return result
 
 
 # Auto-start cache cleanup on import (runs once on first load)

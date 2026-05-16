@@ -13,6 +13,9 @@ class User(UserMixin, db.Model):
     passkey_used = db.Column(db.String(6), nullable=True)
     security_question = db.Column(db.String(255), nullable=True)
     security_answer_hash = db.Column(db.String(128), nullable=True)
+    session_version = db.Column(db.Integer, default=0)
+    line_height = db.Column(db.Float, default=1.6)
+    letter_spacing = db.Column(db.Float, default=0.0)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     
     def set_password(self, password):
@@ -28,6 +31,9 @@ class User(UserMixin, db.Model):
         if not self.security_answer_hash:
             return False
         return check_password_hash(self.security_answer_hash, answer.lower().strip())
+    
+    def invalidate_all_sessions(self):
+        self.session_version = (self.session_version or 0) + 1
     
     @property
     def display_name(self):
